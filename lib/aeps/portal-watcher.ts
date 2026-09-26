@@ -46,6 +46,26 @@ export function normalizeBankName(raw: string): string {
   return s;
 }
 
+/**
+ * Strict source-to-master bank matching.
+ * Watcher/AI extraction may only auto-link a bank when the extracted bank
+ * name exactly matches the CafeERP bank master name after trimming and
+ * collapsing whitespace (case-insensitive). Aliases, codes, prefixes,
+ * suffixes, and substring matches are intentionally rejected.
+ */
+export function normalizeBankNameExact(raw: string): string {
+  return (raw || "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+export function matchBankExactName(
+  inputName: string,
+  bankList: { id: string; name: string; code?: string }[]
+): { id: string; name: string; code?: string } | null {
+  const target = normalizeBankNameExact(inputName);
+  if (!target) return null;
+  return bankList.find((b) => !!b.name && normalizeBankNameExact(b.name) === target) || null;
+}
+
 export function matchBank(
   inputName: string,
   bankList: { id: string; name: string; code?: string }[]
@@ -574,17 +594,17 @@ export function crossVerifySourceObservations(
     resolvedType === "cash_out" ? "out" : "info";
 
   // 2. Bank resolution (Extracted Financial Institution)
-  const bankVotes = successfulObs
-    .filter((o) => o.normalizedData.bankName || o.normalizedData.bankCode)
+  // STRICT RULE: only an exact CafeERP master bank-name match may auto-link.
+  const bankObservations = successfulObs
+    .filter((o) => o.normalizedData.bankName)
     .map((o) => {
-      const matched = matchBank(o.normalizedData.bankName || o.normalizedData.bankCode || "", bankList);
-      return {
-        raw: o.normalizedData.bankName || o.normalizedData.bankCode,
-        matched,
-        source: o.sourceUrl,
-      };
-    })
-    .filter((v) => v.matched !== null);
+      const raw = String(o.normalizedData.bankName || "").trim();
+      const matched = matchBankExactName(raw, bankList);
+      return { raw, matched, source: o.sourceUrl };
+    });
+
+  const bankVotes = bankObservations.filter((v) => v.matched !== null);
+  const unmatchedBankObservations = bankObservations.filter((v) => v.matched === null);
 
   let resolvedBank: { id: string; name: string; code?: string } | null = null;
   let bankStatus: SourceConfidenceStatus = "NOT_FOUND";
@@ -601,10 +621,19 @@ export function crossVerifySourceObservations(
       bankCandidates = bankVotes.map((v) => v.matched!);
       conflicts.push({
         field: "bank",
-        message: "Multiple distinct banks detected across sources",
+        message: "Multiple distinct exact-match banks detected across sources",
         variants: bankVotes.map((v) => ({ name: v.matched!.name, source: v.source })),
       });
     }
+  }
+
+  if (unmatchedBankObservations.length > 0) {
+    conflicts.push({
+      field: "bank",
+      message: "Bank name not found in CafeERP master; exact match required",
+      variants: unmatchedBankObservations.map((v) => ({ name: v.raw, source: v.source })),
+    });
+    if (bankStatus !== "CONFLICT" && bankVotes.length > 0) bankStatus = "CONFLICT";
   }
 
   // 3. Customer Fee resolution & conflict detection
