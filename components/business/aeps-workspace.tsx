@@ -16,6 +16,7 @@ import {
   TOP_INDIAN_BANKS,
   normalizeBankName,
   matchBank,
+  matchBankExactName,
   normalizeTransactionType,
   resolvePricingFromRules,
   getDynamicDenominations,
@@ -104,6 +105,20 @@ export default function AepsWorkspace({
 }) {
   const supabase = createClient();
   const { showToast } = useToast();
+
+  // Local bank master state lets newly-created exact-match banks become
+  // selectable immediately without a full page refresh.
+  const [bankOptions, setBankOptions] = useState<Master[]>(initialBanks);
+  useEffect(() => {
+    setBankOptions(initialBanks);
+  }, [initialBanks]);
+
+  const [bankCreateOpen, setBankCreateOpen] = useState(false);
+  const [bankCreateName, setBankCreateName] = useState("");
+  const [bankCreateCode, setBankCreateCode] = useState("");
+  const [bankCreateReason, setBankCreateReason] = useState("");
+  const [bankCreateBusy, setBankCreateBusy] = useState(false);
+  const [unmatchedBankName, setUnmatchedBankName] = useState<string | null>(null);
   const [rows, setRows] = useState<Txn[]>(initialTransactions);
   const [activeTab, setActiveTab] = useState<"workspace" | "watcher" | "ledger">("workspace");
 
@@ -476,9 +491,9 @@ export default function AepsWorkspace({
     const top = TOP_INDIAN_BANKS.find((b) => b.code === code);
     if (!top) return;
     const matched =
-      matchBank(top.label, initialBanks) ||
-      matchBank(top.code, initialBanks) ||
-      matchBank(top.match[0], initialBanks);
+      bankOptions.find((b) => b.code?.toUpperCase() === top.code) ||
+      matchBankExactName(top.label, bankOptions) ||
+      matchBankExactName(top.match[0], bankOptions);
     if (matched) {
       if (bankId && bankId !== matched.id) {
         // Audit log operator change
@@ -488,7 +503,7 @@ export default function AepsWorkspace({
             user: "Operator",
             timestamp: new Date().toISOString(),
             field: "bank",
-            oldValue: initialBanks.find((b) => b.id === bankId)?.name || "—",
+            oldValue: bankOptions.find((b) => b.id === bankId)?.name || "—",
             newValue: matched.name,
             reason: "Operator selected different bank chip",
           },
@@ -499,9 +514,61 @@ export default function AepsWorkspace({
     }
   };
 
+  const openCreateBank = useCallback((prefillName = "", reason = "") => {
+    setBankCreateName(prefillName.trim());
+    setBankCreateCode("");
+    setBankCreateReason(reason);
+    setBankCreateOpen(true);
+  }, []);
+
+  const handleCreateBank = async () => {
+    const cleanName = bankCreateName.trim().replace(/\s+/g, " ");
+    const cleanCode = bankCreateCode.trim().toUpperCase() || null;
+    if (!cleanName) {
+      showToast("error", "Bank name is required.");
+      return;
+    }
+
+    const existing = matchBankExactName(cleanName, bankOptions);
+    if (existing) {
+      setBankId(existing.id);
+      setUnmatchedBankName(null);
+      setBankCreateOpen(false);
+      showToast("info", `Exact bank already exists: ${existing.name}.`);
+      return;
+    }
+
+    setBankCreateBusy(true);
+    try {
+      const { data, error } = await supabase
+        .from("aeps_banks")
+        .insert({
+          name: cleanName,
+          code: cleanCode,
+          is_active: true,
+        })
+        .select("id,name,code,is_active")
+        .single();
+
+      if (error) throw error;
+      const created = data as Master;
+      setBankOptions((prev) => [...prev.filter((b) => b.id !== created.id), created].sort((a, b) =>
+        String(a.name).localeCompare(String(b.name))
+      ));
+      setBankId(created.id);
+      setUnmatchedBankName(null);
+      setBankCreateOpen(false);
+      showToast("success", `Bank created and selected: ${created.name}.`);
+    } catch (err: any) {
+      showToast("error", err?.message || "Unable to create bank.");
+    } finally {
+      setBankCreateBusy(false);
+    }
+  };
+
   const isBankChipActive = (code: string) => {
     if (!bankId) return false;
-    const currentBank = initialBanks.find((b) => b.id === bankId);
+    const currentBank = bankOptions.find((b) => b.id === bankId);
     if (!currentBank) return false;
     const top = TOP_INDIAN_BANKS.find((b) => b.code === code);
     if (!top) return false;
@@ -594,8 +661,18 @@ export default function AepsWorkspace({
     if (fields.portal_commission) setCommission(fields.portal_commission);
 
     if (fields.bank_name) {
-      const matched = matchBank(fields.bank_name, initialBanks);
-      if (matched) setBankId(matched.id);
+      const extractedBankName = String(fields.bank_name).trim();
+      const matched = matchBankExactName(extractedBankName, bankOptions);
+      if (matched) {
+        setBankId(matched.id);
+        setUnmatchedBankName(null);
+      } else {
+        setUnmatchedBankName(extractedBankName);
+        openCreateBank(
+          extractedBankName,
+          "The source/scan returned a bank name that does not exactly match the CafeERP Bank Master."
+        );
+      }
     }
     if (fields.portal_name) {
       const p = initialPortals.find(
@@ -645,7 +722,7 @@ export default function AepsWorkspace({
           portalName: targetPortal.name,
           sources: portalSources,
           activeRules: pricingRules,
-          bankList: initialBanks,
+          bankList: bankOptions,
           forceFresh,
         }),
       });
@@ -668,6 +745,24 @@ export default function AepsWorkspace({
 
         // Auto-populate transaction form from verified context
         const ctx = run.verifiedContext;
+
+        // Strict bank-name policy: unresolved source bank names are surfaced
+        // for explicit creation instead of being mapped to a fuzzy match.
+        const unresolvedBankObservation = run.observations.find(
+          (o) =>
+            !!o.normalizedData.bankName &&
+            !o.normalizedData.bankId &&
+            o.confidence !== "SOURCE_FAILED"
+        );
+        if (unresolvedBankObservation?.normalizedData.bankName) {
+          const sourceBank = String(unresolvedBankObservation.normalizedData.bankName).trim();
+          setUnmatchedBankName(sourceBank);
+          openCreateBank(
+            sourceBank,
+            "Watcher found a bank name that is not an exact match in the CafeERP Bank Master."
+          );
+        }
+
         if (ctx.transactionType.value) {
           setTransactionType(ctx.transactionType.value);
         }
@@ -708,7 +803,7 @@ export default function AepsWorkspace({
           observations: [],
           verifiedContext: {
             transactionType: { value: "cash_out", status: "CONFIRMED", sources: [] },
-            bank: { value: initialBanks[0] || null, status: "CONFIRMED", sources: [] },
+            bank: { value: bankOptions[0] || null, status: "CONFIRMED", sources: [] },
             portal: { id: targetPortal.id, name: targetPortal.name, status: "CONFIRMED" },
             customerFee: { value: 15, status: "CONFIRMED", sources: [] },
             commission: { value: 4, status: "CONFIRMED", sources: [] },
@@ -722,10 +817,10 @@ export default function AepsWorkspace({
         setCurrentRun(defaultRun);
         setCollectionRuns((prev) => [defaultRun, ...prev]);
         setTransactionType("cash_out");
-        if (initialBanks[0]) setBankId(initialBanks[0].id);
+        if (bankOptions[0]) setBankId(bankOptions[0].id);
         const resolved = resolvePricingFromRules(pricingRules, {
           portalId: targetPortal.id,
-          bankId: initialBanks[0]?.id,
+          bankId: bankOptions[0]?.id,
           transactionType: "cash_out",
           amount: Number(amount) || 2000,
         });
@@ -1182,7 +1277,7 @@ export default function AepsWorkspace({
   };
 
   const portalName = initialPortals.find((p) => p.id === portalId)?.name || "—";
-  const bankName = initialBanks.find((b) => b.id === bankId)?.name || "—";
+  const bankName = bankOptions.find((b) => b.id === bankId)?.name || "—";
 
   // Last 7 days trend calculations
   const trendData = useMemo(() => {
@@ -2056,6 +2151,13 @@ export default function AepsWorkspace({
                     value={bankId}
                     onChange={(e) => {
                       const newId = e.target.value;
+                      if (newId === "__create_bank__") {
+                        openCreateBank(
+                          unmatchedBankName || "",
+                          "Create a new bank master entry for an unmatched bank name."
+                        );
+                        return;
+                      }
                       if (bankId && bankId !== newId) {
                         setAuditLogs((prev) => [
                           {
@@ -2063,8 +2165,8 @@ export default function AepsWorkspace({
                             user: "Operator",
                             timestamp: new Date().toISOString(),
                             field: "bank",
-                            oldValue: initialBanks.find((b) => b.id === bankId)?.name || "—",
-                            newValue: initialBanks.find((b) => b.id === newId)?.name || "—",
+                            oldValue: bankOptions.find((b) => b.id === bankId)?.name || "—",
+                            newValue: bankOptions.find((b) => b.id === newId)?.name || "—",
                             reason: "Operator manual override",
                           },
                           ...prev,
@@ -2075,13 +2177,32 @@ export default function AepsWorkspace({
                     className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-indigo-500"
                   >
                     <option value="">Select Issuer Bank</option>
-                    {initialBanks.map((b) => (
+                    {bankOptions.map((b) => (
                       <option key={b.id} value={b.id}>
                         {b.name}
                       </option>
                     ))}
+                    <option value="__create_bank__">＋ Create New Bank</option>
                   </select>
                   <p className="mt-1 text-[9px] text-slate-400">Changing bank will NOT change portal</p>
+                  {unmatchedBankName && (
+                    <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-[10px] text-amber-900">
+                      <div className="font-bold">Bank not found in Bank Master</div>
+                      <div className="mt-0.5 truncate font-mono">{unmatchedBankName}</div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          openCreateBank(
+                            unmatchedBankName,
+                            "Create the missing bank because the source name has no exact CafeERP Bank Master match."
+                          )
+                        }
+                        className="mt-1.5 rounded-lg bg-amber-600 px-2.5 py-1 text-[10px] font-black text-white hover:bg-amber-700"
+                      >
+                        ＋ Create Bank
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Registered Portal Selector */}
@@ -3281,7 +3402,7 @@ export default function AepsWorkspace({
                         className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 font-semibold"
                       >
                         <option value="all">All Banks</option>
-                        {initialBanks.map((b) => (
+                        {bankOptions.map((b) => (
                           <option key={b.id} value={b.id}>
                             {b.name}
                           </option>
@@ -3349,7 +3470,7 @@ export default function AepsWorkspace({
                           <td className="px-3 py-2 font-mono font-black text-slate-950">₹{r.value}</td>
                           <td className="px-3 py-2 text-slate-600">
                             {r.bankId && r.bankId !== "all"
-                              ? initialBanks.find((b) => b.id === r.bankId)?.name || "Bank"
+                              ? bankOptions.find((b) => b.id === r.bankId)?.name || "Bank"
                               : "All Banks"}
                           </td>
                           <td className="px-3 py-2">
@@ -3403,6 +3524,77 @@ export default function AepsWorkspace({
                       ))}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* BANK MASTER — CREATE MISSING EXACT-MATCH BANK */}
+        {bankCreateOpen && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
+            <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 text-slate-900 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                  <h3 className="text-base font-black text-slate-950">Create Bank</h3>
+                  <p className="mt-0.5 text-xs text-slate-500">Add the bank to the CafeERP master so future exact matches can resolve automatically.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setBankCreateOpen(false)}
+                  disabled={bankCreateBusy}
+                  className="text-slate-400 hover:text-slate-700 text-lg font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {bankCreateReason && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] text-amber-900">
+                  <b>Why this is shown:</b> {bankCreateReason}
+                </div>
+              )}
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-700 mb-1">Bank Name *</label>
+                  <input
+                    autoFocus
+                    value={bankCreateName}
+                    onChange={(e) => setBankCreateName(e.target.value)}
+                    placeholder="Enter exact bank name"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 outline-none focus:border-blue-500"
+                  />
+                  <p className="mt-1 text-[9px] text-slate-400">Use the official bank name exactly as it should appear in the master.</p>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black text-slate-700 mb-1">Bank Code (optional)</label>
+                  <input
+                    value={bankCreateCode}
+                    onChange={(e) => setBankCreateCode(e.target.value)}
+                    placeholder="Optional code, e.g. HDFC"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-mono font-semibold text-slate-900 outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setBankCreateOpen(false)}
+                  disabled={bankCreateBusy}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateBank}
+                  disabled={bankCreateBusy || !bankCreateName.trim()}
+                  className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {bankCreateBusy ? "Creating..." : "Create Bank"}
+                </button>
               </div>
             </div>
           </div>
