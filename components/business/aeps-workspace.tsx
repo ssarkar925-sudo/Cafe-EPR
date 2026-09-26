@@ -1222,9 +1222,14 @@ export default function AepsWorkspace({
     if (liveWatcherActive || isVerifyingPortal) return;
 
     const api = (window as any).electronAPI;
-    if (!api?.isElectron || typeof api.startAepsWatcherAll !== "function") {
-      setLiveWatcherError("Live authenticated portal watching is available in the CafeERP Desktop app. Open the Windows desktop app to start the watcher.");
+    if (!api?.isElectron) {
+      setLiveWatcherError("Live authenticated portal watching requires the CafeERP Windows Desktop app.");
       showToast("error", "Open CafeERP Desktop to start the live authenticated watcher.");
+      return;
+    }
+    if (typeof api.startAepsWatcherAll !== "function") {
+      setLiveWatcherError("This CafeERP Desktop build is older than the live multi-source watcher. Install the latest Windows EXE before starting it.");
+      showToast("error", "CafeERP Desktop needs the latest watcher-enabled Windows EXE.");
       return;
     }
 
