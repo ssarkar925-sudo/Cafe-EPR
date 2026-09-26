@@ -1019,6 +1019,16 @@ export default function AepsWorkspace({
     return watcherSources.filter((s) => s.portalId === selectedWatcherPortalId && !s.isArchived);
   }, [watcherSources, selectedWatcherPortalId]);
 
+  const livePortalSources = useMemo(() => {
+    return watcherSources.filter((s) => s.portalId === portalId && !s.isArchived);
+  }, [watcherSources, portalId]);
+
+  const liveWatcherRun = currentRun && currentRun.portalId === portalId ? currentRun : null;
+  const liveEnabledCount = livePortalSources.filter((s) => s.isEnabled).length;
+  const liveHealthyCount = livePortalSources.filter((s) => s.isEnabled && (s.lastStatus === "success" || s.lastStatus === "verified")).length;
+  const liveErroredCount = livePortalSources.filter((s) => s.isEnabled && s.lastStatus === "error").length;
+
+
   const handleTestSource = async (source: PortalWatcherSource) => {
     setTestingSourceId(source.id);
     try {
@@ -2083,6 +2093,71 @@ export default function AepsWorkspace({
               </div>
             </div>
 
+            {/* LIVE WATCHER CARD — ALWAYS VISIBLE IN AEPS WORKSPACE */}
+            <section className="rounded-2xl border border-emerald-200 bg-white shadow-sm overflow-hidden">
+              <div className="flex flex-col gap-3 border-b border-emerald-100 bg-gradient-to-r from-emerald-50 via-white to-blue-50 p-4 md:flex-row md:items-center md:justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+                    <span className={isVerifyingPortal ? "animate-pulse text-lg" : "text-lg"}>◉</span>
+                    <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-emerald-500 shadow-sm" />
+                  </span>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-black uppercase tracking-wide text-slate-950">Live Watcher</h3>
+                      <span className="rounded-full border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-[9px] font-black text-emerald-800">{isVerifyingPortal ? "CHECKING…" : "READY"}</span>
+                    </div>
+                    <p className="mt-0.5 text-[11px] text-slate-500">Watching all enabled sources for <b className="text-slate-800">{portalName}</b></p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => verifyCurrentPortalDetails(true)}
+                    disabled={isVerifyingPortal || liveEnabledCount === 0}
+                    className="rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-black text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    {isVerifyingPortal ? "Verifying…" : "Verify Live"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedWatcherPortalId(portalId); setActiveTab("watcher"); }}
+                    className="rounded-xl border border-emerald-200 bg-white px-3.5 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-50"
+                  >
+                    Open Watcher
+                  </button>
+                </div>
+              </div>
+              <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="text-[9px] font-black uppercase tracking-wider text-slate-500">Portal</div>
+                  <div className="mt-1 truncate text-sm font-black text-slate-950">{portalName || "—"}</div>
+                  <div className="mt-1 text-[10px] text-slate-500">{livePortalSources.length} configured sources</div>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="text-[9px] font-black uppercase tracking-wider text-slate-500">Source Health</div>
+                  <div className="mt-1 text-sm font-black text-emerald-700">{liveHealthyCount}/{liveEnabledCount || 0} healthy</div>
+                  <div className="mt-1 text-[10px] text-slate-500">{liveErroredCount > 0 ? liveErroredCount + " source failure(s)" : "No active source failures"}</div>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="text-[9px] font-black uppercase tracking-wider text-slate-500">Verification</div>
+                  <div className="mt-1 text-sm font-black text-slate-950">{liveWatcherRun ? liveWatcherRun.verificationStatus : "Not verified"}</div>
+                  <div className="mt-1 text-[10px] text-slate-500">{lastVerifiedAt ? "Last check " + fmtTime(lastVerifiedAt) : "No live check this session"}</div>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="text-[9px] font-black uppercase tracking-wider text-slate-500">Watcher Context</div>
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    <span className="rounded-full bg-white px-2 py-1 text-[9px] font-bold text-slate-700 shadow-sm">Bank: {bankName || "Not found"}</span>
+                    <span className="rounded-full bg-white px-2 py-1 text-[9px] font-bold text-slate-700 shadow-sm">Fee: {inr(Number(fee || 0))}</span>
+                    <span className="rounded-full bg-white px-2 py-1 text-[9px] font-bold text-slate-700 shadow-sm">Comm: {inr(Number(commission || 0))}</span>
+                  </div>
+                </div>
+              </div>
+              {liveWatcherRun && liveWatcherRun.failedSourceCount > 0 && (
+                <div className="mx-4 mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-bold text-amber-900">
+                  Partial verification: {liveWatcherRun.successfulSourceCount} of {liveWatcherRun.sourceCount} sources succeeded. Open the watcher for failed-source details.
+                </div>
+              )}
+            </section>
             {/* AUTO-COLLECTED & VERIFIED SUMMARY BANNER */}
             <div className="rounded-2xl border border-emerald-200/90 bg-gradient-to-r from-emerald-50/80 via-teal-50/60 to-blue-50/60 p-4 shadow-sm space-y-2.5">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
