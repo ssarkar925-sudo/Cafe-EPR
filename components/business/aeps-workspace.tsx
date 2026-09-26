@@ -215,7 +215,7 @@ export default function AepsWorkspace({
     let isMounted = true;
     async function loadPersistedSources() {
       try {
-        const res = await fetch("/api/ai/portal-watcher?action=get_sources");
+        const res = await fetch("/api/ai/portal-watcher");
         const data = await res.json().catch(() => null);
         if (!res.ok || !data?.success || !Array.isArray(data.sources)) {
           throw new Error(data?.error || "Unable to load saved watcher sources.");
