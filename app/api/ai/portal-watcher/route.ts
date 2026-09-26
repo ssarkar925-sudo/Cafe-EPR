@@ -6,6 +6,7 @@ import { extractAmount, extractCommission, extractFee, extractReference } from "
 import {
   type PortalSourcePurpose,
   type PortalWatcherSource,
+  type SourceConfidenceStatus,
   type PortalCollectionObservation,
   type PortalCollectionRun,
   type PortalChangeRecord,
@@ -188,6 +189,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { searchParams } = new URL(request.url);
     const actionParam = searchParams.get("action");
 
     if (actionParam === "get_runs") {
