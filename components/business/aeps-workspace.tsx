@@ -975,19 +975,87 @@ export default function AepsWorkspace({
     }
   };
 
+  // Verify every registered portal independently. Never mix portal data.
+  const verifyAllPortalsLive = async () => {
+    if (isVerifyingPortal || initialPortals.length === 0) return;
+    setIsVerifyingPortal(true);
+    setVerificationProgressStep("Starting live verification for all portals...");
+    try {
+      const results = await Promise.all(initialPortals.map(async (portal) => {
+        const portalSources = watcherSources.filter((s) => s.portalId === portal.id && s.isEnabled && !s.isArchived);
+        if (portalSources.length === 0) {
+          return { portalId: portal.id, success: false, error: "No enabled watcher sources configured.", collectionRun: null, pendingChanges: [] };
+        }
+        const res = await fetch("/api/ai/portal-watcher", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "collect_all", portalId: portal.id, portalName: portal.name, sources: portalSources, activeRules: pricingRules, bankList: bankOptions, forceFresh: true }),
+        });
+        const data = await res.json().catch(() => null);
+        return {
+          portalId: portal.id,
+          success: Boolean(res.ok && data?.success && data?.collectionRun),
+          error: data?.error || (!res.ok ? "Portal verification failed." : null),
+          collectionRun: data?.collectionRun || null,
+          pendingChanges: Array.isArray(data?.pendingChanges) ? data.pendingChanges : [],
+        };
+      }));
+      const successfulRuns = results.map((r) => r.collectionRun).filter(Boolean) as PortalCollectionRun[];
+      if (successfulRuns.length > 0) {
+        setCollectionRuns((prev) => [...successfulRuns, ...prev.filter((old) => !successfulRuns.some((run) => run.portalId === old.portalId))]);
+        const selectedRun = successfulRuns.find((run) => run.portalId === portalId) || null;
+        if (selectedRun) {
+          setCurrentRun(selectedRun);
+          setLastVerifiedAt(new Date().toISOString());
+          const ctx = selectedRun.verifiedContext;
+          if (ctx.transactionType.value) setTransactionType(ctx.transactionType.value);
+          if (ctx.bank.value) setBankId(ctx.bank.value.id);
+          if (ctx.reference.value) handleTransactionRefChange(ctx.reference.value);
+          if (ctx.customerFee.value !== null && ctx.customerFee.value !== undefined) setFee(String(ctx.customerFee.value));
+          if (ctx.commission.value !== null && ctx.commission.value !== undefined) setCommission(String(ctx.commission.value));
+        }
+      }
+      const pending = results.flatMap((r) => r.pendingChanges);
+      if (pending.length > 0) setChangeRecords((prev) => [...pending, ...prev]);
+      const okCount = successfulRuns.length;
+      const noSourceCount = results.filter((r) => !r.success && r.error === "No enabled watcher sources configured.").length;
+      showToast(okCount === initialPortals.length ? "success" : "info", noSourceCount > 0 ? `${okCount}/${initialPortals.length} portals verified. Some portals have no enabled watcher sources.` : `${okCount}/${initialPortals.length} portals verified independently.`);
+    } catch (err: any) {
+      showToast("error", err?.message || "Failed to verify all portals.");
+    } finally {
+      setIsVerifyingPortal(false);
+      setVerificationProgressStep("");
+    }
+  };
   // Multi-Source Watcher Actions: exclude archived sources
   const currentPortalSources = useMemo(() => {
     return watcherSources.filter((s) => s.portalId === selectedWatcherPortalId && !s.isArchived);
   }, [watcherSources, selectedWatcherPortalId]);
 
-  const livePortalSources = useMemo(() => {
-    return watcherSources.filter((s) => s.portalId === portalId && !s.isArchived);
-  }, [watcherSources, portalId]);
+  const portalWatcherSummaries = useMemo(() => {
+    return initialPortals.map((portal) => {
+      const sources = watcherSources.filter((s) => s.portalId === portal.id && !s.isArchived);
+      const enabled = sources.filter((s) => s.isEnabled);
+      const latestRun = [...collectionRuns]
+        .filter((run) => run.portalId === portal.id)
+        .sort((a, b) => new Date(b.completedAt || b.startedAt).getTime() - new Date(a.completedAt || a.startedAt).getTime())[0] || null;
+      return {
+        portal,
+        sources,
+        enabledCount: enabled.length,
+        healthyCount: enabled.filter((s) => s.lastStatus === "success").length,
+        errorCount: enabled.filter((s) => s.lastStatus === "error").length,
+        latestRun,
+      };
+    });
+  }, [initialPortals, watcherSources, collectionRuns]);
 
+  const livePortalSources = useMemo(
+    () => watcherSources.filter((s) => s.portalId === portalId && !s.isArchived),
+    [watcherSources, portalId]
+  );
   const liveWatcherRun = currentRun && currentRun.portalId === portalId ? currentRun : null;
   const liveEnabledCount = livePortalSources.filter((s) => s.isEnabled).length;
-  const liveHealthyCount = livePortalSources.filter((s) => s.isEnabled && s.lastStatus === "success").length;
-  const liveErroredCount = livePortalSources.filter((s) => s.isEnabled && s.lastStatus === "error").length;
 
 
   const handleTestSource = async (source: PortalWatcherSource) => {
@@ -2030,71 +2098,53 @@ export default function AepsWorkspace({
               </div>
             </div>
 
-            {/* LIVE WATCHER CARD — ALWAYS VISIBLE IN AEPS WORKSPACE */}
+            {/* LIVE WATCHER CARD — ALL REGISTERED PORTALS */}
             <section className="rounded-2xl border border-emerald-200 bg-white shadow-sm overflow-hidden">
               <div className="flex flex-col gap-3 border-b border-emerald-100 bg-gradient-to-r from-emerald-50 via-white to-blue-50 p-4 md:flex-row md:items-center md:justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
-                    <span className={isVerifyingPortal ? "animate-pulse text-lg" : "text-lg"}>◉</span>
-                    <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-emerald-500 shadow-sm" />
-                  </span>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-black uppercase tracking-wide text-slate-950">Live Watcher</h3>
-                      <span className="rounded-full border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-[9px] font-black text-emerald-800">{isVerifyingPortal ? "CHECKING…" : "READY"}</span>
-                    </div>
-                    <p className="mt-0.5 text-[11px] text-slate-500">Watching all enabled sources for <b className="text-slate-800">{portalName}</b></p>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-black uppercase tracking-wide text-slate-950">Live Watcher — All Portals</h3>
+                    <span className="rounded-full border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-[9px] font-black text-emerald-800">{isVerifyingPortal ? "CHECKING…" : "READY"}</span>
                   </div>
+                  <p className="mt-0.5 text-[11px] text-slate-500">All registered portals are monitored independently. Portal results are never mixed.</p>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => verifyCurrentPortalDetails(true)}
-                    disabled={isVerifyingPortal || liveEnabledCount === 0}
-                    className="rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-black text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
-                  >
-                    {isVerifyingPortal ? "Verifying…" : "Verify Live"}
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={verifyAllPortalsLive} disabled={isVerifyingPortal || initialPortals.length === 0} className="rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-black text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50">
+                    {isVerifyingPortal ? "Verifying All…" : "Verify All Portals"}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => { setSelectedWatcherPortalId(portalId); setActiveTab("watcher"); }}
-                    className="rounded-xl border border-emerald-200 bg-white px-3.5 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-50"
-                  >
+                  <button type="button" onClick={() => verifyCurrentPortalDetails(true)} disabled={isVerifyingPortal || liveEnabledCount === 0} className="rounded-xl border border-emerald-200 bg-white px-3.5 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-50 disabled:opacity-50">
+                    Verify Selected
+                  </button>
+                  <button type="button" onClick={() => { setSelectedWatcherPortalId(portalId); setActiveTab("watcher"); }} className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">
                     Open Watcher
                   </button>
                 </div>
               </div>
-              <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <div className="text-[9px] font-black uppercase tracking-wider text-slate-500">Portal</div>
-                  <div className="mt-1 truncate text-sm font-black text-slate-950">{portalName || "—"}</div>
-                  <div className="mt-1 text-[10px] text-slate-500">{livePortalSources.length} configured sources</div>
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <div className="text-[9px] font-black uppercase tracking-wider text-slate-500">Source Health</div>
-                  <div className="mt-1 text-sm font-black text-emerald-700">{liveHealthyCount}/{liveEnabledCount || 0} healthy</div>
-                  <div className="mt-1 text-[10px] text-slate-500">{liveErroredCount > 0 ? liveErroredCount + " source failure(s)" : "No active source failures"}</div>
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <div className="text-[9px] font-black uppercase tracking-wider text-slate-500">Verification</div>
-                  <div className="mt-1 text-sm font-black text-slate-950">{liveWatcherRun ? liveWatcherRun.verificationStatus : "Not verified"}</div>
-                  <div className="mt-1 text-[10px] text-slate-500">{lastVerifiedAt ? "Last check " + fmtTime(lastVerifiedAt) : "No live check this session"}</div>
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <div className="text-[9px] font-black uppercase tracking-wider text-slate-500">Watcher Context</div>
-                  <div className="mt-1 flex flex-wrap gap-1.5">
-                    <span className="rounded-full bg-white px-2 py-1 text-[9px] font-bold text-slate-700 shadow-sm">Bank: {bankName || "Not found"}</span>
-                    <span className="rounded-full bg-white px-2 py-1 text-[9px] font-bold text-slate-700 shadow-sm">Fee: {inr(Number(fee || 0))}</span>
-                    <span className="rounded-full bg-white px-2 py-1 text-[9px] font-bold text-slate-700 shadow-sm">Comm: {inr(Number(commission || 0))}</span>
-                  </div>
-                </div>
+              <div className="grid gap-3 p-4 md:grid-cols-3">
+                {portalWatcherSummaries.map(({ portal, sources, enabledCount, healthyCount, errorCount, latestRun }) => {
+                  const selected = portal.id === portalId;
+                  const status = latestRun?.verificationStatus || (enabledCount > 0 ? "NOT VERIFIED" : "NOT CONFIGURED");
+                  return (
+                    <button key={portal.id} type="button" onClick={() => { setPortalId(portal.id); setSelectedWatcherPortalId(portal.id); }} className={'rounded-2xl border p-4 text-left transition-all ' + (selected ? "border-blue-400 bg-blue-50/70 ring-2 ring-blue-100" : "border-slate-200 bg-slate-50 hover:border-emerald-200 hover:bg-white")}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="truncate text-sm font-black text-slate-950">{portal.name}</div>
+                        <span className={'rounded-full px-2 py-0.5 text-[9px] font-black ' + (status === "VERIFIED" ? "bg-emerald-100 text-emerald-800" : status === "PARTIAL" ? "bg-amber-100 text-amber-800" : status === "CONFLICT" ? "bg-orange-100 text-orange-800" : status === "FAILED" ? "bg-rose-100 text-rose-800" : "bg-slate-200 text-slate-600")}>{status}</span>
+                      </div>
+                      <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                        <div className="rounded-xl bg-white p-2"><div className="text-[9px] font-bold text-slate-400">Sources</div><div className="mt-0.5 text-sm font-black text-slate-900">{sources.length}</div></div>
+                        <div className="rounded-xl bg-white p-2"><div className="text-[9px] font-bold text-slate-400">Healthy</div><div className="mt-0.5 text-sm font-black text-emerald-700">{healthyCount}/{enabledCount}</div></div>
+                        <div className="rounded-xl bg-white p-2"><div className="text-[9px] font-bold text-slate-400">Failed</div><div className="mt-0.5 text-sm font-black text-rose-600">{errorCount}</div></div>
+                      </div>
+                      <div className="mt-3 text-[10px] text-slate-500">{latestRun ? "Last verified " + fmtTime(latestRun.completedAt || latestRun.startedAt) + " · " + latestRun.successfulSourceCount + "/" + latestRun.sourceCount + " sources" : enabledCount > 0 ? "Configured · not verified yet" : "No watcher URLs configured"}</div>
+                    </button>
+                  );
+                })}
               </div>
-              {liveWatcherRun && liveWatcherRun.failedSourceCount > 0 && (
-                <div className="mx-4 mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-bold text-amber-900">
-                  Partial verification: {liveWatcherRun.successfulSourceCount} of {liveWatcherRun.sourceCount} sources succeeded. Open the watcher for failed-source details.
-                </div>
-              )}
+              <div className="border-t border-slate-100 bg-slate-50/70 px-4 py-3 text-[10px] text-slate-500">
+                <b className="text-slate-700">Selected transaction portal:</b> {portalName || "—"}. Other portal results are monitoring data only and never change this transaction's pricing or bank selection.
+              </div>
             </section>
+
             {/* AUTO-COLLECTED & VERIFIED SUMMARY BANNER */}
             <div className="rounded-2xl border border-emerald-200/90 bg-gradient-to-r from-emerald-50/80 via-teal-50/60 to-blue-50/60 p-4 shadow-sm space-y-2.5">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -2106,7 +2156,7 @@ export default function AepsWorkspace({
                   <span className="rounded-full bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 text-[10px] font-black text-emerald-800">
                     {currentRun
                       ? currentRun.verificationStatus === "VERIFIED"
-                        ? "5 / 5 sources verified"
+                        ? `${currentRun.successfulSourceCount} / ${currentRun.sourceCount} sources verified`
                         : `${currentRun.successfulSourceCount} / ${currentRun.sourceCount} Partial Verification`
                       : "Baseline Config Verified"}
                   </span>
