@@ -871,6 +871,44 @@ export default function AepsWorkspace({
     handleApplyExtractedSource(extracted);
   };
 
+  const collectBrowserObservations = async (
+    targetPortal: { id: string; name: string },
+    portalSources: PortalWatcherSource[]
+  ) => {
+    const api = (window as any).electronAPI;
+    if (!api?.isElectron || typeof api.collectAepsWatcherSources !== "function") {
+      return null;
+    }
+
+    const result = await api.collectAepsWatcherSources({
+      portalId: targetPortal.id,
+      portalName: targetPortal.name,
+      sources: portalSources.map((s) => ({
+        id: s.id,
+        url: s.url || s.sourceUrl || "",
+        purpose: s.purpose,
+      })),
+    });
+
+    return Array.isArray(result?.observations)
+      ? result.observations.map((o: any) => ({
+          sourceId: o.sourceId,
+          sourceUrl: o.sourceUrl,
+          purpose: o.purpose,
+          portalId: o.portalId,
+          portalName: o.portalName,
+          success: Boolean(o.success),
+          authRequired: Boolean(o.authRequired),
+          rendered: Boolean(o.rendered),
+          httpStatus: Number(o.httpStatus || 0),
+          latencyMs: Number(o.latencyMs || 0),
+          content: String(o.content || ""),
+          title: String(o.title || ""),
+          error: o.error || null,
+        }))
+      : [];
+  };
+
   // ---------------------------------------------------------------------------
   // CRITICAL REQUIREMENT: VERIFY CURRENT PORTAL DETAILS (CHECK ALL URLs TOGETHER)
   // ---------------------------------------------------------------------------
@@ -891,6 +929,7 @@ export default function AepsWorkspace({
 
       setVerificationProgressStep(`3/${Math.max(portalSources.length, 1)} Checking Terminal & Bank Switch status...`);
 
+      const browserObservations = await collectBrowserObservations(targetPortal, portalSources);
       const res = await fetch("/api/ai/portal-watcher", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -899,6 +938,7 @@ export default function AepsWorkspace({
           portalId: targetPortal.id,
           portalName: targetPortal.name,
           sources: portalSources,
+          browserObservations,
           activeRules: pricingRules,
           bankList: bankOptions,
           forceFresh,
@@ -986,10 +1026,20 @@ export default function AepsWorkspace({
         if (portalSources.length === 0) {
           return { portalId: portal.id, success: false, error: "No enabled watcher sources configured.", collectionRun: null, pendingChanges: [] };
         }
+        const browserObservations = await collectBrowserObservations(portal, portalSources);
         const res = await fetch("/api/ai/portal-watcher", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "collect_all", portalId: portal.id, portalName: portal.name, sources: portalSources, activeRules: pricingRules, bankList: bankOptions, forceFresh: true }),
+          body: JSON.stringify({
+            action: "collect_all",
+            portalId: portal.id,
+            portalName: portal.name,
+            sources: portalSources,
+            browserObservations,
+            activeRules: pricingRules,
+            bankList: bankOptions,
+            forceFresh: true,
+          }),
         });
         const data = await res.json().catch(() => null);
         return {
