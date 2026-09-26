@@ -78,36 +78,22 @@ function normalizePurposeData(
 
   // 5. Provider / Bank Info extraction
   else if (purpose === "provider_bank_info") {
-    // A source may contain a known master bank name inside a longer status
-    // sentence. That still resolves only when the bank-name token itself is
-    // an exact master name; aliases such as "SBI" are not silently converted.
-    const exactMaster = bankList.find((b) => {
-      if (!b.name) return false;
-      const escaped = b.name.replace(/[.*+?^$(){},|[\]\\]/g, "\\  // 5. Provider / Bank Info extraction
-  else if (purpose === "provider_bank_info") {
-    for (const b of bankList) {
-      if (cleanText.toLowerCase().includes(b.name.toLowerCase())) {
-        bankNameVal = b.name;
-        bankCodeVal = b.code || null;
-        break;
-      }
-    }
-    if (!bankNameVal) {
-      const psuMatch = cleanText.match(/\b(SBI|State Bank of India|PNB|Bank of Baroda|Canara Bank|HDFC|ICICI|Axis Bank)\b/i);
-      if (psuMatch) bankNameVal = psuMatch[1];
-    }
-    const bankLines = lines.filter((l) => /\b(?:bank|issuer|downtime|live|status|npci|switch)\b/i.test(l));
-    summary = bankLines.slice(0, 3).join("; ") || lines.slice(0, 2).join("; ") || "Provider bank network update.";
-  }");
-      return new RegExp(`(^|\\\\W)${escaped}(?=$|\\\\W)`, "i").test(cleanText);
-    });
+    // Strict bank rule: only a bank name that exactly matches a CafeERP
+    // master name (case-insensitive, ignoring only duplicate/outer whitespace)
+    // may be linked automatically. Aliases such as "SBI" are not converted
+    // to "State Bank of India".
+    const exactMaster = bankList.find(
+      (b) =>
+        !!b.name &&
+        cleanText.toLowerCase().includes(b.name.trim().replace(/\s+/g, " ").toLowerCase())
+    );
 
     if (exactMaster) {
       bankNameVal = exactMaster.name;
       bankCodeVal = exactMaster.code || null;
     } else {
-      // Preserve an explicitly-labelled unknown bank name so the UI can offer
-      // an operator-approved "Create Bank" action instead of fuzzy-mapping it.
+      // Preserve an explicitly labelled unknown bank name so the UI can ask
+      // the operator to create it instead of choosing a fuzzy match.
       const labelledBankLine =
         lines.find((l) => /(?:issuer\s+bank|bank\s+name|bank)\s*[:\-]/i.test(l)) || "";
       const labelledMatch = labelledBankLine.match(
@@ -118,7 +104,9 @@ function normalizePurposeData(
       }
     }
 
-    const bankLines = lines.filter((l) => /\b(?:bank|issuer|downtime|live|status|npci|switch)\b/i.test(l));
+    const bankLines = lines.filter((l) =>
+      /\b(?:bank|issuer|downtime|live|status|npci|switch)\b/i.test(l)
+    );
     summary = bankNameVal
       ? `Bank detected: ${bankNameVal}; ${bankLines.slice(0, 2).join("; ")}`
       : bankLines.slice(0, 3).join("; ") || lines.slice(0, 2).join("; ") || "Provider bank network update.";
