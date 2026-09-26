@@ -403,11 +403,11 @@ export async function POST(request: Request) {
       // Desktop Electron can provide browser-rendered/authenticated content.
       // The server still resolves the source list from the database and performs
       // all normalization/verification itself.
-      const browserObservations = Array.isArray(body.browserObservations) ? body.browserObservations : [];
-      const browserBySource = new Map(
+      const browserObservations: any[] = Array.isArray(body.browserObservations) ? body.browserObservations : [];
+      const browserBySource = new Map<string, any>(
         browserObservations
           .filter((o: any) => o && o.sourceId)
-          .map((o: any) => [String(o.sourceId), o])
+          .map((o: any) => [String(o.sourceId), o] as [string, any])
       );
 
       const fetchResults = await Promise.allSettled(
