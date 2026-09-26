@@ -212,7 +212,7 @@ export default function AepsWorkspace({
   // No defaults or synthetic verification state are merged into runtime state.
   useEffect(() => {
     let isMounted = true;
-    async function loadPersistedWatcherState() {
+    async function loadPersistedSources() {
       try {
         const [sourceRes, runRes] = await Promise.all([
           fetch("/api/ai/portal-watcher"),
@@ -252,7 +252,7 @@ export default function AepsWorkspace({
       }
     }
 
-    loadPersistedWatcherState();
+    loadPersistedSources();
     return () => {
       isMounted = false;
     };
