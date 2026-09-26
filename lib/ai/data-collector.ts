@@ -323,7 +323,11 @@ export async function fetchWebsiteData(rawUrl: string): Promise<WebCollectionRes
   }
 
   if (isPrivateIpOrHost(parsedUrl.hostname)) {
-    return { success: false, url: rawUrl, error: "Access to private/local network addresses is restricted for security." };
+    return {
+      success: false,
+      url: rawUrl,
+      error: "Access to private/local network addresses is restricted for security.",
+    };
   }
 
   try {
@@ -331,10 +335,11 @@ export async function fetchWebsiteData(rawUrl: string): Promise<WebCollectionRes
       method: "GET",
       headers: {
         "User-Agent": "CafeERP-AI-Assistant/2.0",
-        Accept: "text/html,application/xhtml+xml,application/xml,text/plain,application/json;q=0.9",
+        Accept:
+          "text/html,application/xhtml+xml,application/xml,text/plain,application/json;q=0.9",
       },
-      signal: AbortSignal.timeout(15000),
       redirect: "follow",
+      signal: AbortSignal.timeout(15000),
     });
 
     const httpStatus = response.status;
@@ -352,7 +357,11 @@ export async function fetchWebsiteData(rawUrl: string): Promise<WebCollectionRes
 
     const rawBody = await response.text();
 
-    if (contentType.includes("application/json") || rawBody.trim().startsWith("{") || rawBody.trim().startsWith("[")) {
+    if (
+      contentType.includes("application/json") ||
+      rawBody.trim().startsWith("{") ||
+      rawBody.trim().startsWith("[")
+    ) {
       try {
         const json = JSON.parse(rawBody);
         return {
@@ -365,26 +374,28 @@ export async function fetchWebsiteData(rawUrl: string): Promise<WebCollectionRes
           rendered: false,
         };
       } catch {
-        // Continue as HTML/text.
+        // Fall through and treat it as text/HTML.
       }
     }
 
-    const titleMatch = rawBody.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i);
-    const title = titleMatch ? titleMatch[1].replace(/\\s+/g, " ").trim() : parsedUrl.hostname;
+    const titleMatch = rawBody.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+    const title = titleMatch
+      ? titleMatch[1].replace(/\s+/g, " ").trim()
+      : parsedUrl.hostname;
 
     let cleanText = rawBody
-      .replace(/<script\\b[^<]*(?:(?!<\\/script>)[^<]*)*<\\/script>/gi, " ")
-      .replace(/<style\\b[^<]*(?:(?!<\\/style>)[^<]*)*<\\/style>/gi, " ")
-      .replace(/<noscript\\b[^<]*(?:(?!<\\/noscript>)[^<]*)*<\\/noscript>/gi, " ")
-      .replace(/<svg\\b[^<]*(?:(?!<\\/svg>)[^<]*)*<\\/svg>/gi, " ")
-      .replace(/<nav\\b[^<]*(?:(?!<\\/nav>)[^<]*)*<\\/nav>/gi, " ")
-      .replace(/<footer\\b[^<]*(?:(?!<\\/footer>)[^<]*)*<\\/footer>/gi, " ")
-      .replace(/<header\\b[^<]*(?:(?!<\\/header>)[^<]*)*<\\/header>/gi, " ")
-      .replace(/<br\\s*[\\/]?>/gi, "\\n")
-      .replace(/<\\/p>/gi, "\\n\\n")
-      .replace(/<\\/div>/gi, "\\n")
-      .replace(/<\\/tr>/gi, "\\n")
-      .replace(/<\\/h[1-6]>/gi, "\\n\\n")
+      .replace(/<script\b[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
+      .replace(/<noscript\b[\s\S]*?<\/noscript>/gi, " ")
+      .replace(/<svg\b[\s\S]*?<\/svg>/gi, " ")
+      .replace(/<nav\b[\s\S]*?<\/nav>/gi, " ")
+      .replace(/<footer\b[\s\S]*?<\/footer>/gi, " ")
+      .replace(/<header\b[\s\S]*?<\/header>/gi, " ")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/p>/gi, "\n\n")
+      .replace(/<\/div>/gi, "\n")
+      .replace(/<\/tr>/gi, "\n")
+      .replace(/<\/h[1-6]>/gi, "\n\n")
       .replace(/<[^>]+>/g, " ")
       .replace(/&nbsp;/gi, " ")
       .replace(/&amp;/gi, "&")
@@ -392,18 +403,35 @@ export async function fetchWebsiteData(rawUrl: string): Promise<WebCollectionRes
       .replace(/&gt;/gi, ">")
       .replace(/&quot;/gi, '"')
       .replace(/&#39;/gi, "'")
-      .replace(/[ \\t]+/g, " ")
-      .replace(/\\n\\s*\\n/g, "\\n\\n")
+      .replace(/[ \t]+/g, " ")
+      .replace(/\n\s*\n/g, "\n\n")
       .trim()
       .slice(0, 8000);
 
-    const hasPasswordField = /<input[^>]+type=["']password["']/i.test(rawBody);
-    const hasOtpField = /<input[^>]+(?:name|id)=["'][^"']*(?:otp|pin|verification)[^"']*["']/i.test(rawBody);
-    const loginWords = /\\b(?:sign\\s*in|login|log\\s*in|authentication required|enter otp|one time password)\\b/i.test(cleanText);
-    const likelyClientRenderedShell = cleanText.length < 180 && /<script\\b/i.test(rawBody) && /(?:__next|react|angular|vue|webpack)/i.test(rawBody);
-    const likelyAuthPage = hasPasswordField || hasOtpField;
+    const hasPasswordField =
+      /<input[^>]+type=["']password["']/i.test(rawBody);
 
-    if (likelyAuthPage || (loginWords && cleanText.length < 1200) || likelyClientRenderedShell) {
+    const hasOtpField =
+      /<input[^>]+(?:name|id)=["'][^"']*(?:otp|pin|verification)[^"']*["']/i.test(
+        rawBody
+      );
+
+    const loginWords =
+      /\b(?:sign\s*in|login|log\s*in|authentication required|enter otp|one time password)\b/i.test(
+        cleanText
+      );
+
+    const likelyClientRenderedShell =
+      cleanText.length < 180 &&
+      /<script\b/i.test(rawBody) &&
+      /(?:__next|react|angular|vue|webpack)/i.test(rawBody);
+
+    if (
+      hasPasswordField ||
+      hasOtpField ||
+      (loginWords && cleanText.length < 1200) ||
+      likelyClientRenderedShell
+    ) {
       return {
         success: false,
         url: rawUrl,
@@ -413,7 +441,8 @@ export async function fetchWebsiteData(rawUrl: string): Promise<WebCollectionRes
         contentType,
         requiresBrowser: true,
         rendered: false,
-        error: "Browser rendering or an authenticated session is required to read this source.",
+        error:
+          "Browser rendering or an authenticated session is required to read this source.",
       };
     }
 
@@ -442,7 +471,11 @@ export async function fetchWebsiteData(rawUrl: string): Promise<WebCollectionRes
     return {
       success: false,
       url: rawUrl,
-      error: err instanceof Error ? err.message : "Failed to fetch website content.",
+      error:
+        err instanceof Error
+          ? err.message
+          : "Failed to fetch website content.",
     };
   }
 }
+
