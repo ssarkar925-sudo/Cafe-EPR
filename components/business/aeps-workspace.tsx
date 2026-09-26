@@ -479,6 +479,7 @@ export default function AepsWorkspace({
     setFee("");
     setCommission("");
     setBankId("");
+    setUnmatchedBankName(null);
     setPortalId(initialPortals[0]?.id || "");
     setBankRef("");
     setPortalRef("");
@@ -668,10 +669,7 @@ export default function AepsWorkspace({
         setUnmatchedBankName(null);
       } else {
         setUnmatchedBankName(extractedBankName);
-        openCreateBank(
-          extractedBankName,
-          "The source/scan returned a bank name that does not exactly match the CafeERP Bank Master."
-        );
+        showToast("info", `Bank "${extractedBankName}" was not found by exact name. Use Create Bank to add it.`);
       }
     }
     if (fields.portal_name) {
@@ -757,10 +755,7 @@ export default function AepsWorkspace({
         if (unresolvedBankObservation?.normalizedData.bankName) {
           const sourceBank = String(unresolvedBankObservation.normalizedData.bankName).trim();
           setUnmatchedBankName(sourceBank);
-          openCreateBank(
-            sourceBank,
-            "Watcher found a bank name that is not an exact match in the CafeERP Bank Master."
-          );
+          showToast("info", `Bank "${sourceBank}" is not an exact Bank Master match. Create it if this is the correct official name.`);
         }
 
         if (ctx.transactionType.value) {
@@ -2173,6 +2168,7 @@ export default function AepsWorkspace({
                         ]);
                       }
                       setBankId(newId);
+                      if (newId) setUnmatchedBankName(null);
                     }}
                     className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-indigo-500"
                   >
