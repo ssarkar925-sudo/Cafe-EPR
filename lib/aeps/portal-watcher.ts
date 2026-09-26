@@ -550,7 +550,13 @@ export function resolvePricingFromRules(
     if (r.customerId && targetCustomerId && r.customerId !== targetCustomerId) return false;
     if (r.bankId && r.bankId !== "all" && targetBankId && r.bankId !== targetBankId) return false;
     const ruleTxnType = normalizeRuleTransactionType(r.transactionType);
-    if (ruleTxnType !== "all" && ruleTxnType !== targetTxnType) return false;
+    // Payment Collection is a distinct accounting flow. It must never silently
+    // inherit a generic "all" Cash Out pricing rule.
+    if (targetTxnType === "payment_collection") {
+      if (ruleTxnType !== "payment_collection") return false;
+    } else if (ruleTxnType !== "all" && ruleTxnType !== targetTxnType) {
+      return false;
+    }
     return true;
   });
 
@@ -806,12 +812,14 @@ export function crossVerifySourceObservations(
 
   // Overall Verification Status
   let overallStatus: VerificationStatus = "VERIFIED";
-  if (failedObs.length > 0 && successfulObs.length > 0) {
+  if (conflicts.length > 0) {
+    // A disagreement is more specific than partial availability and must not
+    // be downgraded to PARTIAL just because another source failed.
+    overallStatus = "CONFLICT";
+  } else if (failedObs.length > 0 && successfulObs.length > 0) {
     overallStatus = "PARTIAL";
   } else if (successfulObs.length === 0 && failedObs.length > 0) {
     overallStatus = "FAILED";
-  } else if (conflicts.length > 0) {
-    overallStatus = "CONFLICT";
   }
 
   const verifiedContext: VerifiedTransactionContext = {
