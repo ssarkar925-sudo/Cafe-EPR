@@ -128,24 +128,19 @@ function normalizePurposeData(
       (txnTypeVal ? txnTypeVal.toUpperCase() : "STANDARD") +
       (refVal ? "; Ref: " + refVal : "");
   } else if (purpose === "provider_bank_info") {
-    const exactMaster = bankList.find(
-      (b) =>
-        !!b.name &&
-        cleanText.toLowerCase().includes(
-          b.name.trim().replace(/\s+/g, " ").toLowerCase()
-        )
+    // Only an explicitly labelled bank field is eligible for transaction-bank
+    // linking. A status page listing many banks must not select one of them.
+    const labelledBankLine =
+      lines.find((l) => /(?:issuer\s+bank|customer\s+bank|bank\s+name)\s*[:\-]/i.test(l)) || "";
+    const labelledMatch = labelledBankLine.match(
+      /(?:issuer\s+bank|customer\s+bank|bank\s+name)\s*[:\-]\s*(.+)$/i
     );
-    if (exactMaster) {
-      bankNameVal = exactMaster.name;
-      bankCodeVal = exactMaster.code || null;
-    } else {
-      const labelledBankLine =
-        lines.find((l) => /(?:issuer\s+bank|bank\s+name|bank)\s*[:\-]/i.test(l)) || "";
-      const labelledMatch = labelledBankLine.match(
-        /(?:issuer\s+bank|bank\s+name|bank)\s*[:\-]\s*(.+)$/i
-      );
-      if (labelledMatch?.[1]) {
-        bankNameVal = labelledMatch[1].trim().replace(/[|;,].*$/, "").trim();
+    if (labelledMatch?.[1]) {
+      bankNameVal = labelledMatch[1].trim().replace(/[|;,].*$/, "").trim();
+      const exact = matchBankExactName(bankNameVal, bankList);
+      if (exact) {
+        bankNameVal = exact.name;
+        bankCodeVal = exact.code || null;
       }
     }
     const bankLines = lines.filter((l) =>
