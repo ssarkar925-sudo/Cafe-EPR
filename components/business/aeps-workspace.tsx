@@ -208,31 +208,56 @@ export default function AepsWorkspace({
   const [deletingSource, setDeletingSource] = useState<PortalWatcherSource | null>(null);
   const [isDeletingSource, setIsDeletingSource] = useState(false);
 
-  // Hydrate ONLY persisted watcher sources from the server.
-  // Never merge in code-defined/default URLs. An empty database means an empty
-  // watcher configuration.
+  // Hydrate ONLY persisted watcher sources and the persisted latest collection runs.
+  // No defaults or synthetic verification state are merged into runtime state.
   useEffect(() => {
     let isMounted = true;
-    async function loadPersistedSources() {
+    async function loadPersistedWatcherState() {
       try {
-        const res = await fetch("/api/ai/portal-watcher");
-        const data = await res.json().catch(() => null);
-        if (!res.ok || !data?.success || !Array.isArray(data.sources)) {
-          throw new Error(data?.error || "Unable to load saved watcher sources.");
+        const [sourceRes, runRes] = await Promise.all([
+          fetch("/api/ai/portal-watcher"),
+          fetch("/api/ai/portal-watcher?action=get_runs"),
+        ]);
+        const sourceData = await sourceRes.json().catch(() => null);
+        const runData = await runRes.json().catch(() => null);
+
+        if (!sourceRes.ok || !sourceData?.success || !Array.isArray(sourceData.sources)) {
+          throw new Error(sourceData?.error || "Unable to load saved watcher sources.");
         }
-        if (isMounted) setWatcherSources(data.sources);
+        if (!runRes.ok || !runData?.success || !Array.isArray(runData.runs)) {
+          throw new Error(runData?.error || "Unable to load saved watcher verification history.");
+        }
+
+        if (isMounted) {
+          setWatcherSources(sourceData.sources);
+          const runs = runData.runs as PortalCollectionRun[];
+          setCollectionRuns(runs);
+          const selected = runs.find((run) => run.portalId === portalId) || null;
+          if (selected) {
+            setCurrentRun(selected);
+            setLastVerifiedAt(selected.completedAt || selected.startedAt);
+          } else {
+            setCurrentRun(null);
+            setLastVerifiedAt(null);
+          }
+        }
       } catch (err: any) {
         if (isMounted) {
           setWatcherSources([]);
-          showToast("error", err?.message || "Unable to load saved watcher sources.");
+          setCollectionRuns([]);
+          setCurrentRun(null);
+          setLastVerifiedAt(null);
+          showToast("error", err?.message || "Unable to load saved watcher state.");
         }
       }
     }
-    loadPersistedSources();
+
+    loadPersistedWatcherState();
     return () => {
       isMounted = false;
     };
-  }, [showToast]);
+  }, [portalId, showToast]);
+
 
   // Portal Collection Run State
   const [collectionRuns, setCollectionRuns] = useState<PortalCollectionRun[]>([]);
