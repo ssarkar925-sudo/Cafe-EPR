@@ -12,6 +12,12 @@ import AppearancePanel from "@/components/settings/appearance-panel";
 import SecurityPanel from "@/components/settings/security-panel";
 import BackupPanel from "@/components/settings/backup-panel";
 import NotificationsPanel from "@/components/settings/notifications-panel";
+import PaymentAccountsPanel from "@/components/settings/payment-accounts-panel";
+import DefaultRoutingClient from "@/components/settings/default-routing-client";
+import MasterClient from "@/components/business/master-client";
+import RechargeProvidersPanel from "@/components/settings/recharge-providers-panel";
+import { SERVICE_CATEGORIES } from "@/components/business/commission-edit-modal";
+import { BillCommissionConfig, CommissionType } from "@/lib/bill-payment/commission";
 
 export interface SettingsModalProps {
   open: boolean;
@@ -196,6 +202,8 @@ const CATEGORIES: CategoryGroup[] = [
         desc: "Commercial bank registry used for biometric Aadhaar cash disbursement.",
         icon: "🏦",
         theme: "theme-purple",
+        badge: "In-Popup CRUD",
+        panelKey: "aeps-banks",
         directHref: "/business/banks",
       },
       {
@@ -204,6 +212,8 @@ const CATEGORIES: CategoryGroup[] = [
         desc: "Spice Money, Digipay, Ezeepay portal API connections and floats.",
         icon: "🌐",
         theme: "theme-purple",
+        badge: "In-Popup CRUD",
+        panelKey: "portals-master",
         directHref: "/business/portals",
       },
       {
@@ -212,6 +222,8 @@ const CATEGORIES: CategoryGroup[] = [
         desc: "Counter UPI QR stands, receiver IDs, and soundbox voice alerts.",
         icon: "📱",
         theme: "theme-cyan",
+        badge: "In-Popup CRUD",
+        panelKey: "merchant-qrs",
         directHref: "/business/merchant-qrs",
       },
     ],
@@ -229,8 +241,9 @@ const CATEGORIES: CategoryGroup[] = [
         desc: "Jio, Airtel, Vi operator commissions and retailer margin slabs.",
         icon: "📶",
         theme: "theme-amber",
-        badge: "Operator Slabs",
-        directHref: "/settings?tab=business-setup&section=recharge",
+        badge: "Slab Editor",
+        panelKey: "recharge-slabs",
+        directHref: "/business/bill-payment?tab=commission",
       },
       {
         id: "bbps-comm",
@@ -238,8 +251,9 @@ const CATEGORIES: CategoryGroup[] = [
         desc: "Custom retailer commissions across 10 utility categories.",
         icon: "⚡",
         theme: "theme-indigo",
-        badge: "Configurable",
-        directHref: "/settings?tab=business-setup&section=bill-payment",
+        badge: "Commission Matrix",
+        panelKey: "bbps-comm",
+        directHref: "/business/bill-payment?tab=commission",
       },
       {
         id: "recharge-plans",
@@ -273,6 +287,7 @@ const CATEGORIES: CategoryGroup[] = [
         icon: "💼",
         theme: "theme-cyan",
         badge: "Live Float",
+        panelKey: "payment-accounts",
         directHref: "/finance/accounts",
       },
       {
@@ -299,6 +314,7 @@ const CATEGORIES: CategoryGroup[] = [
         icon: "⚙️",
         theme: "theme-emerald",
         badge: "Zero-Delta",
+        panelKey: "accounting-defaults",
         directHref: "/settings/defaults",
       },
     ],
@@ -391,7 +407,7 @@ export default function SettingsModal({ open, onClose, initialCategory = "busine
   const [activeSubmodule, setActiveSubmodule] = useState<CardItem | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Store form state for in-popup editing
+  // Shop form state
   const [shopName, setShopName] = useState("Cafe ERP");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
@@ -403,7 +419,19 @@ export default function SettingsModal({ open, onClose, initialCategory = "busine
   const [upiId, setUpiId] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Load shop settings when modal opens
+  // Dynamic deep-panel datasets
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+  const [services, setServices] = useState<any[]>([]);
+  const [instruments, setInstruments] = useState<any[]>([]);
+  const [bankRows, setBankRows] = useState<any[]>([]);
+  const [portalRows, setPortalRows] = useState<any[]>([]);
+  const [merchantQrRows, setMerchantQrRows] = useState<any[]>([]);
+  const [rechargeProviders, setRechargeProviders] = useState<any[]>([]);
+  const [rechargeSlabs, setRechargeSlabs] = useState<any[]>([]);
+  const [bbpsConfigs, setBbpsConfigs] = useState<Record<string, { type: CommissionType; val: string }>>({});
+  const [bbpsSaving, setBbpsSaving] = useState(false);
+
+  // Load shop settings and shared data when modal opens
   useEffect(() => {
     if (!open) {
       setActiveSubmodule(null);
@@ -411,26 +439,86 @@ export default function SettingsModal({ open, onClose, initialCategory = "busine
       return;
     }
 
-    async function loadSettings() {
+    async function loadInitial() {
       try {
-        const { data } = await supabase.from("settings").select("*").limit(1).maybeSingle();
-        if (data) {
-          setShopName(data.shop_name || "Cafe ERP");
-          setPhone(data.phone || "");
-          setAddress(data.address || "");
-          setFooter(data.receipt_footer || "");
-          setCurrency(data.currency_symbol || "₹");
-          setLogoUrl(data.logo_url || null);
-          setGstin(data.gstin || "");
-          setTaxRate(data.tax_rate != null ? String(Number(data.tax_rate)) : "0");
-          setUpiId(data.upi_id || "");
+        const { data: sData } = await supabase.from("settings").select("*").limit(1).maybeSingle();
+        if (sData) {
+          setShopName(sData.shop_name || "Cafe ERP");
+          setPhone(sData.phone || "");
+          setAddress(sData.address || "");
+          setFooter(sData.receipt_footer || "");
+          setCurrency(sData.currency_symbol || "₹");
+          setLogoUrl(sData.logo_url || null);
+          setGstin(sData.gstin || "");
+          setTaxRate(sData.tax_rate != null ? String(Number(sData.tax_rate)) : "0");
+          setUpiId(sData.upi_id || "");
         }
       } catch {
         /* ignore */
       }
     }
-    loadSettings();
+    loadInitial();
   }, [open, supabase]);
+
+  // Load specific datasets when a submodule panel is selected
+  useEffect(() => {
+    if (!activeSubmodule) return;
+
+    const key = activeSubmodule.panelKey || activeSubmodule.id;
+
+    if (key === "payment-methods" && paymentMethods.length === 0) {
+      supabase.from("payment_methods").select("*").order("sort_order").then(({ data }) => {
+        if (data) setPaymentMethods(data);
+      });
+    } else if (key === "quick-favorites" && services.length === 0) {
+      supabase.from("services").select("*").eq("is_active", true).order("name").then(({ data }) => {
+        if (data) setServices(data);
+      });
+    } else if (key === "payment-accounts" && instruments.length === 0) {
+      supabase.from("payment_instruments").select("*").order("name").then(({ data }) => {
+        if (data) setInstruments(data);
+      });
+    } else if (key === "aeps-banks") {
+      supabase.from("aeps_banks").select("*").order("name").then(({ data }) => {
+        if (data) setBankRows(data);
+      });
+    } else if (key === "portals-master") {
+      supabase.from("service_portals").select("*").order("name").then(({ data }) => {
+        if (data) setPortalRows(data);
+      });
+    } else if (key === "merchant-qrs") {
+      supabase.from("merchant_qrs").select("*").order("name").then(({ data }) => {
+        if (data) setMerchantQrRows(data);
+      });
+    } else if (key === "recharge-slabs") {
+      Promise.all([
+        supabase.from("recharge_providers").select("*").eq("is_active", true).order("sort_order"),
+        supabase.from("recharge_commission_slabs").select("*").order("provider_id").order("min_amount"),
+      ]).then(([{ data: pData }, { data: sData }]) => {
+        if (pData) setRechargeProviders(pData);
+        if (sData) setRechargeSlabs(sData);
+      });
+    } else if (key === "bbps-comm") {
+      supabase.from("bill_payment_commission_config").select("*").then(({ data }) => {
+        const map: Record<string, { type: CommissionType; val: string }> = {};
+        SERVICE_CATEGORIES.forEach((cat) => {
+          map[cat.id] = { type: "flat", val: "5.00" };
+        });
+        if (data) {
+          data.forEach((row: any) => {
+            const cid = row.category_id || (row.service_type === "google_play_recharge" ? "google_play" : null);
+            if (cid) {
+              map[cid] = {
+                type: row.commission_type || "flat",
+                val: String(row.commission_value || "5.00"),
+              };
+            }
+          });
+        }
+        setBbpsConfigs(map);
+      });
+    }
+  }, [activeSubmodule, paymentMethods.length, services.length, instruments.length, supabase]);
 
   // Handle escape key
   useEffect(() => {
@@ -483,6 +571,33 @@ export default function SettingsModal({ open, onClose, initialCategory = "busine
       showToast("success", "Settings saved successfully.");
       setActiveSubmodule(null);
       router.refresh();
+    }
+  }
+
+  // Save BBPS Category Commission
+  async function handleSaveBbpsCommission(catId: string, serviceType: string) {
+    const config = bbpsConfigs[catId];
+    if (!config) return;
+    setBbpsSaving(true);
+
+    const payload = {
+      category_id: catId === "google_play" ? null : catId,
+      service_type: serviceType,
+      commission_type: config.type,
+      commission_value: Number(config.val) || 0,
+      is_active: true,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase.from("bill_payment_commission_config").upsert(payload, {
+      onConflict: catId === "google_play" ? "service_type" : "category_id",
+    });
+
+    setBbpsSaving(false);
+    if (error) {
+      showToast("error", error.message || "Failed to save commission.");
+    } else {
+      showToast("success", `Updated commission for ${catId}.`);
     }
   }
 
@@ -635,7 +750,7 @@ export default function SettingsModal({ open, onClose, initialCategory = "busine
                           onClick={onClose}
                           className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:underline dark:text-blue-400"
                         >
-                          Open Full Workspace ↗
+                          Open Standalone Workspace ↗
                         </Link>
                       )}
                     </div>
@@ -655,7 +770,7 @@ export default function SettingsModal({ open, onClose, initialCategory = "busine
                     </div>
                   </div>
 
-                  {/* Render corresponding panel or quick form */}
+                  {/* 1. STORE PROFILE, INVOICE & TAX FORMS */}
                   {activeSubmodule.panelKey === "general" ||
                   activeSubmodule.panelKey === "receipt" ||
                   activeSubmodule.panelKey === "tax" ? (
@@ -701,30 +816,176 @@ export default function SettingsModal({ open, onClose, initialCategory = "busine
                       </div>
                     </form>
                   ) : activeSubmodule.panelKey === "payment-methods" ? (
+                    /* 2. PAYMENT METHODS MASTER */
                     <div className="space-y-4">
-                      <PaymentMethodsPanel initialPaymentMethods={[]} active={true} />
+                      <PaymentMethodsPanel initialPaymentMethods={paymentMethods} active={true} />
                     </div>
                   ) : activeSubmodule.panelKey === "quick-favorites" ? (
+                    /* 3. POS COUNTER FAVORITES */
                     <div className="space-y-4">
-                      <QuickFavoritesPanel initialServices={[]} active={true} />
+                      <QuickFavoritesPanel initialServices={services} active={true} />
+                    </div>
+                  ) : activeSubmodule.panelKey === "payment-accounts" ? (
+                    /* 4. PAYMENT ACCOUNTS & LIQUIDITY POOLS */
+                    <div className="space-y-4">
+                      <PaymentAccountsPanel initialInstruments={instruments} active={true} />
+                    </div>
+                  ) : activeSubmodule.panelKey === "accounting-defaults" ? (
+                    /* 5. ACCOUNTING DEFAULTS & ROUTING */
+                    <div className="space-y-4">
+                      <DefaultRoutingClient />
+                    </div>
+                  ) : activeSubmodule.panelKey === "aeps-banks" ? (
+                    /* 6. AEPS BANKS MASTER */
+                    <div className="space-y-4">
+                      <MasterClient
+                        title="AEPS Banks Master"
+                        desc="Commercial bank registry used for biometric Aadhaar cash disbursement."
+                        table="aeps_banks"
+                        fields={[
+                          { key: "name", label: "Bank Name", required: true, placeholder: "State Bank of India" },
+                          { key: "code", label: "Bank Code / Shortname", placeholder: "SBI" },
+                        ]}
+                        rows={bankRows}
+                        embedded={true}
+                      />
+                    </div>
+                  ) : activeSubmodule.panelKey === "portals-master" ? (
+                    /* 7. SERVICE PORTALS MASTER */
+                    <div className="space-y-4">
+                      <MasterClient
+                        title="Service Portals Master"
+                        desc="B2B settlement portals and external gateway float connections."
+                        table="service_portals"
+                        fields={[
+                          { key: "name", label: "Portal Name", required: true, placeholder: "Spice Money / Digipay" },
+                          { key: "code", label: "Portal Identifier Key", placeholder: "spicemoney" },
+                        ]}
+                        rows={portalRows}
+                        embedded={true}
+                      />
+                    </div>
+                  ) : activeSubmodule.panelKey === "merchant-qrs" ? (
+                    /* 8. MERCHANT QRS & SOUNDBOX */
+                    <div className="space-y-4">
+                      <MasterClient
+                        title="Merchant QRs & Soundbox"
+                        desc="Counter UPI QR stands, receiver IDs, and soundbox voice alerts."
+                        table="merchant_qrs"
+                        fields={[
+                          { key: "name", label: "Account / Stand Name", required: true, placeholder: "Counter Stand 01" },
+                          { key: "upi_id", label: "Merchant UPI ID", required: true, placeholder: "merchant@bankupi" },
+                        ]}
+                        rows={merchantQrRows}
+                        embedded={true}
+                      />
+                    </div>
+                  ) : activeSubmodule.panelKey === "recharge-slabs" ? (
+                    /* 9. RECHARGE SLABS & OPERATOR COMMISSIONS */
+                    <div className="space-y-4">
+                      <RechargeProvidersPanel
+                        initialProviders={rechargeProviders}
+                        initialSlabs={rechargeSlabs}
+                      />
+                    </div>
+                  ) : activeSubmodule.panelKey === "bbps-comm" ? (
+                    /* 10. BBPS COMMISSIONS MATRIX */
+                    <div className="space-y-4">
+                      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900">
+                        <div className="mb-4">
+                          <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                            BBPS Utility Categories Commission Matrix
+                          </h4>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            Configure your retailer commission or convenience fee per biller category.
+                          </p>
+                        </div>
+
+                        <div className="space-y-2.5">
+                          {SERVICE_CATEGORIES.map((cat) => {
+                            const cfg = bbpsConfigs[cat.id] || { type: "flat", val: "5.00" };
+                            return (
+                              <div
+                                key={cat.id}
+                                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-800/40"
+                              >
+                                <div className="min-w-0">
+                                  <div className="text-xs font-bold text-slate-900 dark:text-white">
+                                    {cat.name}
+                                  </div>
+                                  <div className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
+                                    {cat.serviceType}
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  <select
+                                    value={cfg.type}
+                                    onChange={(e) => {
+                                      const nextType = e.target.value as CommissionType;
+                                      setBbpsConfigs((prev) => ({
+                                        ...prev,
+                                        [cat.id]: { ...cfg, type: nextType },
+                                      }));
+                                    }}
+                                    className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 outline-none"
+                                  >
+                                    <option value="flat">Flat (₹)</option>
+                                    <option value="percent">Percent (%)</option>
+                                  </select>
+
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    value={cfg.val}
+                                    onChange={(e) => {
+                                      const nextVal = e.target.value;
+                                      setBbpsConfigs((prev) => ({
+                                        ...prev,
+                                        [cat.id]: { ...cfg, val: nextVal },
+                                      }));
+                                    }}
+                                    className="w-24 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white outline-none"
+                                    placeholder="5.00"
+                                  />
+
+                                  <button
+                                    type="button"
+                                    disabled={bbpsSaving}
+                                    onClick={() => handleSaveBbpsCommission(cat.id, cat.serviceType)}
+                                    className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-blue-700 disabled:opacity-50"
+                                  >
+                                    Save
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </div>
                   ) : activeSubmodule.panelKey === "appearance" ? (
+                    /* 11. THEME & DISPLAY PREFERENCES */
                     <div className="space-y-4">
                       <AppearancePanel active={true} />
                     </div>
                   ) : activeSubmodule.panelKey === "security" ? (
+                    /* 12. SECURITY & 2FA */
                     <div className="space-y-4">
                       <SecurityPanel active={true} />
                     </div>
                   ) : activeSubmodule.panelKey === "notifications" ? (
+                    /* 13. WHATSAPP GATEWAY */
                     <div className="space-y-4">
                       <NotificationsPanel active={true} />
                     </div>
                   ) : activeSubmodule.panelKey === "backup" ? (
+                    /* 14. DATA BACKUP & SQL EXPORT */
                     <div className="space-y-4">
                       <BackupPanel active={true} />
                     </div>
                   ) : (
+                    /* Fallback for deep table workspaces */
                     <div className="flex flex-col items-center justify-center p-12 text-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
                       <span className="text-3xl mb-2">{activeSubmodule.icon}</span>
                       <h4 className="text-sm font-bold text-slate-900 dark:text-white">
