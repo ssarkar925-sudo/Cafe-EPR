@@ -1634,7 +1634,7 @@ export default function AepsWorkspace({
       };
 
       let result: any;
-      let persistedId: string | null = editingTxnId;
+      let insertedId: string | null = editingTxnId;
 
       if (editingTxnId) {
         // Use the canonical accounting-aware update RPC. It reverses the old
@@ -1651,14 +1651,14 @@ export default function AepsWorkspace({
           p_portal_charge: 0,
           ...commonPayload,
         });
-        persistedId = result.data?.id || null;
+        insertedId = result.data?.id || null;
       }
 
       if (result.error) throw result.error;
 
       const returnedTxn = result.data as Txn;
-      if (!persistedId) persistedId = returnedTxn?.id || null;
-      if (!persistedId) throw new Error(editingTxnId ? "Transaction update succeeded but no transaction ID was returned." : "Transaction save succeeded but no transaction ID was returned.");
+      if (!insertedId) insertedId = returnedTxn?.id || null;
+      if (!insertedId) throw new Error(editingTxnId ? "Transaction update succeeded but no transaction ID was returned." : "Transaction save succeeded but no transaction ID was returned.");
 
       // Strict persistence confirmation: always re-read the transaction.
       const { data: freshRead, error: readErr } = await supabase
@@ -1666,7 +1666,7 @@ export default function AepsWorkspace({
         .select(
           "*, customers(name, phone), banks:aeps_banks(name), portals:aeps_portals(name), merchant_qrs:upi_merchant_qrs(display_name, upi_id), profiles(full_name)"
         )
-        .eq("id", persistedId)
+        .eq("id", insertedId)
         .single();
 
       if (readErr || !freshRead) {
