@@ -1453,6 +1453,8 @@ export default function AepsWorkspace({
     const rec = changeRecords.find((r) => r.id === recordId);
     if (!rec) return;
 
+    let persistedApprovedRule: AepsPricingRule | null = null;
+
     // Call server to persist approved change to database rules
     try {
       const response = await fetch("/api/ai/portal-watcher", {
@@ -1472,6 +1474,7 @@ export default function AepsWorkspace({
       if (!response.ok || !data?.success) {
         throw new Error(data?.error || "Could not persist approved watcher change.");
       }
+      persistedApprovedRule = data.rule ? (data.rule as AepsPricingRule) : null;
     } catch (err: any) {
       showToast("error", err?.message || "Could not approve watcher change.");
       return;
@@ -1500,13 +1503,12 @@ export default function AepsWorkspace({
 
     // Replace only the exact persisted rule returned by the server.
     // Never rewrite every fee/commission rule for the portal.
-    if (data.rule) {
-      const persistedRule = data.rule as AepsPricingRule;
+    if (persistedApprovedRule) {
       setPricingRules((prev) => {
-        const exists = prev.some((rule) => rule.id === persistedRule.id);
+        const exists = prev.some((rule) => rule.id === persistedApprovedRule!.id);
         return exists
-          ? prev.map((rule) => (rule.id === persistedRule.id ? persistedRule : rule))
-          : [persistedRule, ...prev];
+          ? prev.map((rule) => (rule.id === persistedApprovedRule!.id ? persistedApprovedRule! : rule))
+          : [persistedApprovedRule!, ...prev];
       });
     }
 
