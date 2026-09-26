@@ -1004,6 +1004,8 @@ export default function AepsWorkspace({
   // ---------------------------------------------------------------------------
   // APPROVE & SAVE WITH STRICT FINANCIAL PERSISTENCE CONFIRMATION
   // ---------------------------------------------------------------------------
+  const idempotencyKeyRef = useRef<string | null>(null);
+
   const recordTransaction = async () => {
     if (busy || !isFormValid) return;
     setBusy(true);
@@ -1011,6 +1013,15 @@ export default function AepsWorkspace({
       const isCollection = transactionType === "payment_collection";
       const isEnquiry = transactionType === "balance_enquiry" || transactionType === "mini_statement";
       const numAmount = isEnquiry ? 0 : Number(amount || 0);
+
+      // Keep the caller aligned with the canonical production RPC signature.
+      // AEPS does not use the DMT/UPI-only fields, so those arguments are
+      // intentionally passed as null rather than omitted.
+      // Reuse one idempotency key across retries of this submission to prevent
+      // duplicate financial records after a transient response failure.
+      if (!idempotencyKeyRef.current) {
+        idempotencyKeyRef.current = crypto.randomUUID();
+      }
 
       const payload: any = {
         p_service_type: "aeps",
@@ -1026,6 +1037,14 @@ export default function AepsWorkspace({
         p_merchant_qr_id: null,
         p_aadhaar_last4: cleanAadhaar,
         p_transfer_method: transactionType,
+        p_sender_name: null,
+        p_sender_mobile: null,
+        p_beneficiary_name: null,
+        p_beneficiary_mobile: null,
+        p_beneficiary_bank: null,
+        p_beneficiary_ifsc: null,
+        p_beneficiary_account: null,
+        p_upi_id: null,
         p_amount: numAmount,
         p_service_fee: Number(fee || 0),
         p_portal_commission: Number(commission || 0),
@@ -1037,6 +1056,8 @@ export default function AepsWorkspace({
         p_pay_from_instrument_id: null,
         p_pay_from_method: isCollection ? "aeps_portal" : "cash",
         p_receiver_name: null,
+        p_portal_charge: 0,
+        p_idempotency_key: idempotencyKeyRef.current,
       };
 
       const result = await supabase.rpc("create_business_txn", payload);
@@ -1064,6 +1085,7 @@ export default function AepsWorkspace({
       showToast("success", "AEPS transaction recorded & verified in database ledger.");
       handleNewCashOut();
       setReviewOpen(false);
+      idempotencyKeyRef.current = null;
     } catch (error: any) {
       showToast("error", error?.message || "Failed to record AEPS transaction.");
     } finally {
