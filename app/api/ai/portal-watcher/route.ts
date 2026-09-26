@@ -15,8 +15,8 @@ import {
   crossVerifySourceObservations,
   getDefaultWatcherSources,
   getDefaultAepsPricingRules,
+  matchBankExactName,
 } from "@/lib/aeps/portal-watcher";
-import { matchBank } from "@/components/business/aeps-workspace";
 
 export const runtime = "nodejs";
 export const maxDuration = 45;
@@ -78,6 +78,13 @@ function normalizePurposeData(
 
   // 5. Provider / Bank Info extraction
   else if (purpose === "provider_bank_info") {
+    // A source may contain a known master bank name inside a longer status
+    // sentence. That still resolves only when the bank-name token itself is
+    // an exact master name; aliases such as "SBI" are not silently converted.
+    const exactMaster = bankList.find((b) => {
+      if (!b.name) return false;
+      const escaped = b.name.replace(/[.*+?^$(){},|[\]\\]/g, "\\  // 5. Provider / Bank Info extraction
+  else if (purpose === "provider_bank_info") {
     for (const b of bankList) {
       if (cleanText.toLowerCase().includes(b.name.toLowerCase())) {
         bankNameVal = b.name;
@@ -91,6 +98,30 @@ function normalizePurposeData(
     }
     const bankLines = lines.filter((l) => /\b(?:bank|issuer|downtime|live|status|npci|switch)\b/i.test(l));
     summary = bankLines.slice(0, 3).join("; ") || lines.slice(0, 2).join("; ") || "Provider bank network update.";
+  }");
+      return new RegExp(`(^|\\\\W)${escaped}(?=$|\\\\W)`, "i").test(cleanText);
+    });
+
+    if (exactMaster) {
+      bankNameVal = exactMaster.name;
+      bankCodeVal = exactMaster.code || null;
+    } else {
+      // Preserve an explicitly-labelled unknown bank name so the UI can offer
+      // an operator-approved "Create Bank" action instead of fuzzy-mapping it.
+      const labelledBankLine =
+        lines.find((l) => /(?:issuer\s+bank|bank\s+name|bank)\s*[:\-]/i.test(l)) || "";
+      const labelledMatch = labelledBankLine.match(
+        /(?:issuer\s+bank|bank\s+name|bank)\s*[:\-]\s*(.+)$/i
+      );
+      if (labelledMatch?.[1]) {
+        bankNameVal = labelledMatch[1].trim().replace(/[|;,].*$/, "").trim();
+      }
+    }
+
+    const bankLines = lines.filter((l) => /\b(?:bank|issuer|downtime|live|status|npci|switch)\b/i.test(l));
+    summary = bankNameVal
+      ? `Bank detected: ${bankNameVal}; ${bankLines.slice(0, 2).join("; ")}`
+      : bankLines.slice(0, 3).join("; ") || lines.slice(0, 2).join("; ") || "Provider bank network update.";
   }
 
   // 6. Service Status extraction
@@ -231,7 +262,9 @@ export async function POST(request: Request) {
           successCount++;
           const content = item.value.webRes.content || "";
           const normalized = normalizePurposeData(src.purpose, content, bankList);
-          const matchedBank = matchBank(normalized.bankName || normalized.bankCode || "", bankList);
+          const matchedBank = normalized.bankName
+            ? matchBankExactName(normalized.bankName, bankList)
+            : null;
 
           const obs: PortalCollectionObservation = {
             id: `obs-${src.id}-${Date.now()}`,
