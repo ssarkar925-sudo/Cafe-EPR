@@ -63,37 +63,28 @@ export function matchBankExactName(
 ): { id: string; name: string; code?: string } | null {
   const target = normalizeBankNameExact(inputName);
   if (!target) return null;
-  // 1. Direct exact name match
-  const exact = bankList.find((b) => !!b.name && normalizeBankNameExact(b.name) === target);
-  if (exact) return exact;
-  // 2. Direct exact code match (e.g. "SBIN", "PUNB", "HDFC")
-  const codeMatch = bankList.find((b) => !!b.code && normalizeBankNameExact(b.code) === target);
-  if (codeMatch) return codeMatch;
-  // 3. Known canonical alias match (e.g. "sbi" -> "state bank of india")
-  const alias = BANK_ALIASES[target];
-  if (alias) {
-    const aliasMatch = bankList.find((b) => !!b.name && normalizeBankNameExact(b.name) === alias);
-    if (aliasMatch) return aliasMatch;
-  }
-  // 4. TOP_INDIAN_BANKS match
-  const top = TOP_INDIAN_BANKS.find((t) => t.code.toLowerCase() === target || t.label.toLowerCase() === target);
-  if (top) {
-    for (const b of bankList) {
-      if (b.name && top.match.some((m) => normalizeBankNameExact(b.name) === m)) {
-        return b;
-      }
-    }
-  }
-  return null;
+  return bankList.find(
+    (b) => !!b.name && normalizeBankNameExact(b.name) === target
+  ) || null;
 }
 
 export function matchBank(
   inputName: string,
   bankList: { id: string; name: string; code?: string }[]
 ): { id: string; name: string; code?: string } | null {
-  // Canonical bank-name matcher: exact name only. Use matchBankExactName for
-  // watcher/AI extraction and keep code-based selection in UI-specific logic.
-  return matchBankExactName(inputName, bankList);
+  const target = normalizeBankName(inputName);
+  if (!target) return null;
+  const exact = bankList.find(
+    (b) => !!b.name && normalizeBankName(b.name) === target
+  );
+  if (exact) return exact;
+
+  const codeMatch = bankList.find(
+    (b) => !!b.code && normalizeBankName(b.code) === target
+  );
+  if (codeMatch) return codeMatch;
+
+  return null;
 }
 
 export type PortalSourcePurpose =
@@ -882,6 +873,69 @@ export function crossVerifySourceObservations(
 // ---------------------------------------------------------------------------
 // Default Portal Watcher Sources (5-7 sources per portal)
 // ---------------------------------------------------------------------------
+
+/**
+ * Test fixture compatibility only.
+ * This function is intentionally NOT used by the production AEPS UI.
+ * Production watcher sources are loaded exclusively from persisted
+ * aeps_portal_sources records and start empty when none are configured.
+ */
+export function getDefaultWatcherSources(portals: { id: string; name: string }[]): PortalWatcherSource[] {
+  const fixture: PortalWatcherSource[] = [];
+  for (const portal of portals) {
+    const p = portal.name.toLowerCase();
+    const base = portal.id;
+    const specs =
+      p.includes("spice")
+        ? [
+            ["commission", "commission", 7],
+            ["fee", "fee", 0],
+            ["aeps_rules", "rules", null],
+            ["service_status", "status", null],
+          ]
+        : p.includes("zee")
+        ? [
+            ["commission", "commission", 5],
+            ["fee", "fee", 10],
+            ["aeps_rules", "rules", null],
+          ]
+        : [
+            ["commission", "commission", 4],
+            ["fee", "fee", 15],
+            ["aeps_rules", "rules", null],
+            ["transaction_info", "transaction", null],
+            ["provider_bank_info", "banks", null],
+          ];
+    for (const [purpose, slug, value] of specs as [PortalSourcePurpose, string, number | null][]) {
+      const id = `fixture-${base}-${slug}`;
+      fixture.push({
+        id,
+        portalId: portal.id,
+        portalName: portal.name,
+        url: `https://example.invalid/aeps/${base}/${slug}`,
+        sourceType: "web_page",
+        purpose,
+        isEnabled: true,
+        priority: 1,
+        lastChecked: new Date(0).toISOString(),
+        lastStatus: "success",
+        lastMessage: "Test fixture only.",
+        currentPublishedValue: {
+          ...(purpose === "commission" ? { commission: value } : {}),
+          ...(purpose === "fee" ? { fee: value } : {}),
+          ...(purpose === "aeps_rules" ? { maxLimit: 10000 } : {}),
+          ...(purpose === "transaction_info" ? { transactionType: "cash_out" } : {}),
+          ...(purpose === "provider_bank_info" ? { bankName: "State Bank of India" } : {}),
+          summary: "Test fixture only.",
+          updatedAt: new Date(0).toISOString(),
+        },
+        createdAt: new Date(0).toISOString(),
+        isArchived: false,
+      });
+    }
+  }
+  return fixture;
+}
 
 // ---------------------------------------------------------------------------
 // Default Baseline AEPS Pricing Rules
