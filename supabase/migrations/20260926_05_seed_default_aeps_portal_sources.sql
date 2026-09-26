@@ -9,7 +9,12 @@ insert into public.aeps_portal_sources
   priority, description, last_checked, last_status, last_message,
   current_published_value, is_archived, created_at, updated_at
 )
-select * from jsonb_to_recordset($$[
+select
+  x.id, x.portal_id::uuid, x.portal_name, x.url, x.source_type, x.purpose,
+  x.is_enabled, x.priority, x.description, null::timestamptz,
+  x.last_status, x.last_message, x.current_published_value, x.is_archived,
+  now(), now()
+from jsonb_to_recordset($seed$[
   {"id":"src-1a773d4a-bada-4e3b-9e0e-eca353491979-comm","portal_id":"1a773d4a-bada-4e3b-9e0e-eca353491979","portal_name":"Digipay","url":"https://digipay.csccloud.in/portal/commission-structure","source_type":"web_page","purpose":"commission","is_enabled":true,"priority":1,"description":"Monitors portal payout and commission slabs for AEPS transactions","last_status":"success","last_message":"Baseline published commission verified.","current_published_value":{"commission":4.0,"fee":15.0,"summary":"DigiPay standard AEPS commission: ₹4.00 per ₹2,000-₹5,000","updatedAt":"2026-09-26T00:00:00.000Z"},"is_archived":false},
   {"id":"src-1a773d4a-bada-4e3b-9e0e-eca353491979-fee","portal_id":"1a773d4a-bada-4e3b-9e0e-eca353491979","portal_name":"Digipay","url":"https://digipay.csccloud.in/portal/customer-charges","source_type":"web_page","purpose":"fee","is_enabled":true,"priority":1,"description":"Monitors customer surcharge and operational fees","last_status":"success","last_message":"Baseline customer surcharge verified.","current_published_value":{"fee":15.0,"summary":"Standard customer surcharge: ₹15.00 for ₹2,000+ withdrawal","updatedAt":"2026-09-26T00:00:00.000Z"},"is_archived":false},
   {"id":"src-1a773d4a-bada-4e3b-9e0e-eca353491979-rules","portal_id":"1a773d4a-bada-4e3b-9e0e-eca353491979","portal_name":"Digipay","url":"https://digipay.csccloud.in/aeps/npci-guidelines","source_type":"web_page","purpose":"aeps_rules","is_enabled":true,"priority":2,"description":"Tracks NPCI daily transaction limits, 2FA biometric rules, and compliance","last_status":"success","last_message":"NPCI 2-factor authentication rule active.","current_published_value":{"maxLimit":10000,"summary":"Daily limit ₹10,000 per Aadhaar. Biometric verification required.","updatedAt":"2026-09-26T00:00:00.000Z"},"is_archived":false},
@@ -24,7 +29,21 @@ select * from jsonb_to_recordset($$[
   {"id":"src-8e668288-99bb-414b-89c4-c4d01ea7d07c-fee","portal_id":"8e668288-99bb-414b-89c4-c4d01ea7d07c","portal_name":"Spice Money","url":"https://b2b.spicemoney.com/pricing/charges-guide","source_type":"web_page","purpose":"fee","is_enabled":true,"priority":1,"description":"Monitors customer surcharge and operational fees","last_status":"success","last_message":"Zero customer surcharge policy.","current_published_value":{"fee":0.0,"summary":"Zero surcharge on cash withdrawal","updatedAt":"2026-09-26T00:00:00.000Z"},"is_archived":false},
   {"id":"src-8e668288-99bb-414b-89c4-c4d01ea7d07c-rules","portal_id":"8e668288-99bb-414b-89c4-c4d01ea7d07c","portal_name":"Spice Money","url":"https://b2b.spicemoney.com/aeps/security-rules","source_type":"web_page","purpose":"aeps_rules","is_enabled":true,"priority":2,"description":"Monitors NPCI daily limits and security rules","last_status":"success","last_message":"NPCI daily limits enforced.","current_published_value":{"maxLimit":10000,"summary":"Max withdrawal per day ₹10,000. 2FA mandatory.","updatedAt":"2026-09-26T00:00:00.000Z"},"is_archived":false},
   {"id":"src-8e668288-99bb-414b-89c4-c4d01ea7d07c-status","portal_id":"8e668288-99bb-414b-89c4-c4d01ea7d07c","portal_name":"Spice Money","url":"https://b2b.spicemoney.com/status/service-health","source_type":"web_page","purpose":"service_status","is_enabled":true,"priority":3,"description":"Monitors AEPS service health and downtime updates","last_status":"success","last_message":"All AEPS services operational.","current_published_value":{"summary":"All bank switches responding normally.","updatedAt":"2026-09-26T00:00:00.000Z"},"is_archived":false}
-]$$::jsonb)
+]$seed$::jsonb) as x(
+  id text,
+  portal_id text,
+  portal_name text,
+  url text,
+  source_type text,
+  purpose text,
+  is_enabled boolean,
+  priority integer,
+  description text,
+  last_status text,
+  last_message text,
+  current_published_value jsonb,
+  is_archived boolean
+)
 on conflict (portal_id, lower(btrim(url))) where (is_archived = false)
 do update set
   portal_name = excluded.portal_name,
