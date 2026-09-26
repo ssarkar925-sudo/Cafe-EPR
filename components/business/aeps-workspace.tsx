@@ -3515,6 +3515,24 @@ export default function AepsWorkspace({
               </div>
 
               <div className="flex items-center gap-2">
+                {liveWatcherActive ? (
+                  <button
+                    type="button"
+                    onClick={stopLiveWatcher}
+                    className="rounded-xl bg-rose-600 hover:bg-rose-700 px-4 py-2 text-xs font-black text-white shadow-sm transition-all"
+                  >
+                    Stop Live Watcher
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={startLiveWatcher}
+                    disabled={isVerifyingPortal}
+                    className="rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 py-2 text-xs font-black text-white shadow-sm transition-all disabled:opacity-50"
+                  >
+                    {isVerifyingPortal ? "Starting…" : "Start Live Watcher"}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => verifyCurrentPortalDetails(true)}
