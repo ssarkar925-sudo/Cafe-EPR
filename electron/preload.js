@@ -10,6 +10,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   startAepsWatcherAll: (options) => ipcRenderer.invoke("aeps-watcher-start-all", options),
   collectAepsWatcherSources: (options) => ipcRenderer.invoke("aeps-watcher-collect-sources", options),
   stopAepsWatcher: () => ipcRenderer.invoke("aeps-watcher-stop"),
-  onAepsWatcherEvent: (callback) =>
-    ipcRenderer.on("aeps-watcher-event", (_event, payload) => callback(payload)),
+  onAepsWatcherEvent: (callback) => {
+    const listener = (_event, payload) => callback(payload);
+    ipcRenderer.on("aeps-watcher-event", listener);
+    return () => ipcRenderer.removeListener("aeps-watcher-event", listener);
+  },
 });
