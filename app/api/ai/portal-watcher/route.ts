@@ -634,7 +634,8 @@ export async function POST(request: Request) {
       if (sourceUpdateError) return NextResponse.json({ error: "Watcher collected data but failed to persist source status: " + sourceUpdateError.message }, { status: 500 });
 
       return NextResponse.json({
-        success: true, action: "collect_all", portalId, portalName: portal.name, collectionRun, pendingChanges,
+        success: verificationStatus !== "FAILED",
+        action: "collect_all", portalId, portalName: portal.name, collectionRun, pendingChanges,
         message: verificationStatus === "VERIFIED"
           ? "All " + successCount + " sources verified for " + portal.name + "."
           : verificationStatus === "PARTIAL"
