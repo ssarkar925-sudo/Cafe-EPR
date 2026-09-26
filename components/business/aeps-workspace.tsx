@@ -401,6 +401,88 @@ export default function AepsWorkspace({
     window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
   };
 
+  const handleCopyRrn = async (t: Txn) => {
+    const ref = String(t.reference || "").trim();
+    if (!ref) {
+      showToast("info", "No RRN / reference is available for this transaction.");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(ref);
+      showToast("success", "RRN / reference copied.");
+    } catch {
+      showToast("error", "Could not copy the RRN / reference.");
+    }
+    setActionMenuTxnId(null);
+  };
+
+  const handleOpenAudit = async (t: Txn) => {
+    setActionMenuTxnId(null);
+    setAuditTxn(t);
+    setAuditRows([]);
+    setAuditBusy(true);
+    try {
+      const { data, error } = await supabase.rpc("get_transaction_gl_audit", {
+        p_transaction_ids: [t.id],
+      });
+      if (error) throw error;
+      setAuditRows(Array.isArray(data) ? data : []);
+    } catch (error: any) {
+      showToast("error", error?.message || "Unable to load transaction audit.");
+    } finally {
+      setAuditBusy(false);
+    }
+  };
+
+  const handlePortalVerification = (t: Txn) => {
+    setActionMenuTxnId(null);
+    setViewTxn(null);
+    if ((t as any).portal_id) setSelectedWatcherPortalId((t as any).portal_id);
+    setActiveTab("watcher");
+    showToast("info", "Showing the configured verification sources for this transaction portal.");
+  };
+
+  const handleReverseTransaction = async () => {
+    if (!reverseTxn || reverseBusy) return;
+    const reason = reverseReason.trim();
+    if (!reason) {
+      showToast("error", "Enter a reversal reason.");
+      return;
+    }
+    setReverseBusy(true);
+    try {
+      const idempotencyKey = crypto.randomUUID();
+      const { error } = await supabase.rpc("reverse_business_txn", {
+        p_txn_id: reverseTxn.id,
+        p_reason: reason,
+        p_idempotency_key: idempotencyKey,
+      });
+      if (error) throw error;
+
+      const { data: freshRead, error: readErr } = await supabase
+        .from("transactions")
+        .select(
+          "*, customers(name, phone), banks:aeps_banks(name), portals:aeps_portals(name), merchant_qrs:upi_merchant_qrs(display_name, upi_id), profiles(full_name)"
+        )
+        .eq("id", reverseTxn.id)
+        .single();
+
+      if (readErr || !freshRead) {
+        throw new Error("Reversal completed but the updated transaction could not be verified.");
+      }
+
+      setRows((prev) => prev.map((r) => (r.id === reverseTxn.id ? (freshRead as Txn) : r)));
+      setReverseTxn(null);
+      setReverseReason("");
+      showToast("success", "Transaction reversed successfully.");
+    } catch (error: any) {
+      showToast("error", error?.message || "Failed to reverse transaction.");
+    } finally {
+      setReverseBusy(false);
+    }
+  };
+
+
 
 
   // Debounced Universal Customer Search (Authoritative CafeERP Directory)
@@ -1660,6 +1742,13 @@ export default function AepsWorkspace({
   const [thermalTxn, setThermalTxn] = useState<Txn | null>(null);
   const [viewTxn, setViewTxn] = useState<Txn | null>(null);
   const [editingTxnId, setEditingTxnId] = useState<string | null>(null);
+  const [actionMenuTxnId, setActionMenuTxnId] = useState<string | null>(null);
+  const [reverseTxn, setReverseTxn] = useState<Txn | null>(null);
+  const [reverseReason, setReverseReason] = useState("");
+  const [reverseBusy, setReverseBusy] = useState(false);
+  const [auditTxn, setAuditTxn] = useState<Txn | null>(null);
+  const [auditRows, setAuditRows] = useState<any[]>([]);
+  const [auditBusy, setAuditBusy] = useState(false);
 
   const handleEditTransaction = (t: Txn) => {
     setViewTxn(null);
@@ -3505,7 +3594,7 @@ export default function AepsWorkspace({
                           </span>
                         </td>
                         <td className="px-3.5 py-2.5 text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-1">
+                          <div className="relative flex items-center justify-end gap-1">
                             <button
                               type="button"
                               onClick={() => handleEditTransaction(t)}
@@ -3538,6 +3627,61 @@ export default function AepsWorkspace({
                             >
                               WhatsApp
                             </button>
+                            <button
+                              type="button"
+                              onClick={() => setActionMenuTxnId((id) => (id === t.id ? null : t.id))}
+                              className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-[12px] font-black text-slate-700 hover:bg-slate-50"
+                              aria-label="More transaction actions"
+                              aria-expanded={actionMenuTxnId === t.id}
+                              title="More actions"
+                            >
+                              ⋮
+                            </button>
+
+                            {actionMenuTxnId === t.id && (
+                              <div className="absolute right-0 top-9 z-[80] w-52 rounded-xl border border-slate-200 bg-white p-1.5 text-left shadow-xl">
+                                <button type="button" onClick={() => handleCopyRrn(t)} className="flex w-full items-center rounded-lg px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-50">
+                                  📋 Copy RRN
+                                </button>
+                                <a
+                                  href={invoiceUrl(t.id)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  onClick={() => setActionMenuTxnId(null)}
+                                  className="flex w-full items-center rounded-lg px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-50"
+                                >
+                                  📄 A4 / Save as PDF
+                                </a>
+                                {t.status === "success" && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setReverseTxn(t);
+                                      setReverseReason("");
+                                      setActionMenuTxnId(null);
+                                    }}
+                                    className="flex w-full items-center rounded-lg px-3 py-2 text-[11px] font-bold text-rose-700 hover:bg-rose-50"
+                                  >
+                                    ↩ Reverse Transaction
+                                  </button>
+                                )}
+                                <button type="button" onClick={() => handleOpenAudit(t)} className="flex w-full items-center rounded-lg px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-50">
+                                  🧾 Audit / Ledger
+                                </button>
+                                <button type="button" onClick={() => handlePortalVerification(t)} className="flex w-full items-center rounded-lg px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-50">
+                                  🔎 Portal Verification
+                                </button>
+                                {(t as any).customer_id && (
+                                  <Link
+                                    href={"/customers/" + String((t as any).customer_id)}
+                                    onClick={() => setActionMenuTxnId(null)}
+                                    className="flex w-full items-center rounded-lg px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-50"
+                                  >
+                                    👤 Open Customer
+                                  </Link>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -3552,6 +3696,88 @@ export default function AepsWorkspace({
                     )}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TRANSACTION REVERSE CONFIRMATION MODAL */}
+        {reverseTxn && (
+          <div className="fixed inset-0 z-[115] flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
+            <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-200 text-slate-900 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                  <h3 className="text-base font-black text-rose-700">Reverse Transaction</h3>
+                  <p className="text-xs text-slate-500">{reverseTxn.transaction_number || reverseTxn.id.slice(0, 8)}</p>
+                </div>
+                <button type="button" onClick={() => !reverseBusy && setReverseTxn(null)} className="text-slate-400 hover:text-slate-700 text-lg font-bold">✕</button>
+              </div>
+              <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-[11px] text-rose-900">
+                <b>This does not delete the transaction.</b> It reverses the stored financial legs and marks the original transaction as reversed.
+              </div>
+              <div className="grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3 text-xs">
+                <div><span className="block text-[10px] font-bold text-slate-400">Customer</span><span className="font-bold">{reverseTxn.customers?.name || "Walk-in"}</span></div>
+                <div><span className="block text-[10px] font-bold text-slate-400">Amount</span><span className="font-mono font-black">{inr(Number(reverseTxn.amount || 0))}</span></div>
+              </div>
+              <div>
+                <label className="mb-1 block text-[10px] font-black text-slate-700">Reversal Reason *</label>
+                <textarea value={reverseReason} onChange={(e) => setReverseReason(e.target.value)} placeholder="Wrong customer / incorrect amount / duplicate transaction" rows={3} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none focus:border-rose-400" />
+              </div>
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setReverseTxn(null)} disabled={reverseBusy} className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">Cancel</button>
+                <button type="button" onClick={handleReverseTransaction} disabled={reverseBusy || !reverseReason.trim()} className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-black text-white hover:bg-rose-700 disabled:opacity-50">
+                  {reverseBusy ? "Reversing…" : "Reverse Transaction"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TRANSACTION AUDIT / GL MODAL */}
+        {auditTxn && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
+            <div className="w-full max-w-4xl rounded-2xl bg-white p-6 shadow-2xl border border-slate-200 text-slate-900 space-y-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                  <h3 className="text-base font-black text-slate-950">Transaction Audit / Ledger</h3>
+                  <p className="text-xs text-slate-500 font-mono">{auditTxn.transaction_number || auditTxn.id}</p>
+                </div>
+                <button type="button" onClick={() => setAuditTxn(null)} className="text-slate-400 hover:text-slate-700 text-lg font-bold">✕</button>
+              </div>
+              {auditBusy ? (
+                <div className="py-12 text-center text-xs font-bold text-slate-500">Loading ledger entries…</div>
+              ) : auditRows.length === 0 ? (
+                <div className="py-12 text-center text-xs text-slate-500">No posted journal lines were found for this transaction.</div>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="w-full min-w-[760px] text-left text-xs">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-black text-slate-500">
+                      <tr>
+                        <th className="px-3 py-2.5">Entry</th>
+                        <th className="px-3 py-2.5">Account</th>
+                        <th className="px-3 py-2.5">Type</th>
+                        <th className="px-3 py-2.5 text-right">Debit</th>
+                        <th className="px-3 py-2.5 text-right">Credit</th>
+                        <th className="px-3 py-2.5">Description</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {auditRows.map((row, idx) => (
+                        <tr key={(row.source_id || auditTxn.id) + "-" + (row.entry_number || idx) + "-" + idx}>
+                          <td className="px-3 py-2.5 font-mono font-bold text-blue-700">{row.entry_number || "—"}</td>
+                          <td className="px-3 py-2.5"><div className="font-bold">{row.account_code || "—"}</div><div className="text-[10px] text-slate-500">{row.account_name || "—"}</div></td>
+                          <td className="px-3 py-2.5 capitalize">{String(row.account_type || "—").replace(/_/g, " ")}</td>
+                          <td className="px-3 py-2.5 text-right font-mono text-rose-600">{inr(Number(row.debit || 0))}</td>
+                          <td className="px-3 py-2.5 text-right font-mono text-emerald-600">{inr(Number(row.credit || 0))}</td>
+                          <td className="px-3 py-2.5 text-slate-600">{row.line_description || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <div className="flex justify-end">
+                <button type="button" onClick={() => setAuditTxn(null)} className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-black text-white hover:bg-slate-800">Close</button>
               </div>
             </div>
           </div>
