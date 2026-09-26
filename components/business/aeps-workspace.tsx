@@ -477,10 +477,7 @@ export default function AepsWorkspace({
     });
 
     return () => {
-      // ipcRenderer listeners are removed by watcher process when the app closes.
-      // The preload wrapper does not expose removeListener, so no unsafe renderer
-      // cleanup is attempted here.
-      void unsubscribe;
+      if (typeof unsubscribe === "function") unsubscribe();
     };
   }, [bankOptions, portalId, showToast]);
 
