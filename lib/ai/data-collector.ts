@@ -55,6 +55,10 @@ export type WebCollectionResult = {
   title?: string;
   content?: string;
   error?: string;
+  httpStatus?: number;
+  contentType?: string;
+  requiresBrowser?: boolean;
+  rendered?: boolean;
 };
 
 // ============================================================================
@@ -326,24 +330,28 @@ export async function fetchWebsiteData(rawUrl: string): Promise<WebCollectionRes
     const response = await fetch(parsedUrl.toString(), {
       method: "GET",
       headers: {
-        "User-Agent": "CafeERP-AI-Assistant/2.0 (+https://cafeerp.local)",
+        "User-Agent": "CafeERP-AI-Assistant/2.0",
         Accept: "text/html,application/xhtml+xml,application/xml,text/plain,application/json;q=0.9",
       },
       signal: AbortSignal.timeout(15000),
+      redirect: "follow",
     });
+
+    const httpStatus = response.status;
+    const contentType = response.headers.get("content-type") || "";
 
     if (!response.ok) {
       return {
         success: false,
         url: rawUrl,
-        error: `Website returned HTTP status ${response.status} (${response.statusText}).`,
+        httpStatus,
+        contentType,
+        error: "Website returned HTTP status " + response.status + " (" + response.statusText + ").",
       };
     }
 
-    const contentType = response.headers.get("content-type") || "";
     const rawBody = await response.text();
 
-    // If JSON
     if (contentType.includes("application/json") || rawBody.trim().startsWith("{") || rawBody.trim().startsWith("[")) {
       try {
         const json = JSON.parse(rawBody);
@@ -352,49 +360,83 @@ export async function fetchWebsiteData(rawUrl: string): Promise<WebCollectionRes
           url: rawUrl,
           title: "JSON Data Source",
           content: JSON.stringify(json, null, 2).slice(0, 8000),
+          httpStatus,
+          contentType,
+          rendered: false,
         };
       } catch {
-        // continue as text
+        // Continue as HTML/text.
       }
     }
 
-    // Extract title from HTML
-    const titleMatch = rawBody.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-    const title = titleMatch ? titleMatch[1].replace(/\s+/g, " ").trim() : parsedUrl.hostname;
+    const titleMatch = rawBody.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i);
+    const title = titleMatch ? titleMatch[1].replace(/\\s+/g, " ").trim() : parsedUrl.hostname;
 
-    // Convert HTML to clean readable text
     let cleanText = rawBody
-      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, " ")
-      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, " ")
-      .replace(/<noscript\b[^<]*(?:(?!<\/noscript>)<[^<]*)*<\/noscript>/gi, " ")
-      .replace(/<svg\b[^<]*(?:(?!<\/svg>)<[^<]*)*<\/svg>/gi, " ")
-      .replace(/<nav\b[^<]*(?:(?!<\/nav>)<[^<]*)*<\/nav>/gi, " ")
-      .replace(/<footer\b[^<]*(?:(?!<\/footer>)<[^<]*)*<\/footer>/gi, " ")
-      .replace(/<header\b[^<]*(?:(?!<\/header>)<[^<]*)*<\/header>/gi, " ")
-      .replace(/<br\s*[\/]?>/gi, "\n")
-      .replace(/<\/p>/gi, "\n\n")
-      .replace(/<\/div>/gi, "\n")
-      .replace(/<\/tr>/gi, "\n")
-      .replace(/<\/h[1-6]>/gi, "\n\n")
+      .replace(/<script\\b[^<]*(?:(?!<\\/script>)[^<]*)*<\\/script>/gi, " ")
+      .replace(/<style\\b[^<]*(?:(?!<\\/style>)[^<]*)*<\\/style>/gi, " ")
+      .replace(/<noscript\\b[^<]*(?:(?!<\\/noscript>)[^<]*)*<\\/noscript>/gi, " ")
+      .replace(/<svg\\b[^<]*(?:(?!<\\/svg>)[^<]*)*<\\/svg>/gi, " ")
+      .replace(/<nav\\b[^<]*(?:(?!<\\/nav>)[^<]*)*<\\/nav>/gi, " ")
+      .replace(/<footer\\b[^<]*(?:(?!<\\/footer>)[^<]*)*<\\/footer>/gi, " ")
+      .replace(/<header\\b[^<]*(?:(?!<\\/header>)[^<]*)*<\\/header>/gi, " ")
+      .replace(/<br\\s*[\\/]?>/gi, "\\n")
+      .replace(/<\\/p>/gi, "\\n\\n")
+      .replace(/<\\/div>/gi, "\\n")
+      .replace(/<\\/tr>/gi, "\\n")
+      .replace(/<\\/h[1-6]>/gi, "\\n\\n")
       .replace(/<[^>]+>/g, " ")
       .replace(/&nbsp;/gi, " ")
       .replace(/&amp;/gi, "&")
       .replace(/&lt;/gi, "<")
       .replace(/&gt;/gi, ">")
       .replace(/&quot;/gi, '"')
-      .replace(/&#39;/g, "'")
-      .replace(/[ \t]+/g, " ")
-      .replace(/\n\s*\n/g, "\n\n")
-      .trim();
+      .replace(/&#39;/gi, "'")
+      .replace(/[ \\t]+/g, " ")
+      .replace(/\\n\\s*\\n/g, "\\n\\n")
+      .trim()
+      .slice(0, 8000);
 
-    // Cap content length to prevent prompt explosion
-    cleanText = cleanText.slice(0, 6000);
+    const hasPasswordField = /<input[^>]+type=["']password["']/i.test(rawBody);
+    const hasOtpField = /<input[^>]+(?:name|id)=["'][^"']*(?:otp|pin|verification)[^"']*["']/i.test(rawBody);
+    const loginWords = /\\b(?:sign\\s*in|login|log\\s*in|authentication required|enter otp|one time password)\\b/i.test(cleanText);
+    const likelyClientRenderedShell = cleanText.length < 180 && /<script\\b/i.test(rawBody) && /(?:__next|react|angular|vue|webpack)/i.test(rawBody);
+    const likelyAuthPage = hasPasswordField || hasOtpField;
+
+    if (likelyAuthPage || (loginWords && cleanText.length < 1200) || likelyClientRenderedShell) {
+      return {
+        success: false,
+        url: rawUrl,
+        title,
+        content: cleanText,
+        httpStatus,
+        contentType,
+        requiresBrowser: true,
+        rendered: false,
+        error: "Browser rendering or an authenticated session is required to read this source.",
+      };
+    }
+
+    if (!cleanText) {
+      return {
+        success: false,
+        url: rawUrl,
+        title,
+        content: "",
+        httpStatus,
+        contentType,
+        error: "The source returned no readable content.",
+      };
+    }
 
     return {
       success: true,
       url: rawUrl,
       title,
       content: cleanText,
+      httpStatus,
+      contentType,
+      rendered: false,
     };
   } catch (err) {
     return {
