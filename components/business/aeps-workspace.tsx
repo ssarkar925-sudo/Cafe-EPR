@@ -10,7 +10,6 @@ import { createCustomerRecord } from "@/lib/customers";
 import ScanFillModal from "@/components/scan-fill/scan-fill-modal";
 import { extractForMode, type ScanFields } from "@/lib/scan/extract";
 import {
-  getDefaultWatcherSources,
   getDefaultAepsPricingRules,
   PURPOSE_LABELS,
   TOP_INDIAN_BANKS,
@@ -183,9 +182,9 @@ export default function AepsWorkspace({
   const [isAddingRule, setIsAddingRule] = useState(false);
 
   // Multi-Source Portal Watcher State
-  const [watcherSources, setWatcherSources] = useState<PortalWatcherSource[]>(() =>
-    getDefaultWatcherSources(initialPortals)
-  );
+  // Watcher sources are configuration data, not application defaults.
+  // Start empty and hydrate exclusively from persisted database records.
+  const [watcherSources, setWatcherSources] = useState<PortalWatcherSource[]>([]);
   const [changeRecords, setChangeRecords] = useState<PortalChangeRecord[]>([]);
   const [selectedWatcherPortalId, setSelectedWatcherPortalId] = useState(initialPortals[0]?.id || "");
   const [testingSourceId, setTestingSourceId] = useState<string | null>(null);
@@ -209,33 +208,31 @@ export default function AepsWorkspace({
   const [deletingSource, setDeletingSource] = useState<PortalWatcherSource | null>(null);
   const [isDeletingSource, setIsDeletingSource] = useState(false);
 
-  // Hydrate persisted sources from server on mount
+  // Hydrate ONLY persisted watcher sources from the server.
+  // Never merge in code-defined/default URLs. An empty database means an empty
+  // watcher configuration.
   useEffect(() => {
     let isMounted = true;
     async function loadPersistedSources() {
       try {
-        const res = await fetch("/api/ai/portal-watcher");
-        if (!res.ok) return;
-        const data = await res.json();
-        if (isMounted && data.success && Array.isArray(data.sources) && data.sources.length > 0) {
-          setWatcherSources((prev) => {
-            const persistedMap = new Map(data.sources.map((s: PortalWatcherSource) => [s.id, s]));
-            const merged = data.sources.slice();
-            for (const p of prev) {
-              if (!persistedMap.has(p.id) && !data.sources.some((s: PortalWatcherSource) => s.portalId === p.portalId && s.url.toLowerCase() === p.url.toLowerCase())) {
-                merged.push(p);
-              }
-            }
-            return merged;
-          });
+        const res = await fetch("/api/ai/portal-watcher?action=get_sources");
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data?.success || !Array.isArray(data.sources)) {
+          throw new Error(data?.error || "Unable to load saved watcher sources.");
         }
-      } catch {}
+        if (isMounted) setWatcherSources(data.sources);
+      } catch (err: any) {
+        if (isMounted) {
+          setWatcherSources([]);
+          showToast("error", err?.message || "Unable to load saved watcher sources.");
+        }
+      }
     }
     loadPersistedSources();
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [showToast]);
 
   // Portal Collection Run State
   const [collectionRuns, setCollectionRuns] = useState<PortalCollectionRun[]>([]);
@@ -966,45 +963,9 @@ export default function AepsWorkspace({
             : `Verification complete with warnings for ${targetPortal.name}.`
         );
       } else {
-        // Fallback local verification
-        const defaultRun: PortalCollectionRun = {
-          id: `run-${targetPortal.id.slice(0, 8)}-${Date.now()}`,
-          portalId: targetPortal.id,
-          portalName: targetPortal.name,
-          startedAt: now,
-          completedAt: now,
-          sourceCount: portalSources.length,
-          successfulSourceCount: portalSources.length,
-          failedSourceCount: 0,
-          conflictCount: 0,
-          verificationStatus: "VERIFIED",
-          observations: [],
-          verifiedContext: {
-            transactionType: { value: "cash_out", status: "CONFIRMED", sources: [] },
-            bank: { value: bankOptions[0] || null, status: "CONFIRMED", sources: [] },
-            portal: { id: targetPortal.id, name: targetPortal.name, status: "CONFIRMED" },
-            customerFee: { value: 15, status: "CONFIRMED", sources: [] },
-            commission: { value: 4, status: "CONFIRMED", sources: [] },
-            maxLimit: { value: 10000, status: "CONFIRMED" },
-            reference: { value: null, status: "NOT_FOUND" },
-            serviceStatus: { value: "Operational", status: "CONFIRMED" },
-            denominations: [500, 1000, 2000, 3000, 5000, 10000],
-            verifiedAt: now,
-          },
-        };
-        setCurrentRun(defaultRun);
-        setCollectionRuns((prev) => [defaultRun, ...prev]);
-        setTransactionType("cash_out");
-        if (bankOptions[0]) setBankId(bankOptions[0].id);
-        const resolved = resolvePricingFromRules(pricingRules, {
-          portalId: targetPortal.id,
-          bankId: bankOptions[0]?.id,
-          transactionType: "cash_out",
-          amount: Number(amount) || 2000,
-        });
-        setFee(String(resolved.fee));
-        setCommission(String(resolved.commission));
-        showToast("success", `Baseline sources verified for ${targetPortal.name}.`);
+        setCurrentRun(null);
+        setLastVerifiedAt(null);
+        throw new Error(data?.error || "Live watcher verification failed. No source baseline was applied.");
       }
     } catch (err: any) {
       showToast("error", err?.message || "Failed to verify portal sources.");
@@ -1309,15 +1270,6 @@ export default function AepsWorkspace({
     const sourceId = deletingSource.id;
     const now = new Date().toISOString();
 
-    // Soft-delete / Archival in local state
-    setWatcherSources((prev) =>
-      prev.map((s) =>
-        s.id === sourceId
-          ? { ...s, isArchived: true, isEnabled: false, archivedAt: now }
-          : s
-      )
-    );
-
     try {
       const res = await fetch("/api/ai/portal-watcher", {
         method: "POST",
@@ -1331,10 +1283,11 @@ export default function AepsWorkspace({
       if (!res.ok || !data.success) {
         showToast("error", data.error || "Failed to delete source from server.");
       } else {
+        setWatcherSources((prev) => prev.filter((s) => s.id !== sourceId));
         showToast("success", "Source URL deleted successfully.");
       }
-    } catch {
-      showToast("success", "Source URL deleted successfully.");
+    } catch (err: any) {
+      showToast("error", err?.message || "Failed to delete source from server.");
     } finally {
       setIsDeletingSource(false);
       setDeleteSourceModalOpen(false);
@@ -1483,7 +1436,6 @@ export default function AepsWorkspace({
       isArchived: false,
     };
 
-    setWatcherSources((prev) => [...prev, newSrc]);
     setNewSourceUrl("");
 
     // Persist to server
@@ -1502,13 +1454,14 @@ export default function AepsWorkspace({
         }),
       });
       const data = await res.json();
-      if (!res.ok || !data.success) {
-        showToast("error", data.error || "Failed to persist source to server.");
-        return;
+      if (!res.ok || !data.success || !data.source) {
+        throw new Error(data?.error || "Failed to persist source to server.");
       }
+      setWatcherSources((prev) => [...prev, data.source]);
       showToast("success", `Added new ${PURPOSE_LABELS[newSourcePurpose].label} source for ${targetPortal.name}.`);
-    } catch {
-      showToast("success", `Added new ${PURPOSE_LABELS[newSourcePurpose].label} source for ${targetPortal.name}.`);
+    } catch (err: any) {
+      showToast("error", err?.message || "Failed to persist source to server.");
+ `Added new ${PURPOSE_LABELS[newSourcePurpose].label} source for ${targetPortal.name}.`);
     }
   };
 
@@ -3181,7 +3134,7 @@ export default function AepsWorkspace({
             {/* PORTAL SELECTOR TABS */}
             <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto">
               {initialPortals.map((p) => {
-                const count = watcherSources.filter((s) => s.portalId === p.id).length;
+                const count = watcherSources.filter((s) => s.portalId === p.id && !s.isArchived).length;
                 const active = selectedWatcherPortalId === p.id;
                 return (
                   <button
