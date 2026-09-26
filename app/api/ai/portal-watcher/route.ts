@@ -229,73 +229,119 @@ export async function POST(request: Request) {
     // ACTION: COLLECT_ALL (Checks ALL enabled URLs for portal together)
     // -----------------------------------------------------------------------
     if (action === "collect_all" || action === "collect_portal_context") {
-      const portalId = String(body.portalId || "");
-      const portalName = String(body.portalName || "Registered Portal");
-      const providedSources: PortalWatcherSource[] = Array.isArray(body.sources) ? body.sources : [];
-      const activeRules: AepsPricingRule[] = Array.isArray(body.activeRules) ? body.activeRules : [];
-      const bankList: { id: string; name: string; code?: string }[] = Array.isArray(body.bankList) ? body.bankList : [];
+      const portalId = String(body.portalId || "").trim();
+      if (!portalId) return NextResponse.json({ error: "Portal ID is required." }, { status: 400 });
 
-      // Filter strictly to enabled and non-archived sources belonging to this Portal
-      const targetSources = providedSources.filter(
-        (s) => s.portalId === portalId && s.isEnabled && !s.isArchived
-      );
+      // Server-authoritative source set. Never trust the browser's copy of sources.
+      const { data: portal, error: portalErr } = await supabase
+        .from("aeps_portals")
+        .select("id,name")
+        .eq("id", portalId)
+        .maybeSingle();
+      if (portalErr || !portal) return NextResponse.json({ error: "Portal not found." }, { status: 404 });
 
-      const runId = `run-${portalId.slice(0, 8)}-${Date.now()}`;
+      const { data: sourceRows, error: sourceErr } = await supabase
+        .from("aeps_portal_sources")
+        .select("*")
+        .eq("portal_id", portalId)
+        .eq("is_archived", false)
+        .eq("is_enabled", true)
+        .order("priority", { ascending: true })
+        .order("created_at", { ascending: true });
+      if (sourceErr) return NextResponse.json({ error: "Unable to load watcher sources: " + sourceErr.message }, { status: 500 });
+
+      const targetSources: PortalWatcherSource[] = (sourceRows || []).map((row: any) => ({
+        id: row.id,
+        portalId: row.portal_id,
+        portalName: row.portal_name || portal.name,
+        url: row.url,
+        sourceUrl: row.url,
+        sourceType: row.source_type || "web_page",
+        purpose: row.purpose as PortalSourcePurpose,
+        isEnabled: row.is_enabled,
+        priority: row.priority ?? 3,
+        lastChecked: row.last_checked,
+        lastSuccessfulCheck: row.last_successful_check || null,
+        lastStatus: row.last_status || "idle",
+        lastMessage: row.last_message,
+        httpStatus: row.http_status || null,
+        extractionConfidence: row.extraction_confidence || undefined,
+        currentPublishedValue: row.current_published_value || {},
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        description: row.description,
+        isArchived: row.is_archived,
+        archivedAt: row.archived_at,
+      }));
+
+      const { data: bankRows, error: bankErr } = await supabase
+        .from("aeps_banks")
+        .select("id,name,code")
+        .eq("is_active", true)
+        .order("name", { ascending: true });
+      if (bankErr) return NextResponse.json({ error: "Unable to load Bank Master: " + bankErr.message }, { status: 500 });
+      const bankList = (bankRows || []) as { id: string; name: string; code?: string }[];
+
+      const { data: ruleRows, error: ruleErr } = await supabase
+        .from("aeps_pricing_rules")
+        .select("id,service_type,rule_type,portal_id,customer_id,min_amount,max_amount,value,priority,is_active,transaction_type,bank_id,created_at,updated_at")
+        .eq("service_type", "aeps")
+        .eq("is_active", true)
+        .or("portal_id.is.null,portal_id.eq." + portalId);
+      if (ruleErr) return NextResponse.json({ error: "Unable to load AEPS pricing rules: " + ruleErr.message }, { status: 500 });
+      const activeRules: AepsPricingRule[] = (ruleRows || []).map((r: any) => ({
+        id: r.id,
+        serviceType: r.service_type,
+        ruleType: r.rule_type,
+        transactionType: r.transaction_type || "all",
+        portalId: r.portal_id || null,
+        customerId: r.customer_id || null,
+        bankId: r.bank_id || null,
+        minAmount: Number(r.min_amount || 0),
+        maxAmount: r.max_amount == null ? null : Number(r.max_amount),
+        value: Number(r.value || 0),
+        priority: Number(r.priority || 0),
+        isActive: Boolean(r.is_active),
+        effectiveFrom: r.created_at ? String(r.created_at).slice(0, 10) : undefined,
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+      }));
+
+      const runId = "run-" + portalId.slice(0, 8) + "-" + Date.now();
       const startedAt = new Date().toISOString();
 
       if (targetSources.length === 0) {
-        return NextResponse.json(
-          {
-            success: false,
-            action: "collect_all",
-            error: "No enabled watcher sources are configured for ${portalName}. Add at least one source URL before live verification.",
-            collectionRun: {
-              id: runId,
-              portalId,
-              portalName,
-              startedAt,
-              completedAt: new Date().toISOString(),
-              sourceCount: 0,
-              successfulSourceCount: 0,
-              failedSourceCount: 0,
-              conflictCount: 0,
-              verificationStatus: "FAILED",
-              observations: [],
-              verifiedContext: {
-                transactionType: { value: null, status: "NOT_FOUND", sources: [] },
-                bankId: null,
-                bankName: null,
-                portalId,
-                portalName,
-                customerFee: { value: null, status: "NOT_FOUND", sources: [] },
-                commission: { value: null, status: "NOT_FOUND", sources: [] },
-                reference: { value: null, status: "NOT_FOUND" },
-                bank: { value: null, status: "NOT_FOUND", sources: [] },
-                portal: { id: portalId, name: portalName, status: "CONFIRMED" },
-                maxLimit: { value: null, status: "NOT_FOUND" },
-                serviceStatus: { value: "Not verified", status: "NOT_FOUND" },
-                denominations: [],
-                verifiedAt: new Date().toISOString(),
-              },
-            },
-            pendingChanges: [],
-          },
-          { status: 400 }
-        );
+        const completedAt = new Date().toISOString();
+        const emptyContext = {
+          transactionType: { value: null, status: "NOT_FOUND", sources: [] },
+          bankId: null, bankName: null, portalId, portalName: portal.name,
+          customerFee: { value: null, status: "NOT_FOUND", sources: [] },
+          commission: { value: null, status: "NOT_FOUND", sources: [] },
+          reference: { value: null, status: "NOT_FOUND" },
+          bank: { value: null, status: "NOT_FOUND", sources: [], candidates: [] },
+          portal: { id: portalId, name: portal.name, status: "CONFIRMED" },
+          amountLimits: { min: 100, max: 10000 },
+          maxLimit: { value: null, status: "NOT_FOUND" },
+          serviceStatus: { value: "Not verified", status: "NOT_FOUND" },
+          denominations: [],
+          verifiedAt: completedAt,
+        };
+        await supabase.from("aeps_portal_collection_runs").insert({
+          id: runId, portal_id: portalId, portal_name: portal.name, started_at: startedAt, completed_at: completedAt,
+          source_count: 0, successful_source_count: 0, failed_source_count: 0, conflict_count: 0,
+          verification_status: "FAILED", verified_context: emptyContext, created_by: auth.user.id,
+        });
+        return NextResponse.json({ success: false, action: "collect_all", portalId, portalName: portal.name,
+          error: "No enabled watcher sources are configured for " + portal.name + ". Add at least one source URL before live verification.",
+          collectionRun: { id: runId, portalId, portalName: portal.name, startedAt, completedAt, sourceCount: 0, successfulSourceCount: 0, failedSourceCount: 0, conflictCount: 0, verificationStatus: "FAILED", observations: [], verifiedContext: emptyContext }, pendingChanges: [] }, { status: 400 });
       }
 
-      // Fetch all sources concurrently using Promise.allSettled
       const fetchResults = await Promise.allSettled(
         targetSources.map(async (src) => {
           const t0 = Date.now();
           const targetUrl = src.url || src.sourceUrl || "";
           const webRes = await fetchWebsiteData(targetUrl);
-          const latencyMs = Date.now() - t0;
-          return {
-            source: src,
-            webRes,
-            latencyMs,
-          };
+          return { source: src, webRes, latencyMs: Date.now() - t0 };
         })
       );
 
@@ -310,150 +356,121 @@ export async function POST(request: Request) {
         const extractedAt = new Date().toISOString();
 
         if (item.status === "fulfilled" && item.value.webRes.success) {
-          successCount++;
-          const content = item.value.webRes.content || "";
+          const webRes = item.value.webRes;
+          const content = webRes.content || "";
           const normalized = normalizePurposeData(src.purpose, content, bankList);
-          const matchedBank = normalized.bankName
-            ? matchBankExactName(normalized.bankName, bankList)
-            : null;
+          const matchedBank = normalized.bankName ? matchBankExactName(normalized.bankName, bankList) : null;
+          const useful = src.purpose === "commission" ? normalized.commission != null :
+            src.purpose === "fee" ? normalized.fee != null :
+            src.purpose === "aeps_rules" ? normalized.maxLimit != null :
+            src.purpose === "transaction_info" ? (normalized.transactionType != null || normalized.reference != null) :
+            src.purpose === "provider_bank_info" ? normalized.bankName != null :
+            src.purpose === "service_status" ? normalized.serviceStatus != null :
+            content.trim().length > 0;
+          const confidence: SourceConfidenceStatus = useful ? "HIGH_CONFIDENCE" : "NEEDS_REVIEW";
+          if (useful) successCount++; else failCount++;
 
           const obs: PortalCollectionObservation = {
-            id: `obs-${src.id}-${Date.now()}`,
-            collectionRunId: runId,
-            sourceId: src.id,
-            sourceUrl: src.url || src.sourceUrl || "",
-            portalId: src.portalId,
-            portalName: src.portalName,
-            purpose: src.purpose,
-            httpStatus: 200,
-            latencyMs: item.value.latencyMs,
-            extractedAt,
-            rawSnippet: content.slice(0, 300),
+            id: "obs-" + src.id + "-" + Date.now() + "-" + i,
+            collectionRunId: runId, sourceId: src.id, sourceUrl: src.url || src.sourceUrl || "",
+            portalId: src.portalId, portalName: src.portalName, purpose: src.purpose,
+            httpStatus: webRes.httpStatus || 200, latencyMs: item.value.latencyMs, extractedAt,
+            rawSnippet: content.slice(0, 500),
             normalizedData: {
-              portalId: src.portalId,
-              portalName: src.portalName,
-              bankId: matchedBank?.id || null,
-              bankName: matchedBank?.name || normalized.bankName || null,
+              portalId: src.portalId, portalName: src.portalName,
+              bankId: matchedBank?.id || null, bankName: matchedBank?.name || normalized.bankName || null,
               bankCode: matchedBank?.code || normalized.bankCode || null,
-              transactionType: normalized.transactionType,
-              customerFee: normalized.fee,
-              commission: normalized.commission,
-              fee: normalized.fee,
-              maxLimit: normalized.maxLimit,
+              transactionType: normalized.transactionType, customerFee: normalized.fee, fee: normalized.fee,
+              commission: normalized.commission, maxLimit: normalized.maxLimit,
               amountLimits: normalized.maxLimit ? { min: 100, max: normalized.maxLimit } : null,
-              reference: normalized.reference,
-              serviceStatus: normalized.serviceStatus,
-              summary: normalized.summary,
+              reference: normalized.reference, serviceStatus: normalized.serviceStatus, summary: normalized.summary,
             },
-            confidence: "HIGH_CONFIDENCE",
-            errorMessage: null,
+            confidence,
+            errorMessage: useful ? null : "HTTP source succeeded but no purpose-specific data was extracted.",
           };
           observations.push(obs);
 
-          // Detect change against currently published configuration
-          let diffDetected = false;
-          let oldValStr = "—";
-          let newValStr = "—";
-
-          if (src.purpose === "commission") {
-            const oldComm = src.currentPublishedValue?.commission != null ? Number(src.currentPublishedValue.commission) : null;
-            const newComm = normalized.commission;
-            oldValStr = oldComm !== null ? `₹${oldComm.toFixed(2)}` : "None";
-            newValStr = newComm !== null ? `₹${newComm.toFixed(2)}` : "None";
-            if (newComm !== null && (oldComm === null || Math.abs(oldComm - newComm) >= 0.01)) {
-              diffDetected = true;
-            }
-          } else if (src.purpose === "fee") {
-            const oldFee = src.currentPublishedValue?.fee != null ? Number(src.currentPublishedValue.fee) : null;
-            const newFee = normalized.fee;
-            oldValStr = oldFee !== null ? `₹${oldFee.toFixed(2)}` : "None";
-            newValStr = newFee !== null ? `₹${newFee.toFixed(2)}` : "None";
-            if (newFee !== null && (oldFee === null || Math.abs(oldFee - newFee) >= 0.01)) {
-              diffDetected = true;
-            }
-          }
-
-          if (diffDetected) {
+          const oldVal = src.purpose === "commission" ? src.currentPublishedValue?.commission : src.purpose === "fee" ? src.currentPublishedValue?.fee : null;
+          const newVal = src.purpose === "commission" ? normalized.commission : src.purpose === "fee" ? normalized.fee : null;
+          if (newVal != null && (oldVal == null || Math.abs(Number(oldVal) - Number(newVal)) >= 0.01)) {
             pendingChanges.push({
-              id: `chg-${Date.now()}-${i}`,
-              collectionRunId: runId,
-              sourceId: src.id,
-              portalId,
-              portalName,
-              sourceUrl: src.url || src.sourceUrl || "",
-              purpose: src.purpose,
-              extractedAt,
-              oldValue: oldValStr,
-              newValue: newValStr,
-              changeSummary: `${src.purpose.toUpperCase()} change detected: was ${oldValStr}, now ${newValStr}`,
-              normalizedData: {
-                commission: normalized.commission,
-                fee: normalized.fee,
-                summary: normalized.summary,
-              },
+              id: "chg-" + Date.now() + "-" + i, collectionRunId: runId, sourceId: src.id, portalId, portalName: portal.name,
+              sourceUrl: src.url, purpose: src.purpose, extractedAt,
+              oldValue: oldVal == null ? "None" : "₹" + Number(oldVal).toFixed(2),
+              newValue: "₹" + Number(newVal).toFixed(2),
+              changeSummary: src.purpose.toUpperCase() + " change detected",
+              normalizedData: { commission: normalized.commission, fee: normalized.fee, summary: normalized.summary },
               status: "pending",
             });
           }
         } else {
           failCount++;
-          const errDetail = item.status === "rejected" ? String(item.reason) : item.value.webRes.error || "Network error or timeout";
+          const webRes = item.status === "fulfilled" ? item.value.webRes : null;
+          const errDetail = item.status === "rejected" ? String(item.reason) : (webRes?.error || "Network error or timeout");
           observations.push({
-            id: `obs-${src.id}-${Date.now()}`,
-            collectionRunId: runId,
-            sourceId: src.id,
-            sourceUrl: src.url || src.sourceUrl || "",
-            purpose: src.purpose,
-            httpStatus: 504,
-            latencyMs: item.status === "fulfilled" ? item.value.latencyMs : 5000,
-            extractedAt,
-            rawSnippet: "",
-            normalizedData: {},
-            confidence: "SOURCE_FAILED",
-            errorMessage: errDetail,
+            id: "obs-" + src.id + "-" + Date.now() + "-" + i, collectionRunId: runId, sourceId: src.id,
+            sourceUrl: src.url || src.sourceUrl || "", portalId: src.portalId, portalName: src.portalName, purpose: src.purpose,
+            httpStatus: webRes?.httpStatus || 503, latencyMs: item.status === "fulfilled" ? item.value.latencyMs : 15000,
+            extractedAt, rawSnippet: webRes?.content?.slice(0, 500) || "", normalizedData: {}, confidence: "SOURCE_FAILED",
+            errorMessage: errDetail + (webRes?.requiresBrowser ? " Open this source in the desktop browser watcher." : ""),
           });
         }
       }
 
-      // Cross-verify across all observations
       const { verifiedContext, conflicts, verificationStatus } = crossVerifySourceObservations(
-        observations,
-        bankList,
-        { id: portalId, name: portalName },
-        activeRules
+        observations, bankList, { id: portalId, name: portal.name }, activeRules
       );
-
       const completedAt = new Date().toISOString();
       const collectionRun: PortalCollectionRun = {
-        id: runId,
-        portalId,
-        portalName,
-        startedAt,
-        completedAt,
-        sourceCount: targetSources.length,
-        successfulSourceCount: successCount,
-        failedSourceCount: failCount,
-        conflictCount: conflicts.length,
-        verificationStatus,
-        observations,
-        verifiedContext,
+        id: runId, portalId, portalName: portal.name, startedAt, completedAt, sourceCount: targetSources.length,
+        successfulSourceCount: successCount, failedSourceCount: failCount, conflictCount: conflicts.length,
+        verificationStatus, observations, verifiedContext,
       };
 
+      const { error: runInsertErr } = await supabase.from("aeps_portal_collection_runs").insert({
+        id: runId, portal_id: portalId, portal_name: portal.name, started_at: startedAt, completed_at: completedAt,
+        source_count: targetSources.length, successful_source_count: successCount, failed_source_count: failCount,
+        conflict_count: conflicts.length, verification_status: verificationStatus, verified_context: verifiedContext,
+        created_by: auth.user.id,
+      });
+      if (runInsertErr) return NextResponse.json({ error: "Failed to persist watcher collection run: " + runInsertErr.message }, { status: 500 });
+
+      const obsRows = observations.map((o) => ({
+        id: o.id, collection_run_id: o.collectionRunId, source_id: o.sourceId, source_url: o.sourceUrl,
+        portal_id: o.portalId || portalId, portal_name: o.portalName || portal.name, purpose: o.purpose,
+        http_status: o.httpStatus, latency_ms: o.latencyMs, extracted_at: o.extractedAt, raw_snippet: o.rawSnippet,
+        normalized_data: o.normalizedData, confidence: o.confidence, error_message: o.errorMessage || null,
+      }));
+      const { error: obsInsertErr } = await supabase.from("aeps_portal_collection_observations").insert(obsRows);
+      if (obsInsertErr) return NextResponse.json({ error: "Failed to persist watcher observations: " + obsInsertErr.message }, { status: 500 });
+
+      const sourceUpdates = targetSources.map((src) => {
+        const obs = observations.find((o) => o.sourceId === src.id);
+        const sourceFailed = !obs || obs.confidence === "SOURCE_FAILED";
+        const warning = obs?.confidence === "NEEDS_REVIEW";
+        return supabase.from("aeps_portal_sources").update({
+          last_checked: completedAt,
+          last_successful_check: sourceFailed ? src.lastSuccessfulCheck || null : completedAt,
+          last_status: sourceFailed ? "error" : warning ? "warning" : "success",
+          last_message: obs?.errorMessage || obs?.normalizedData?.summary || (sourceFailed ? "Source failed." : "Live collection completed."),
+          http_status: obs?.httpStatus || null,
+          extraction_confidence: obs?.confidence || null,
+          updated_at: completedAt,
+        }).eq("id", src.id).eq("portal_id", portalId);
+      });
+      const sourceUpdateResults = await Promise.all(sourceUpdates);
+      const sourceUpdateError = sourceUpdateResults.find((r: any) => r.error)?.error;
+      if (sourceUpdateError) return NextResponse.json({ error: "Watcher collected data but failed to persist source status: " + sourceUpdateError.message }, { status: 500 });
+
       return NextResponse.json({
-        success: true,
-        action: "collect_all",
-        portalId,
-        portalName,
-        collectionRun,
-        pendingChanges,
-        message:
-          verificationStatus === "VERIFIED"
-            ? `All ${successCount} sources verified for ${portalName}.`
-            : verificationStatus === "PARTIAL"
-            ? `Partial verification: ${successCount} of ${targetSources.length} sources succeeded.`
-            : `Conflicts or issues detected for ${portalName}.`,
+        success: true, action: "collect_all", portalId, portalName: portal.name, collectionRun, pendingChanges,
+        message: verificationStatus === "VERIFIED"
+          ? "All " + successCount + " sources verified for " + portal.name + "."
+          : verificationStatus === "PARTIAL"
+          ? "Partial verification: " + successCount + " of " + targetSources.length + " sources produced usable data."
+          : "Conflicts or issues detected for " + portal.name + ".",
       });
     }
-
     // -----------------------------------------------------------------------
     // ACTION: APPROVE_CHANGE (Operator approves pending change)
     // -----------------------------------------------------------------------
