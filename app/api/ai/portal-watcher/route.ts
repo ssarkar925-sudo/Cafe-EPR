@@ -336,9 +336,42 @@ export async function POST(request: Request) {
           collectionRun: { id: runId, portalId, portalName: portal.name, startedAt, completedAt, sourceCount: 0, successfulSourceCount: 0, failedSourceCount: 0, conflictCount: 0, verificationStatus: "FAILED", observations: [], verifiedContext: emptyContext }, pendingChanges: [] }, { status: 400 });
       }
 
+      // Desktop Electron can provide browser-rendered/authenticated content.
+      // The server still resolves the source list from the database and performs
+      // all normalization/verification itself.
+      const browserObservations = Array.isArray(body.browserObservations) ? body.browserObservations : [];
+      const browserBySource = new Map(
+        browserObservations
+          .filter((o: any) => o && o.sourceId)
+          .map((o: any) => [String(o.sourceId), o])
+      );
+
       const fetchResults = await Promise.allSettled(
         targetSources.map(async (src) => {
           const t0 = Date.now();
+          const browserObservation = browserBySource.get(String(src.id));
+
+          if (browserObservation) {
+            const samePortal = String(browserObservation.portalId || "") === portalId;
+            const sameUrl = String(browserObservation.sourceUrl || "").trim().toLowerCase() === String(src.url || "").trim().toLowerCase();
+            if (samePortal && sameUrl) {
+              return {
+                source: src,
+                webRes: {
+                  success: Boolean(browserObservation.success) && !browserObservation.authRequired,
+                  url: src.url,
+                  title: String(browserObservation.title || ""),
+                  content: String(browserObservation.content || ""),
+                  error: browserObservation.error || null,
+                  httpStatus: Number(browserObservation.httpStatus || 0) || undefined,
+                  requiresBrowser: Boolean(browserObservation.authRequired),
+                  rendered: Boolean(browserObservation.rendered),
+                },
+                latencyMs: Number(browserObservation.latencyMs || (Date.now() - t0)),
+              };
+            }
+          }
+
           const targetUrl = src.url || src.sourceUrl || "";
           const webRes = await fetchWebsiteData(targetUrl);
           return { source: src, webRes, latencyMs: Date.now() - t0 };
