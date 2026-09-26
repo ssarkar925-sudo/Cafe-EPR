@@ -1463,6 +1463,8 @@ export default function AepsWorkspace({
           changeId: recordId,
           portalId: rec.portalId,
           purpose: rec.purpose,
+          transactionType: rec.normalizedData.transactionType || "cash_out",
+          bankId: rec.normalizedData.bankId || null,
           newValue: rec.purpose === "commission" ? rec.normalizedData.commission : rec.normalizedData.fee,
         }),
       });
@@ -1496,23 +1498,17 @@ export default function AepsWorkspace({
       })
     );
 
-    // Update active pricing rules so active pricing reflects the new value
-    setPricingRules((prev) =>
-      prev.map((rule) => {
-        if (rule.portalId === rec.portalId && rule.ruleType === rec.purpose) {
-          const newVal =
-            rec.purpose === "commission"
-              ? Number(rec.normalizedData.commission ?? rule.value)
-              : Number(rec.normalizedData.fee ?? rule.value);
-          return {
-            ...rule,
-            value: newVal,
-            updatedAt: new Date().toISOString(),
-          };
-        }
-        return rule;
-      })
-    );
+    // Replace only the exact persisted rule returned by the server.
+    // Never rewrite every fee/commission rule for the portal.
+    if (data.rule) {
+      const persistedRule = data.rule as AepsPricingRule;
+      setPricingRules((prev) => {
+        const exists = prev.some((rule) => rule.id === persistedRule.id);
+        return exists
+          ? prev.map((rule) => (rule.id === persistedRule.id ? persistedRule : rule))
+          : [persistedRule, ...prev];
+      });
+    }
 
     // Update active form inputs if current portal matches
     if (portalId === rec.portalId) {
