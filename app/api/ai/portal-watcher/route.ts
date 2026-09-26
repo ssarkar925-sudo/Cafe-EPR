@@ -88,6 +88,35 @@ function normalizePurposeData(
       ? extractRateSlabs(cleanText, purpose)
       : [];
 
+  // Pages often expose more than one data point (for example a transaction
+  // report can also contain Bank Name / Fee / Commission). Keep those labelled
+  // facts available to cross-verification regardless of the source's primary
+  // purpose.
+  const labelledBankLine =
+    lines.find((l) => /(?:issuer\s+bank|customer\s+bank|bank\s+name)\s*[:\-]/i.test(l)) || "";
+  const labelledBankMatch = labelledBankLine.match(
+    /(?:issuer\s+bank|customer\s+bank|bank\s+name)\s*[:\-]\s*(.+)$/i
+  );
+  if (labelledBankMatch?.[1]) {
+    bankNameVal = labelledBankMatch[1].trim().replace(/[|;,].*$/, "").trim();
+    const exactBank = matchBankExactName(bankNameVal, bankList);
+    if (exactBank) {
+      bankNameVal = exactBank.name;
+      bankCodeVal = exactBank.code || null;
+    }
+  }
+
+  const genericCommission = extractCommission(cleanText);
+  if (commissionVal === null && genericCommission) {
+    const parsed = parseFloat(genericCommission);
+    if (Number.isFinite(parsed)) commissionVal = parsed;
+  }
+  const genericFee = extractFee(cleanText);
+  if (feeVal === null && genericFee) {
+    const parsed = parseFloat(genericFee);
+    if (Number.isFinite(parsed)) feeVal = parsed;
+  }
+
   if (purpose === "commission") {
     const rawComm = extractCommission(cleanText);
     if (rawComm) commissionVal = parseFloat(rawComm);
@@ -129,21 +158,6 @@ function normalizePurposeData(
       (txnTypeVal ? txnTypeVal.toUpperCase() : "STANDARD") +
       (refVal ? "; Ref: " + refVal : "");
   } else if (purpose === "provider_bank_info") {
-    // Only an explicitly labelled bank field is eligible for transaction-bank
-    // linking. A status page listing many banks must not select one of them.
-    const labelledBankLine =
-      lines.find((l) => /(?:issuer\s+bank|customer\s+bank|bank\s+name)\s*[:\-]/i.test(l)) || "";
-    const labelledMatch = labelledBankLine.match(
-      /(?:issuer\s+bank|customer\s+bank|bank\s+name)\s*[:\-]\s*(.+)$/i
-    );
-    if (labelledMatch?.[1]) {
-      bankNameVal = labelledMatch[1].trim().replace(/[|;,].*$/, "").trim();
-      const exact = matchBankExactName(bankNameVal, bankList);
-      if (exact) {
-        bankNameVal = exact.name;
-        bankCodeVal = exact.code || null;
-      }
-    }
     const bankLines = lines.filter((l) =>
       /\b(?:bank|issuer|downtime|live|status|npci|switch)\b/i.test(l)
     );
@@ -503,13 +517,16 @@ export async function POST(request: Request) {
           const content = webRes.content || "";
           const normalized = normalizePurposeData(src.purpose, content, bankList);
           const matchedBank = normalized.bankName ? matchBankExactName(normalized.bankName, bankList) : null;
-          const useful = src.purpose === "commission" ? normalized.commission != null :
-            src.purpose === "fee" ? normalized.fee != null :
-            src.purpose === "aeps_rules" ? normalized.maxLimit != null :
-            src.purpose === "transaction_info" ? (normalized.transactionType != null || normalized.reference != null) :
-            src.purpose === "provider_bank_info" ? normalized.bankName != null :
-            src.purpose === "service_status" ? normalized.serviceStatus != null :
-            content.trim().length > 0;
+          const extractedAny =
+            normalized.transactionType != null ||
+            normalized.reference != null ||
+            normalized.bankName != null ||
+            normalized.fee != null ||
+            normalized.commission != null ||
+            normalized.maxLimit != null ||
+            normalized.serviceStatus != null ||
+            normalized.rateSlabs.length > 0;
+          const useful = extractedAny || (src.purpose === "general_updates" && content.trim().length > 0);
           const confidence: SourceConfidenceStatus = useful ? "HIGH_CONFIDENCE" : "NEEDS_REVIEW";
           if (useful) successCount++; else failCount++;
 
@@ -594,9 +611,11 @@ export async function POST(request: Request) {
         const obs = observations.find((o) => o.sourceId === src.id);
         const sourceFailed = !obs || obs.confidence === "SOURCE_FAILED";
         const warning = obs?.confidence === "NEEDS_REVIEW";
+        const usableSuccess =
+          obs?.confidence === "HIGH_CONFIDENCE" || obs?.confidence === "CONFIRMED";
         return supabase.from("aeps_portal_sources").update({
           last_checked: completedAt,
-          last_successful_check: sourceFailed ? src.lastSuccessfulCheck || null : completedAt,
+          last_successful_check: usableSuccess ? completedAt : src.lastSuccessfulCheck || null,
           last_status: sourceFailed ? "error" : warning ? "warning" : "success",
           last_message: obs?.errorMessage || obs?.normalizedData?.summary || (sourceFailed ? "Source failed." : "Live collection completed."),
           http_status: obs?.httpStatus || null,
