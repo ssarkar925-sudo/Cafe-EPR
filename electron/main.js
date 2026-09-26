@@ -184,6 +184,17 @@ ipcMain.handle("aeps-watcher-start", async (_event, options = {}) => {
   }
 });
 
+ipcMain.handle("aeps-watcher-status", async () => {
+  try {
+    return { success: true, ...(aepsWatcher.getStatus ? aepsWatcher.getStatus() : { active: false, sourceCount: 0 }) };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+});
+
 ipcMain.handle("aeps-watcher-stop", async () => {
   try {
     await aepsWatcher.stop();
