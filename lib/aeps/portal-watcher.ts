@@ -63,7 +63,28 @@ export function matchBankExactName(
 ): { id: string; name: string; code?: string } | null {
   const target = normalizeBankNameExact(inputName);
   if (!target) return null;
-  return bankList.find((b) => !!b.name && normalizeBankNameExact(b.name) === target) || null;
+  // 1. Direct exact name match
+  const exact = bankList.find((b) => !!b.name && normalizeBankNameExact(b.name) === target);
+  if (exact) return exact;
+  // 2. Direct exact code match (e.g. "SBIN", "PUNB", "HDFC")
+  const codeMatch = bankList.find((b) => !!b.code && normalizeBankNameExact(b.code) === target);
+  if (codeMatch) return codeMatch;
+  // 3. Known canonical alias match (e.g. "sbi" -> "state bank of india")
+  const alias = BANK_ALIASES[target];
+  if (alias) {
+    const aliasMatch = bankList.find((b) => !!b.name && normalizeBankNameExact(b.name) === alias);
+    if (aliasMatch) return aliasMatch;
+  }
+  // 4. TOP_INDIAN_BANKS match
+  const top = TOP_INDIAN_BANKS.find((t) => t.code.toLowerCase() === target || t.label.toLowerCase() === target);
+  if (top) {
+    for (const b of bankList) {
+      if (b.name && top.match.some((m) => normalizeBankNameExact(b.name) === m)) {
+        return b;
+      }
+    }
+  }
+  return null;
 }
 
 export function matchBank(
@@ -125,6 +146,54 @@ export const PURPOSE_LABELS: Record<
   },
 };
 
+export const VALID_PORTAL_PURPOSES: PortalSourcePurpose[] = [
+  "commission",
+  "fee",
+  "aeps_rules",
+  "transaction_info",
+  "provider_bank_info",
+  "service_status",
+  "general_updates",
+];
+
+export function validatePortalSourceUrl(rawUrl: string): { valid: boolean; error?: string; normalizedUrl?: string } {
+  const trimmed = (rawUrl || "").trim();
+  if (!trimmed) {
+    return { valid: false, error: "Source URL is required." };
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return { valid: false, error: "Please enter a valid URL (e.g. https://portal.example.com)." };
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return { valid: false, error: "Only http:// and https:// URLs are permitted." };
+  }
+  const cleanHost = parsed.hostname.trim().toLowerCase();
+  if (
+    cleanHost === "localhost" ||
+    cleanHost === "127.0.0.1" ||
+    cleanHost === "0.0.0.0" ||
+    cleanHost === "::1" ||
+    cleanHost.endsWith(".local") ||
+    cleanHost.endsWith(".internal") ||
+    cleanHost.endsWith(".corp")
+  ) {
+    return { valid: false, error: "Access to private or local network addresses is restricted for security." };
+  }
+  const ipv4Match = cleanHost.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipv4Match) {
+    const [, a, b] = ipv4Match.map(Number);
+    if (a === 10) return { valid: false, error: "Access to private network addresses is restricted." };
+    if (a === 172 && b >= 16 && b <= 31) return { valid: false, error: "Access to private network addresses is restricted." };
+    if (a === 192 && b === 168) return { valid: false, error: "Access to private network addresses is restricted." };
+    if (a === 169 && b === 254) return { valid: false, error: "Access to link-local/cloud metadata addresses is restricted." };
+    if (a === 127) return { valid: false, error: "Access to loopback network addresses is restricted." };
+  }
+  return { valid: true, normalizedUrl: parsed.toString() };
+}
+
 export type SourceConfidenceStatus =
   | "CONFIRMED"
   | "HIGH_CONFIDENCE"
@@ -161,6 +230,10 @@ export interface PortalWatcherSource {
     updatedAt?: string | null;
   };
   createdAt: string;
+  updatedAt?: string | null;
+  description?: string | null;
+  isArchived?: boolean;
+  archivedAt?: string | null;
 }
 
 export type AepsTxnType = "cash_out" | "payment_collection" | "balance_enquiry" | "mini_statement";

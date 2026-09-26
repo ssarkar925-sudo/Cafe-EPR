@@ -278,7 +278,7 @@ export function parsePortalData(content: string, overridePortal?: string): Porta
 // 3. SSRF-Protected Web Scraping & URL Content Collector
 // ============================================================================
 
-function isPrivateIpOrHost(hostname: string): boolean {
+export function isPrivateIpOrHost(hostname: string): boolean {
   const cleanHost = hostname.trim().toLowerCase();
   if (
     cleanHost === "localhost" ||

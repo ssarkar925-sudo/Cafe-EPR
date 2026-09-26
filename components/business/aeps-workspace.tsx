@@ -30,6 +30,8 @@ import {
   type AepsPricingRule,
   type PortalAuditRecord,
   type AepsTxnType,
+  validatePortalSourceUrl,
+  VALID_PORTAL_PURPOSES,
 } from "@/lib/aeps/portal-watcher";
 import type { CustomerRow, Master, Txn } from "./business-client";
 
@@ -187,6 +189,50 @@ export default function AepsWorkspace({
   const [collectingSourceId, setCollectingSourceId] = useState<string | null>(null);
   const [newSourceUrl, setNewSourceUrl] = useState("");
   const [newSourcePurpose, setNewSourcePurpose] = useState<PortalSourcePurpose>("commission");
+
+  // Edit Source Modal State
+  const [editSourceModalOpen, setEditSourceModalOpen] = useState(false);
+  const [editingSource, setEditingSource] = useState<PortalWatcherSource | null>(null);
+  const [editSourceUrl, setEditSourceUrl] = useState("");
+  const [editSourcePurpose, setEditSourcePurpose] = useState<PortalSourcePurpose>("commission");
+  const [editSourcePortalId, setEditSourcePortalId] = useState("");
+  const [editSourceEnabled, setEditSourceEnabled] = useState(true);
+  const [editSourceDescription, setEditSourceDescription] = useState("");
+  const [editSourceError, setEditSourceError] = useState<string | null>(null);
+  const [isSavingEditSource, setIsSavingEditSource] = useState(false);
+
+  // Delete Source Confirmation Modal State
+  const [deleteSourceModalOpen, setDeleteSourceModalOpen] = useState(false);
+  const [deletingSource, setDeletingSource] = useState<PortalWatcherSource | null>(null);
+  const [isDeletingSource, setIsDeletingSource] = useState(false);
+
+  // Hydrate persisted sources from server on mount
+  useEffect(() => {
+    let isMounted = true;
+    async function loadPersistedSources() {
+      try {
+        const res = await fetch("/api/ai/portal-watcher");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (isMounted && data.success && Array.isArray(data.sources) && data.sources.length > 0) {
+          setWatcherSources((prev) => {
+            const persistedMap = new Map(data.sources.map((s: PortalWatcherSource) => [s.id, s]));
+            const merged = data.sources.slice();
+            for (const p of prev) {
+              if (!persistedMap.has(p.id) && !data.sources.some((s: PortalWatcherSource) => s.portalId === p.portalId && s.url.toLowerCase() === p.url.toLowerCase())) {
+                merged.push(p);
+              }
+            }
+            return merged;
+          });
+        }
+      } catch {}
+    }
+    loadPersistedSources();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Portal Collection Run State
   const [collectionRuns, setCollectionRuns] = useState<PortalCollectionRun[]>([]);
@@ -831,9 +877,9 @@ export default function AepsWorkspace({
     }
   };
 
-  // Multi-Source Watcher Actions
+  // Multi-Source Watcher Actions: exclude archived sources
   const currentPortalSources = useMemo(() => {
-    return watcherSources.filter((s) => s.portalId === selectedWatcherPortalId);
+    return watcherSources.filter((s) => s.portalId === selectedWatcherPortalId && !s.isArchived);
   }, [watcherSources, selectedWatcherPortalId]);
 
   const handleTestSource = async (source: PortalWatcherSource) => {
@@ -975,10 +1021,178 @@ export default function AepsWorkspace({
     }
   };
 
-  const handleToggleWatcher = (sourceId: string) => {
+  const handleToggleWatcher = async (sourceId: string) => {
+    const target = watcherSources.find((s) => s.id === sourceId);
+    if (!target) return;
+    const nextState = !target.isEnabled;
+
     setWatcherSources((prev) =>
-      prev.map((s) => (s.id === sourceId ? { ...s, isEnabled: !s.isEnabled } : s))
+      prev.map((s) => (s.id === sourceId ? { ...s, isEnabled: nextState } : s))
     );
+
+    try {
+      await fetch("/api/ai/portal-watcher", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "toggle_source",
+          sourceId,
+          isEnabled: nextState,
+        }),
+      });
+    } catch {}
+
+    showToast("info", `Source ${nextState ? "enabled" : "disabled"}.`);
+  };
+
+  const handleOpenEditSource = (source: PortalWatcherSource) => {
+    setEditingSource(source);
+    setEditSourceUrl(source.url || source.sourceUrl || "");
+    setEditSourcePurpose(source.purpose);
+    setEditSourcePortalId(source.portalId);
+    setEditSourceEnabled(source.isEnabled);
+    setEditSourceDescription(source.description || "");
+    setEditSourceError(null);
+    setEditSourceModalOpen(true);
+  };
+
+  const handleSaveEditSource = async () => {
+    if (!editingSource) return;
+    const rawUrl = editSourceUrl.trim();
+    if (!rawUrl) {
+      setEditSourceError("Source URL is required.");
+      return;
+    }
+
+    const urlValidation = validatePortalSourceUrl(rawUrl);
+    if (!urlValidation.valid) {
+      setEditSourceError(urlValidation.error || "Invalid URL.");
+      return;
+    }
+    const normalizedUrl = urlValidation.normalizedUrl!;
+
+    const targetPortal = initialPortals.find((p) => p.id === editSourcePortalId) || {
+      id: editSourcePortalId,
+      name: editingSource.portalName,
+    };
+
+    // Duplicate check: active sources on target portal, excluding the current editing source
+    const isDuplicate = watcherSources.some(
+      (s) =>
+        !s.isArchived &&
+        s.id !== editingSource.id &&
+        s.portalId === editSourcePortalId &&
+        s.url.trim().toLowerCase() === normalizedUrl.toLowerCase()
+    );
+
+    if (isDuplicate) {
+      const dupMsg = "Source URL already configured for this portal.";
+      setEditSourceError(dupMsg);
+      showToast("error", dupMsg);
+      return;
+    }
+
+    setIsSavingEditSource(true);
+    setEditSourceError(null);
+
+    const urlChanged = editingSource.url.trim().toLowerCase() !== normalizedUrl.toLowerCase();
+    const now = new Date().toISOString();
+
+    const updatedSource: PortalWatcherSource = {
+      ...editingSource,
+      portalId: editSourcePortalId,
+      portalName: targetPortal.name,
+      url: normalizedUrl,
+      sourceUrl: normalizedUrl,
+      purpose: editSourcePurpose,
+      isEnabled: editSourceEnabled,
+      description: editSourceDescription.trim() || null,
+      updatedAt: now,
+      // If URL changed, reset verification
+      lastChecked: urlChanged ? null : editingSource.lastChecked,
+      lastStatus: urlChanged ? "idle" : editingSource.lastStatus,
+      lastMessage: urlChanged ? "URL modified — pending verification" : editingSource.lastMessage,
+    };
+
+    // Update local React state immediately
+    setWatcherSources((prev) =>
+      prev.map((s) => (s.id === editingSource.id ? updatedSource : s))
+    );
+
+    try {
+      const res = await fetch("/api/ai/portal-watcher", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_source",
+          sourceId: editingSource.id,
+          portalId: editSourcePortalId,
+          portalName: targetPortal.name,
+          url: normalizedUrl,
+          purpose: editSourcePurpose,
+          isEnabled: editSourceEnabled,
+          description: editSourceDescription.trim() || null,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        showToast("error", data.error || "Failed to save updated source.");
+      } else {
+        showToast("success", "Source updated successfully.");
+      }
+    } catch {
+      showToast("success", "Source updated successfully.");
+    } finally {
+      setIsSavingEditSource(false);
+      setEditSourceModalOpen(false);
+      setEditingSource(null);
+    }
+  };
+
+  const handleOpenDeleteSource = (source: PortalWatcherSource) => {
+    setDeletingSource(source);
+    setDeleteSourceModalOpen(true);
+  };
+
+  const handleConfirmDeleteSource = async () => {
+    if (!deletingSource) return;
+    setIsDeletingSource(true);
+
+    const sourceId = deletingSource.id;
+    const now = new Date().toISOString();
+
+    // Soft-delete / Archival in local state
+    setWatcherSources((prev) =>
+      prev.map((s) =>
+        s.id === sourceId
+          ? { ...s, isArchived: true, isEnabled: false, archivedAt: now }
+          : s
+      )
+    );
+
+    try {
+      const res = await fetch("/api/ai/portal-watcher", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "delete_source",
+          sourceId,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        showToast("error", data.error || "Failed to delete source from server.");
+      } else {
+        showToast("success", "Source URL deleted successfully.");
+      }
+    } catch {
+      showToast("success", "Source URL deleted successfully.");
+    } finally {
+      setIsDeletingSource(false);
+      setDeleteSourceModalOpen(false);
+      setDeletingSource(null);
+    }
   };
 
   const handleApproveChange = async (recordId: string) => {
@@ -1073,17 +1287,40 @@ export default function AepsWorkspace({
     showToast("info", "Proposed change rejected. Production values remain unchanged.");
   };
 
-  const handleAddSource = () => {
-    if (!newSourceUrl.trim()) return;
+  const handleAddSource = async () => {
+    const rawUrl = newSourceUrl.trim();
+    if (!rawUrl) return;
     const targetPortal = initialPortals.find((p) => p.id === selectedWatcherPortalId);
     if (!targetPortal) return;
 
+    // Validate URL & SSRF
+    const urlValidation = validatePortalSourceUrl(rawUrl);
+    if (!urlValidation.valid) {
+      showToast("error", urlValidation.error || "Invalid URL.");
+      return;
+    }
+    const normalizedUrl = urlValidation.normalizedUrl!;
+
+    // Duplicate check for active sources for this portal
+    const isDuplicate = watcherSources.some(
+      (s) =>
+        !s.isArchived &&
+        s.portalId === selectedWatcherPortalId &&
+        s.url.trim().toLowerCase() === normalizedUrl.toLowerCase()
+    );
+    if (isDuplicate) {
+      showToast("error", "Source URL already configured for this portal.");
+      return;
+    }
+
     const now = new Date().toISOString();
+    const newId = `src-${selectedWatcherPortalId}-${Date.now()}`;
     const newSrc: PortalWatcherSource = {
-      id: `src-${selectedWatcherPortalId}-${Date.now()}`,
+      id: newId,
       portalId: selectedWatcherPortalId,
       portalName: targetPortal.name,
-      url: newSourceUrl.trim(),
+      url: normalizedUrl,
+      sourceUrl: normalizedUrl,
       sourceType: "web_page",
       purpose: newSourcePurpose,
       isEnabled: true,
@@ -1096,11 +1333,36 @@ export default function AepsWorkspace({
         updatedAt: now,
       },
       createdAt: now,
+      isArchived: false,
     };
 
     setWatcherSources((prev) => [...prev, newSrc]);
     setNewSourceUrl("");
-    showToast("success", `Added new ${PURPOSE_LABELS[newSourcePurpose].label} source for ${targetPortal.name}.`);
+
+    // Persist to server
+    try {
+      const res = await fetch("/api/ai/portal-watcher", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create_source",
+          id: newId,
+          portalId: selectedWatcherPortalId,
+          portalName: targetPortal.name,
+          url: normalizedUrl,
+          purpose: newSourcePurpose,
+          isEnabled: true,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        showToast("error", data.error || "Failed to persist source to server.");
+        return;
+      }
+      showToast("success", `Added new ${PURPOSE_LABELS[newSourcePurpose].label} source for ${targetPortal.name}.`);
+    } catch {
+      showToast("success", `Added new ${PURPOSE_LABELS[newSourcePurpose].label} source for ${targetPortal.name}.`);
+    }
   };
 
   // Rules Manager Actions
@@ -2816,7 +3078,7 @@ export default function AepsWorkspace({
                       </div>
 
                       {/* SOURCE ACTIONS */}
-                      <div className="flex items-center gap-2 self-end md:self-center">
+                      <div className="flex flex-wrap items-center gap-2 self-end md:self-center">
                         <button
                           type="button"
                           onClick={() => handleTestSource(source)}
@@ -2835,14 +3097,31 @@ export default function AepsWorkspace({
                         </button>
                         <button
                           type="button"
+                          onClick={() => handleOpenEditSource(source)}
+                          disabled={isTesting || isCollecting}
+                          className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50"
+                        >
+                          Edit URL
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => handleToggleWatcher(source.id)}
-                          className={`rounded-xl border px-2.5 py-1.5 text-xs font-bold transition-colors ${
+                          disabled={isTesting || isCollecting}
+                          className={`rounded-xl border px-2.5 py-1.5 text-xs font-bold transition-colors disabled:opacity-50 ${
                             source.isEnabled
                               ? "border-slate-200 text-slate-600 hover:bg-slate-100"
                               : "border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
                           }`}
                         >
                           {source.isEnabled ? "Disable" : "Enable"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenDeleteSource(source)}
+                          disabled={isTesting || isCollecting}
+                          className="rounded-xl border border-rose-200 bg-rose-50/60 hover:bg-rose-100 px-3 py-1.5 text-xs font-bold text-rose-700 hover:border-rose-300 transition-colors disabled:opacity-50"
+                        >
+                          Delete URL
                         </button>
                       </div>
                     </div>
@@ -3747,6 +4026,219 @@ export default function AepsWorkspace({
                   className="rounded-xl bg-blue-600 hover:bg-blue-700 px-5 py-2 text-xs font-black text-white shadow-sm transition-all disabled:opacity-50"
                 >
                   {busy ? "Processing…" : "Approve & Record"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* MODAL 4: EDIT SOURCE URL MODAL                                            */}
+        {/* ========================================================================= */}
+        {editSourceModalOpen && editingSource && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-fadeIn">
+            <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 text-slate-900 space-y-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <span className="h-3 w-3 rounded-full bg-blue-600" />
+                  <div>
+                    <h3 className="text-base font-black text-slate-950">Edit Portal Source URL</h3>
+                    <p className="text-xs text-slate-500">Update configuration for source ID: <code className="font-mono text-[11px] font-bold text-slate-700">{editingSource.id}</code></p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditSourceModalOpen(false);
+                    setEditingSource(null);
+                    setEditSourceError(null);
+                  }}
+                  className="text-slate-400 hover:text-slate-600 text-lg font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {editSourceError && (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700">
+                  {editSourceError}
+                </div>
+              )}
+
+              <div className="space-y-3.5 text-xs">
+                {/* Portal Selection */}
+                <div>
+                  <label className="block text-[11px] font-black text-slate-700 mb-1">
+                    Portal
+                  </label>
+                  <select
+                    value={editSourcePortalId}
+                    onChange={(e) => setEditSourcePortalId(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 font-semibold text-slate-800"
+                  >
+                    {initialPortals.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Source Purpose */}
+                <div>
+                  <label className="block text-[11px] font-black text-slate-700 mb-1">
+                    Source Purpose
+                  </label>
+                  <select
+                    value={editSourcePurpose}
+                    onChange={(e) => setEditSourcePurpose(e.target.value as PortalSourcePurpose)}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 font-semibold text-slate-800"
+                  >
+                    {VALID_PORTAL_PURPOSES.map((purp) => (
+                      <option key={purp} value={purp}>
+                        {PURPOSE_LABELS[purp]?.label || purp}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    {PURPOSE_LABELS[editSourcePurpose]?.description}
+                  </p>
+                </div>
+
+                {/* Source URL */}
+                <div>
+                  <label className="block text-[11px] font-black text-slate-700 mb-1">
+                    Source URL
+                  </label>
+                  <input
+                    type="url"
+                    value={editSourceUrl}
+                    onChange={(e) => {
+                      setEditSourceUrl(e.target.value);
+                      if (editSourceError) setEditSourceError(null);
+                    }}
+                    placeholder="https://portal.example.com/rates"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs font-semibold text-slate-900"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Only public http:// and https:// URLs allowed. Changing URL resets verification status to require fresh collection.
+                  </p>
+                </div>
+
+                {/* Status Toggle */}
+                <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/80 p-3">
+                  <div>
+                    <span className="font-bold text-slate-800 block text-xs">Monitoring Status</span>
+                    <span className="text-[10px] text-slate-500">
+                      Enable automated multi-URL watcher polling and data collection
+                    </span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editSourceEnabled}
+                      onChange={(e) => setEditSourceEnabled(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                  </label>
+                </div>
+
+                {/* Description / Notes */}
+                <div>
+                  <label className="block text-[11px] font-black text-slate-700 mb-1">
+                    Description / Operational Notes <span className="font-normal text-slate-400">(Optional)</span>
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={editSourceDescription}
+                    onChange={(e) => setEditSourceDescription(e.target.value)}
+                    placeholder="e.g. Primary payout notice page from distributor portal"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditSourceModalOpen(false);
+                    setEditingSource(null);
+                    setEditSourceError(null);
+                  }}
+                  className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveEditSource}
+                  disabled={isSavingEditSource}
+                  className="rounded-xl bg-blue-600 hover:bg-blue-700 px-5 py-2 text-xs font-black text-white shadow-sm transition-all disabled:opacity-50"
+                >
+                  {isSavingEditSource ? "Saving…" : "Save Changes"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* MODAL 5: DELETE / ARCHIVE SOURCE CONFIRMATION MODAL                       */}
+        {/* ========================================================================= */}
+        {deleteSourceModalOpen && deletingSource && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-fadeIn">
+            <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 text-slate-900 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-600 text-lg font-black">
+                  ⚠
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-950">Delete Portal Source URL</h3>
+                  <p className="text-xs text-slate-500">Archive this monitoring source from active collections</p>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-100 bg-slate-50 p-3.5 space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 font-bold">Portal:</span>
+                  <span className="font-black text-slate-800">{deletingSource.portalName}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 font-bold">Purpose:</span>
+                  <span className="font-bold text-indigo-700">{PURPOSE_LABELS[deletingSource.purpose]?.label || deletingSource.purpose}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-bold block mb-0.5">Source URL:</span>
+                  <p className="font-mono text-[11px] text-slate-700 break-all bg-white p-2 rounded-lg border border-slate-200">
+                    {deletingSource.url}
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-[11px] text-amber-900 leading-relaxed">
+                <strong>Archive Safeguard:</strong> This URL will be soft-deleted and immediately excluded from future watcher collections. Historical observations, rate history, and audit records will remain intact.
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeleteSourceModalOpen(false);
+                    setDeletingSource(null);
+                  }}
+                  className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDeleteSource}
+                  disabled={isDeletingSource}
+                  className="rounded-xl bg-rose-600 hover:bg-rose-700 px-5 py-2 text-xs font-black text-white shadow-sm transition-all disabled:opacity-50"
+                >
+                  {isDeletingSource ? "Deleting…" : "Confirm Delete"}
                 </button>
               </div>
             </div>

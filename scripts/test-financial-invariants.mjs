@@ -8265,6 +8265,33 @@ assert(
   } catch (err) {
     assert(false, "1561. AEPS Universal Customer Search Suite: All Tests (A to O) Passed Cleanly", err.message);
   }
+
+  // 14. AEPS Portal Source Management: Edit URL and Delete URL Invariants
+  assert(
+    aepsWorkspaceSrc.includes("Edit URL") &&
+      aepsWorkspaceSrc.includes("Delete URL") &&
+      aepsWorkspaceSrc.includes("handleOpenEditSource") &&
+      aepsWorkspaceSrc.includes("handleOpenDeleteSource"),
+    "1562. AEPS Source Management: Edit URL and Delete URL actions active on every configured source row"
+  );
+
+  assert(
+    aepsWorkspaceSrc.includes("Source URL already configured for this portal."),
+    "1563. AEPS Source Management: Duplicate active URL prevention enforced on both create and edit"
+  );
+
+  // 15. Execute Full AEPS Portal Source CRUD & Archive Acceptance Suite (Tests A to L)
+  try {
+    const suiteOutput5 = execSync("node --experimental-strip-types scripts/test-aeps-portal-source-crud.mjs", {
+      encoding: "utf8",
+    });
+    assert(
+      suiteOutput5.includes("All AEPS Portal Source CRUD acceptance tests passed successfully!"),
+      "1564. AEPS Portal Source CRUD Suite: All Tests (A to L) Passed Cleanly"
+    );
+  } catch (err) {
+    assert(false, "1564. AEPS Portal Source CRUD Suite: All Tests (A to L) Passed Cleanly", err.message);
+  }
 }
 
 console.log("\n================================================================================");

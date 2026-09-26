@@ -16,6 +16,8 @@ import {
   getDefaultWatcherSources,
   getDefaultAepsPricingRules,
   matchBankExactName,
+  validatePortalSourceUrl,
+  VALID_PORTAL_PURPOSES,
 } from "@/lib/aeps/portal-watcher";
 
 export const runtime = "nodejs";
@@ -141,6 +143,67 @@ function normalizePurposeData(
   };
 }
 
+export async function GET(request: Request) {
+  try {
+    const role = await getUserRole();
+    if (!hasRole(role, ["admin", "manager"])) {
+      return NextResponse.json({ error: "Unauthorized: admin or manager role required." }, { status: 403 });
+    }
+
+    const supabase = await createClient();
+    const { data: auth } = await supabase.auth.getUser();
+    if (!auth.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const portalId = searchParams.get("portalId");
+
+    let query = supabase
+      .from("aeps_portal_sources")
+      .select("*")
+      .eq("is_archived", false)
+      .order("created_at", { ascending: true });
+
+    if (portalId) {
+      query = query.eq("portal_id", portalId);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      return NextResponse.json({ success: true, sources: [] });
+    }
+
+    const sources: PortalWatcherSource[] = (data || []).map((row: any) => ({
+      id: row.id,
+      portalId: row.portal_id,
+      portalName: row.portal_name,
+      url: row.url,
+      sourceUrl: row.url,
+      sourceType: row.source_type || "web_page",
+      purpose: row.purpose,
+      isEnabled: row.is_enabled,
+      priority: row.priority ?? 3,
+      description: row.description,
+      lastChecked: row.last_checked,
+      lastStatus: row.last_status || "idle",
+      lastMessage: row.last_message,
+      currentPublishedValue: row.current_published_value || {},
+      isArchived: row.is_archived,
+      archivedAt: row.archived_at,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }));
+
+    return NextResponse.json({ success: true, sources });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err?.message || "Internal server error in portal watcher sources." },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const role = await getUserRole();
@@ -171,9 +234,9 @@ export async function POST(request: Request) {
       const activeRules: AepsPricingRule[] = Array.isArray(body.activeRules) ? body.activeRules : [];
       const bankList: { id: string; name: string; code?: string }[] = Array.isArray(body.bankList) ? body.bankList : [];
 
-      // Filter strictly to enabled sources belonging to this Portal
+      // Filter strictly to enabled and non-archived sources belonging to this Portal
       const targetSources = providedSources.filter(
-        (s) => s.portalId === portalId && s.isEnabled
+        (s) => s.portalId === portalId && s.isEnabled && !s.isArchived
       );
 
       const runId = `run-${portalId.slice(0, 8)}-${Date.now()}`;
@@ -491,6 +554,380 @@ export async function POST(request: Request) {
     }
 
     // -----------------------------------------------------------------------
+    // ACTION: GET_SOURCES
+    // -----------------------------------------------------------------------
+    if (action === "get_sources") {
+      const portalId = body.portalId ? String(body.portalId).trim() : null;
+      let query = supabase
+        .from("aeps_portal_sources")
+        .select("*")
+        .eq("is_archived", false)
+        .order("created_at", { ascending: true });
+
+      if (portalId) {
+        query = query.eq("portal_id", portalId);
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        return NextResponse.json({ success: true, sources: [] });
+      }
+
+      const sources: PortalWatcherSource[] = (data || []).map((row: any) => ({
+        id: row.id,
+        portalId: row.portal_id,
+        portalName: row.portal_name,
+        url: row.url,
+        sourceUrl: row.url,
+        sourceType: row.source_type || "web_page",
+        purpose: row.purpose,
+        isEnabled: row.is_enabled,
+        priority: row.priority ?? 3,
+        description: row.description,
+        lastChecked: row.last_checked,
+        lastStatus: row.last_status || "idle",
+        lastMessage: row.last_message,
+        currentPublishedValue: row.current_published_value || {},
+        isArchived: row.is_archived,
+        archivedAt: row.archived_at,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      }));
+
+      return NextResponse.json({ success: true, sources });
+    }
+
+    // -----------------------------------------------------------------------
+    // ACTION: CREATE_SOURCE
+    // -----------------------------------------------------------------------
+    if (action === "create_source") {
+      const portalId = String(body.portalId || "").trim();
+      const portalName = String(body.portalName || "Registered Portal").trim();
+      const rawUrl = String(body.url || "").trim();
+      const purpose = String(body.purpose || "") as PortalSourcePurpose;
+      const isEnabled = body.isEnabled !== undefined ? Boolean(body.isEnabled) : true;
+      const description = body.description ? String(body.description).trim() : null;
+
+      if (!portalId) {
+        return NextResponse.json({ error: "Portal ID is required." }, { status: 400 });
+      }
+      const urlValidation = validatePortalSourceUrl(rawUrl);
+      if (!urlValidation.valid) {
+        return NextResponse.json({ error: urlValidation.error }, { status: 400 });
+      }
+      const normalizedUrl = urlValidation.normalizedUrl!;
+      if (!VALID_PORTAL_PURPOSES.includes(purpose)) {
+        return NextResponse.json({ error: `Invalid purpose '${purpose}'.` }, { status: 400 });
+      }
+
+      // Enforce duplicate prevention per portal: partial unique constraint
+      const { data: existingDup } = await supabase
+        .from("aeps_portal_sources")
+        .select("id")
+        .eq("portal_id", portalId)
+        .eq("is_archived", false)
+        .ilike("url", normalizedUrl)
+        .maybeSingle();
+
+      if (existingDup) {
+        return NextResponse.json({ error: "Source URL already configured for this portal." }, { status: 400 });
+      }
+
+      const id = body.id || `src-${portalId}-${Date.now()}`;
+      const now = new Date().toISOString();
+      const newRecord = {
+        id,
+        portal_id: portalId,
+        portal_name: portalName,
+        url: normalizedUrl,
+        purpose,
+        source_type: "web_page",
+        is_enabled: isEnabled,
+        priority: 3,
+        description,
+        last_checked: null,
+        last_status: "idle",
+        last_message: "Newly added watcher source.",
+        current_published_value: {},
+        is_archived: false,
+        archived_at: null,
+        created_by: auth.user.id,
+        created_at: now,
+        updated_at: now,
+      };
+
+      const { error: insertErr } = await supabase.from("aeps_portal_sources").insert(newRecord);
+      if (insertErr) {
+        return NextResponse.json({ error: `Database insert failed: ${insertErr.message}` }, { status: 500 });
+      }
+
+      // Audit log
+      await supabase.from("audit_logs").insert({
+        user_id: auth.user.id,
+        user_name: auth.user.email || "operator",
+        action: "CREATE",
+        entity: "aeps_portal_sources",
+        entity_id: id,
+        description: `Created AEPS portal source for ${portalName}`,
+        details: { portalId, portalName, url: normalizedUrl, purpose, isEnabled, description },
+      });
+
+      const source: PortalWatcherSource = {
+        id,
+        portalId,
+        portalName,
+        url: normalizedUrl,
+        sourceUrl: normalizedUrl,
+        sourceType: "web_page",
+        purpose,
+        isEnabled,
+        priority: 3,
+        description,
+        lastChecked: null,
+        lastStatus: "idle",
+        lastMessage: "Newly added watcher source.",
+        currentPublishedValue: {},
+        isArchived: false,
+        archivedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      return NextResponse.json({
+        success: true,
+        action: "create_source",
+        source,
+        message: "Source created successfully.",
+      });
+    }
+
+    // -----------------------------------------------------------------------
+    // ACTION: UPDATE_SOURCE
+    // -----------------------------------------------------------------------
+    if (action === "update_source") {
+      const sourceId = String(body.sourceId || body.id || "").trim();
+      if (!sourceId) {
+        return NextResponse.json({ error: "Source ID is required." }, { status: 400 });
+      }
+
+      const { data: existing } = await supabase
+        .from("aeps_portal_sources")
+        .select("*")
+        .eq("id", sourceId)
+        .eq("is_archived", false)
+        .maybeSingle();
+
+      if (!existing) {
+        return NextResponse.json({ error: "Source not found or already archived." }, { status: 404 });
+      }
+
+      const targetPortalId = body.portalId ? String(body.portalId).trim() : existing.portal_id;
+      const targetPortalName = body.portalName ? String(body.portalName).trim() : existing.portal_name;
+      const rawUrl = body.url ? String(body.url).trim() : existing.url;
+      const purpose = (body.purpose ? String(body.purpose).trim() : existing.purpose) as PortalSourcePurpose;
+      const isEnabled = body.isEnabled !== undefined ? Boolean(body.isEnabled) : existing.is_enabled;
+      const description = body.description !== undefined ? (body.description ? String(body.description).trim() : null) : existing.description;
+
+      const urlValidation = validatePortalSourceUrl(rawUrl);
+      if (!urlValidation.valid) {
+        return NextResponse.json({ error: urlValidation.error }, { status: 400 });
+      }
+      const normalizedUrl = urlValidation.normalizedUrl!;
+      if (!VALID_PORTAL_PURPOSES.includes(purpose)) {
+        return NextResponse.json({ error: `Invalid purpose '${purpose}'.` }, { status: 400 });
+      }
+
+      // Check duplicate on target portal (excluding current source)
+      const { data: existingDup } = await supabase
+        .from("aeps_portal_sources")
+        .select("id")
+        .eq("portal_id", targetPortalId)
+        .eq("is_archived", false)
+        .neq("id", sourceId)
+        .ilike("url", normalizedUrl)
+        .maybeSingle();
+
+      if (existingDup) {
+        return NextResponse.json({ error: "Source URL already configured for this portal." }, { status: 400 });
+      }
+
+      const urlChanged = existing.url.trim().toLowerCase() !== normalizedUrl.toLowerCase();
+      const now = new Date().toISOString();
+
+      const updatePayload: any = {
+        portal_id: targetPortalId,
+        portal_name: targetPortalName,
+        url: normalizedUrl,
+        purpose,
+        is_enabled: isEnabled,
+        description,
+        updated_at: now,
+      };
+
+      if (urlChanged) {
+        updatePayload.last_checked = null;
+        updatePayload.last_status = "idle";
+        updatePayload.last_message = "URL modified — pending verification";
+      }
+
+      const { error: updateErr } = await supabase
+        .from("aeps_portal_sources")
+        .update(updatePayload)
+        .eq("id", sourceId);
+
+      if (updateErr) {
+        return NextResponse.json({ error: `Database update failed: ${updateErr.message}` }, { status: 500 });
+      }
+
+      // Re-fetch to guarantee persistence
+      const { data: freshRecord } = await supabase
+        .from("aeps_portal_sources")
+        .select("*")
+        .eq("id", sourceId)
+        .single();
+
+      // Audit log
+      await supabase.from("audit_logs").insert({
+        user_id: auth.user.id,
+        user_name: auth.user.email || "operator",
+        action: "UPDATE",
+        entity: "aeps_portal_sources",
+        entity_id: sourceId,
+        description: `Updated AEPS portal source for ${targetPortalName}`,
+        details: {
+          old: { portalId: existing.portal_id, url: existing.url, purpose: existing.purpose, isEnabled: existing.is_enabled, description: existing.description },
+          new: { portalId: targetPortalId, url: normalizedUrl, purpose, isEnabled, description },
+          urlChanged,
+        },
+      });
+
+      const updatedSource: PortalWatcherSource = {
+        id: freshRecord.id,
+        portalId: freshRecord.portal_id,
+        portalName: freshRecord.portal_name,
+        url: freshRecord.url,
+        sourceUrl: freshRecord.url,
+        sourceType: freshRecord.source_type || "web_page",
+        purpose: freshRecord.purpose,
+        isEnabled: freshRecord.is_enabled,
+        priority: freshRecord.priority ?? 3,
+        description: freshRecord.description,
+        lastChecked: freshRecord.last_checked,
+        lastStatus: freshRecord.last_status || "idle",
+        lastMessage: freshRecord.last_message,
+        currentPublishedValue: freshRecord.current_published_value || {},
+        isArchived: freshRecord.is_archived,
+        archivedAt: freshRecord.archived_at,
+        createdAt: freshRecord.created_at,
+        updatedAt: freshRecord.updated_at,
+      };
+
+      return NextResponse.json({
+        success: true,
+        action: "update_source",
+        source: updatedSource,
+        message: "Source updated successfully.",
+      });
+    }
+
+    // -----------------------------------------------------------------------
+    // ACTION: DELETE_SOURCE
+    // -----------------------------------------------------------------------
+    if (action === "delete_source") {
+      const sourceId = String(body.sourceId || body.id || "").trim();
+      if (!sourceId) {
+        return NextResponse.json({ error: "Source ID is required." }, { status: 400 });
+      }
+
+      const { data: existing } = await supabase
+        .from("aeps_portal_sources")
+        .select("*")
+        .eq("id", sourceId)
+        .maybeSingle();
+
+      if (!existing) {
+        return NextResponse.json({ error: "Source not found." }, { status: 404 });
+      }
+
+      const now = new Date().toISOString();
+      const { error: archiveErr } = await supabase
+        .from("aeps_portal_sources")
+        .update({
+          is_archived: true,
+          is_enabled: false,
+          archived_at: now,
+          updated_at: now,
+        })
+        .eq("id", sourceId);
+
+      if (archiveErr) {
+        return NextResponse.json({ error: `Failed to archive source: ${archiveErr.message}` }, { status: 500 });
+      }
+
+      // Audit log
+      await supabase.from("audit_logs").insert({
+        user_id: auth.user.id,
+        user_name: auth.user.email || "operator",
+        action: "DELETE",
+        entity: "aeps_portal_sources",
+        entity_id: sourceId,
+        description: `Archived AEPS portal source for ${existing.portal_name}`,
+        details: {
+          portalId: existing.portal_id,
+          portalName: existing.portal_name,
+          url: existing.url,
+          purpose: existing.purpose,
+          archivedAt: now,
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        action: "delete_source",
+        sourceId,
+        message: "Source deleted successfully.",
+      });
+    }
+
+    // -----------------------------------------------------------------------
+    // ACTION: TOGGLE_SOURCE
+    // -----------------------------------------------------------------------
+    if (action === "toggle_source") {
+      const sourceId = String(body.sourceId || body.id || "").trim();
+      const isEnabled = Boolean(body.isEnabled);
+      if (!sourceId) {
+        return NextResponse.json({ error: "Source ID is required." }, { status: 400 });
+      }
+
+      const now = new Date().toISOString();
+      const { error: toggleErr } = await supabase
+        .from("aeps_portal_sources")
+        .update({ is_enabled: isEnabled, updated_at: now })
+        .eq("id", sourceId);
+
+      if (toggleErr) {
+        return NextResponse.json({ error: toggleErr.message }, { status: 500 });
+      }
+
+      await supabase.from("audit_logs").insert({
+        user_id: auth.user.id,
+        user_name: auth.user.email || "operator",
+        action: "UPDATE",
+        entity: "aeps_portal_sources",
+        entity_id: sourceId,
+        description: `${isEnabled ? "Enabled" : "Disabled"} AEPS portal source ${sourceId}`,
+        details: { isEnabled, updatedAt: now },
+      });
+
+      return NextResponse.json({
+        success: true,
+        action: "toggle_source",
+        sourceId,
+        isEnabled,
+      });
+    }
+
+    // -----------------------------------------------------------------------
     // ACTION: TEST (Single URL testing)
     // -----------------------------------------------------------------------
     const rawUrl = String(body.url || "").trim();
@@ -499,8 +936,9 @@ export async function POST(request: Request) {
     const portalName = String(body.portalName || "Registered Portal");
     const currentPublished = body.currentPublished || {};
 
-    if (!rawUrl) {
-      return NextResponse.json({ error: "Source URL is required." }, { status: 400 });
+    const urlCheck = validatePortalSourceUrl(rawUrl);
+    if (!urlCheck.valid) {
+      return NextResponse.json({ error: urlCheck.error }, { status: 400 });
     }
 
     // SSRF-protected fetch via verified data-collector
