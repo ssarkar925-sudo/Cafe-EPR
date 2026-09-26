@@ -1454,24 +1454,17 @@ export default function AepsWorkspace({
       const isEnquiry = transactionType === "balance_enquiry" || transactionType === "mini_statement";
       const numAmount = isEnquiry ? 0 : Number(amount || 0);
 
-      // Keep the caller aligned with the canonical production RPC signature.
-      // AEPS does not use the DMT/UPI-only fields, so those arguments are
-      // intentionally passed as null rather than omitted.
-      // Reuse one idempotency key across retries of this submission to prevent
-      // duplicate financial records after a transient response failure.
       if (!idempotencyKeyRef.current) {
         idempotencyKeyRef.current = crypto.randomUUID();
       }
 
-      const payload: any = {
-        p_service_type: "aeps",
+      const commonPayload: any = {
         p_transaction_date: new Date().toISOString().slice(0, 10),
         p_transaction_timestamp: new Date().toISOString(),
         p_customer_id: customerId || selectedCustomer?.id || null,
         p_customer_mobile: cleanMobile,
         p_reference: bankRef || null,
         p_remarks: portalRef ? "Portal Ref: " + portalRef : null,
-        p_status: "success",
         p_bank_id: bankId,
         p_portal_id: portalId,
         p_merchant_qr_id: null,
@@ -1496,42 +1489,74 @@ export default function AepsWorkspace({
         p_pay_from_instrument_id: null,
         p_pay_from_method: isCollection ? "aeps_portal" : "cash",
         p_receiver_name: null,
-        p_portal_charge: 0,
         p_idempotency_key: idempotencyKeyRef.current,
       };
 
-      const result = await supabase.rpc("create_business_txn", payload);
-      if (result.error) throw result.error;
+      let result: any;
+      let persistedId: string | null = editingTxnId;
 
-      const insertedId = result.data?.id;
-      let confirmedTxn: Txn = result.data as Txn;
-
-      // Strict financial invariant: Confirm persistence via fresh database read!
-      if (insertedId) {
-        const { data: freshRead, error: readErr } = await supabase
-          .from("transactions")
-          .select(
-            "*, customers(name, phone), banks:aeps_banks(name), portals:aeps_portals(name), merchant_qrs:upi_merchant_qrs(display_name, upi_id), profiles(full_name)"
-          )
-          .eq("id", insertedId)
-          .single();
-
-        if (!readErr && freshRead) {
-          confirmedTxn = freshRead as Txn;
-        }
+      if (editingTxnId) {
+        // Use the canonical accounting-aware update RPC. It reverses the old
+        // financial legs and reposts the edited transaction atomically.
+        result = await supabase.rpc("update_business_txn", {
+          p_txn_id: editingTxnId,
+          ...commonPayload,
+          p_portal_charge: 0,
+        });
+      } else {
+        result = await supabase.rpc("create_business_txn", {
+          p_service_type: "aeps",
+          p_status: "success",
+          p_portal_charge: 0,
+          ...commonPayload,
+        });
+        persistedId = result.data?.id || null;
       }
 
-      setRows((prev) => [confirmedTxn, ...prev.filter((r) => r.id !== confirmedTxn.id)]);
-      showToast("success", "AEPS transaction recorded & verified in database ledger.");
+      if (result.error) throw result.error;
+
+      const returnedTxn = result.data as Txn;
+      if (!persistedId) persistedId = returnedTxn?.id || null;
+      if (!persistedId) throw new Error(editingTxnId ? "Transaction update succeeded but no transaction ID was returned." : "Transaction save succeeded but no transaction ID was returned.");
+
+      // Strict persistence confirmation: always re-read the transaction.
+      const { data: freshRead, error: readErr } = await supabase
+        .from("transactions")
+        .select(
+          "*, customers(name, phone), banks:aeps_banks(name), portals:aeps_portals(name), merchant_qrs:upi_merchant_qrs(display_name, upi_id), profiles(full_name)"
+        )
+        .eq("id", persistedId)
+        .single();
+
+      if (readErr || !freshRead) {
+        throw new Error("Transaction operation completed but persistence could not be verified.");
+      }
+
+      const confirmedTxn = freshRead as Txn;
+      setRows((prev) =>
+        editingTxnId
+          ? prev.map((r) => (r.id === confirmedTxn.id ? confirmedTxn : r))
+          : [confirmedTxn, ...prev.filter((r) => r.id !== confirmedTxn.id)]
+      );
+
+      showToast(
+        "success",
+        editingTxnId
+          ? "AEPS transaction updated and verified in database ledger."
+          : "AEPS transaction recorded & verified in database ledger."
+      );
+
+      setEditingTxnId(null);
       handleNewCashOut();
       setReviewOpen(false);
       idempotencyKeyRef.current = null;
     } catch (error: any) {
-      showToast("error", error?.message || "Failed to record AEPS transaction.");
+      showToast("error", error?.message || "Failed to save AEPS transaction.");
     } finally {
       setBusy(false);
     }
   };
+
 
   const portalName = initialPortals.find((p) => p.id === portalId)?.name || "—";
   const bankName = bankOptions.find((b) => b.id === bankId)?.name || "—";
@@ -1579,8 +1604,46 @@ export default function AepsWorkspace({
     };
   }, [rows]);
 
-  // Thermal Receipt Modal State
+  // Ledger action state
   const [thermalTxn, setThermalTxn] = useState<Txn | null>(null);
+  const [viewTxn, setViewTxn] = useState<Txn | null>(null);
+  const [editingTxnId, setEditingTxnId] = useState<string | null>(null);
+
+  const handleEditTransaction = (t: Txn) => {
+    setEditingTxnId(t.id);
+    setActiveTab("workspace");
+    setWorkspaceOpen(true);
+    setReviewOpen(false);
+    setCustomerId((t as any).customer_id || "");
+    setSelectedCustomerRecord(
+      (t as any).customer_id
+        ? { id: (t as any).customer_id, name: t.customers?.name, mobile: t.customer_mobile || t.customers?.phone }
+        : null
+    );
+    setCustomerSearchQuery("");
+    setCustomerSearchResults([]);
+    setSearchHasQueried(false);
+    setCustomerSearchError(null);
+    setMobile(t.customer_mobile || t.customers?.phone || "");
+    setName(t.customers?.name || "");
+    setAadhaar(t.aadhaar_last4 || "");
+    setAmount(String(t.amount ?? ""));
+    setFee(String(t.service_fee ?? ""));
+    setCommission(String(t.portal_commission ?? ""));
+    setBankId((t as any).bank_id || "");
+    setPortalId((t as any).portal_id || "");
+    setBankRef(t.reference || "");
+    const portalRemark = String(t.remarks || "").replace(/^Portal Ref:\s*/i, "");
+    setPortalRef(portalRemark);
+    setTransactionRef(t.reference || portalRemark || "");
+    setTransactionType(((t.transfer_method || "cash_out") as AepsTxnType));
+    setFeeSource(
+      (t.fee_source === "upi" || t.fee_source === "separate_cash" || t.fee_source === "cut_from_withdrawal")
+        ? t.fee_source
+        : "cut_from_withdrawal"
+    );
+    showToast("info", "Transaction loaded for editing. Save to update the existing transaction.");
+  };
 
   const isFormValid = useMemo(() => {
     const numAmount = Number(amount);
