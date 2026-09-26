@@ -445,6 +445,51 @@ export function normalizeTransactionType(raw: string): AepsTxnType | null {
   return null;
 }
 
+/**
+ * Canonical normalization helper for rules & pricing resolution.
+ * Maps "Cash Withdrawal", "Biometric Withdrawal", "cash_withdrawal", "cash_out" -> "cash_out".
+ * Preserves canonical database values without renaming them.
+ */
+export function normalizeRuleTransactionType(
+  type?: string | null
+): "cash_out" | "balance_enquiry" | "mini_statement" | "payment_collection" | "all" {
+  if (!type || type === "all" || type === "All Types" || type === "all_types") return "all";
+  const norm = normalizeTransactionType(type);
+  if (norm) return norm;
+  const s = String(type).toLowerCase().replace(/[-_]/g, " ").trim();
+  if (s.includes("withdrawal") || s.includes("cash out") || s.includes("cash") || s === "cw" || s === "w") {
+    return "cash_out";
+  }
+  if (s.includes("collection") || s.includes("pay") || s === "ap") {
+    return "payment_collection";
+  }
+  if (s.includes("balance") || s.includes("enquiry") || s.includes("inquiry") || s === "be") {
+    return "balance_enquiry";
+  }
+  if (s.includes("statement") || s.includes("mini") || s === "ms") {
+    return "mini_statement";
+  }
+  return "all";
+}
+
+/**
+ * Returns user-facing label for pricing rules.
+ * Strictly adheres to:
+ * - "cash_out" -> "Cash Withdrawal"
+ * - "balance_enquiry" -> "Balance Enquiry"
+ * - "mini_statement" -> "Mini Statement"
+ * - "all" -> "All Types"
+ * Never returns "Cash Out" or "Payment Collection".
+ */
+export function formatRuleTransactionType(type?: string | null): string {
+  if (!type || type === "all") return "All Types";
+  const norm = normalizeRuleTransactionType(type);
+  if (norm === "cash_out") return "Cash Withdrawal";
+  if (norm === "balance_enquiry") return "Balance Enquiry";
+  if (norm === "mini_statement") return "Mini Statement";
+  return "All Types";
+}
+
 export interface ResolvePricingParams {
   portalId?: string;
   bankId?: string;
@@ -483,7 +528,7 @@ export function resolvePricingFromRules(
   if (typeof paramsOrPortalId === "object" && paramsOrPortalId !== null) {
     targetPortalId = paramsOrPortalId.portalId;
     targetBankId = paramsOrPortalId.bankId;
-    targetTxnType = paramsOrPortalId.transactionType || "cash_out";
+    targetTxnType = normalizeRuleTransactionType(paramsOrPortalId.transactionType) || "cash_out";
     targetAmount = paramsOrPortalId.amount || 0;
     targetCustomerId = paramsOrPortalId.customerId;
     targetFeeSource = paramsOrPortalId.feeSource;
@@ -492,7 +537,11 @@ export function resolvePricingFromRules(
     targetAmount = amount || 0;
     targetBankId = bankId;
     targetCustomerId = customerId;
-    targetTxnType = transactionType || "cash_out";
+    targetTxnType = normalizeRuleTransactionType(transactionType) || "cash_out";
+  }
+
+  if (targetTxnType === "all") {
+    targetTxnType = "cash_out";
   }
 
   const activeRules = (rules || []).filter((r) => {
@@ -503,7 +552,8 @@ export function resolvePricingFromRules(
     if (r.portalId && targetPortalId && r.portalId !== targetPortalId) return false;
     if (r.customerId && targetCustomerId && r.customerId !== targetCustomerId) return false;
     if (r.bankId && r.bankId !== "all" && targetBankId && r.bankId !== targetBankId) return false;
-    if (r.transactionType && r.transactionType !== "all" && r.transactionType !== targetTxnType) return false;
+    const ruleTxnType = normalizeRuleTransactionType(r.transactionType);
+    if (ruleTxnType !== "all" && ruleTxnType !== targetTxnType) return false;
     return true;
   });
 
@@ -512,8 +562,10 @@ export function resolvePricingFromRules(
     if (a.customerId && !b.customerId) return -1;
     if (!a.customerId && b.customerId) return 1;
     // 2. Transaction type specific match before generic "all"
-    const aTypeSpecific = a.transactionType && a.transactionType !== "all";
-    const bTypeSpecific = b.transactionType && b.transactionType !== "all";
+    const aNorm = normalizeRuleTransactionType(a.transactionType);
+    const bNorm = normalizeRuleTransactionType(b.transactionType);
+    const aTypeSpecific = aNorm !== "all";
+    const bTypeSpecific = bNorm !== "all";
     if (aTypeSpecific && !bTypeSpecific) return -1;
     if (!aTypeSpecific && bTypeSpecific) return 1;
     // 3. Bank specific first
@@ -546,22 +598,24 @@ export function resolvePricingFromRules(
 
 /**
  * Returns dynamic denominations generated from active rules or falls back to canonical slabs.
- * Accepts transactionType to return relevant denominations (e.g. Cash Out vs Payment Collection).
+ * Accepts transactionType to return relevant denominations.
  */
 export function getDynamicDenominations(
   rules: AepsPricingRule[],
   portalId?: string,
   transactionType: string = "cash_out"
 ): number[] {
-  if (transactionType === "balance_enquiry" || transactionType === "mini_statement") {
+  const normTarget = normalizeRuleTransactionType(transactionType);
+  if (normTarget === "balance_enquiry" || normTarget === "mini_statement") {
     return [];
   }
   const candidateSet = new Set<number>();
   for (const r of rules || []) {
+    const ruleType = normalizeRuleTransactionType(r.transactionType);
     if (
       r.isActive &&
       (!portalId || !r.portalId || r.portalId === portalId) &&
-      (!r.transactionType || r.transactionType === "all" || r.transactionType === transactionType)
+      (ruleType === "all" || ruleType === normTarget)
     ) {
       if (r.minAmount > 0 && r.minAmount <= 10000) candidateSet.add(r.minAmount);
       if (r.maxAmount && r.maxAmount > 0 && r.maxAmount <= 10000) candidateSet.add(r.maxAmount);
@@ -570,7 +624,7 @@ export function getDynamicDenominations(
 
   // If no dynamic denominations from rules, use canonical Indian AEPS slabs
   if (candidateSet.size < 3) {
-    if (transactionType === "payment_collection") {
+    if (normTarget === "payment_collection") {
       return [100, 200, 500, 1000, 2000, 5000];
     }
     return [500, 1000, 2000, 3000, 5000, 10000];

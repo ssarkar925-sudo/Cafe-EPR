@@ -8292,6 +8292,28 @@ assert(
   } catch (err) {
     assert(false, "1564. AEPS Portal Source CRUD Suite: All Tests (A to L) Passed Cleanly", err.message);
   }
+
+  // 16. AEPS Pricing Rules Manager Dropdown & Table Display Invariants
+  assert(
+    aepsWorkspaceSrc.includes('<option value="cash_out">Cash Withdrawal</option>') &&
+      !aepsWorkspaceSrc.includes("Cash Out (Biometric Withdrawal)") &&
+      !aepsWorkspaceSrc.includes("Payment Collection (Aadhaar Pay)") &&
+      aepsWorkspaceSrc.includes("{formatRuleTransactionType(r.transactionType)}"),
+    "1565. AEPS Rules Manager: Transaction Type displays Cash Withdrawal and omits Cash Out / Payment Collection"
+  );
+
+  // 17. Execute AEPS Rules Transaction Type Dropdown Acceptance Suite (Tests 1 to 6)
+  try {
+    const suiteOutput6 = execSync("node --experimental-strip-types scripts/test-aeps-rules-dropdown.mjs", {
+      encoding: "utf8",
+    });
+    assert(
+      suiteOutput6.includes("ALL 6 ACCEPTANCE TESTS PASSED SUCCESSFULLY!"),
+      "1566. AEPS Rules Manager Suite: All Tests Passed Cleanly"
+    );
+  } catch (err) {
+    assert(false, "1566. AEPS Rules Manager Suite: All Tests Passed Cleanly", err.message);
+  }
 }
 
 console.log("\n================================================================================");
