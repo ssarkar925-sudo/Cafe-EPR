@@ -255,6 +255,12 @@ export interface PortalCollectionObservation {
     amountLimits?: { min?: number; max?: number } | null;
     reference?: string | null;
     serviceStatus?: string | null;
+    rateSlabs?: {
+      minAmount: number;
+      maxAmount: number | null;
+      value: number;
+      label: "fee" | "commission";
+    }[];
     summary?: string | null;
   };
   confidence: SourceConfidenceStatus;
