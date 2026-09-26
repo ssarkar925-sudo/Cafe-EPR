@@ -1283,6 +1283,8 @@ export default function AepsWorkspace({
       setLiveWatcherPortalId(null);
       setLiveWatcherLastEventAt(new Date().toISOString());
       showToast("info", "Live AEPS watcher stopped.");
+    } catch (err: any) {
+      showToast("error", err?.message || "Failed to stop live watcher.");
     }
   };
 
@@ -2574,6 +2576,7 @@ export default function AepsWorkspace({
                     Open Watcher
                   </button>
                 </div>
+              </div>
               <div className="border-t border-emerald-100 bg-white px-4 py-3 text-[10px] text-slate-500 flex flex-wrap items-center gap-x-4 gap-y-1">
                 <span><b className="text-slate-700">Mode:</b> {liveWatcherActive ? "Persistent desktop watcher" : "Manual verification"}</span>
                 <span><b className="text-slate-700">Detected:</b> {liveWatcherDetectedCount}</span>
