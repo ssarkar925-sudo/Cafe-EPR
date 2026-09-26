@@ -70,47 +70,9 @@ export function matchBank(
   inputName: string,
   bankList: { id: string; name: string; code?: string }[]
 ): { id: string; name: string; code?: string } | null {
-  if (!inputName || !inputName.trim()) return null;
-  const rawInput = inputName.toLowerCase().trim();
-  const normInput = normalizeBankName(inputName);
-
-  // 1. Direct code match (e.g. "SBI", "SBIN", "PNB", "HDFC")
-  for (const b of bankList) {
-    if (b.code && (b.code.toLowerCase().trim() === rawInput || b.code.toLowerCase().trim().startsWith(rawInput))) {
-      return b;
-    }
-  }
-
-  // 2. Exact normalized name match
-  for (const b of bankList) {
-    if (!b.name) continue;
-    const normB = normalizeBankName(b.name);
-    if (normB === normInput) return b;
-  }
-
-  // 3. Substring / contains match
-  for (const b of bankList) {
-    if (!b.name) continue;
-    const normB = normalizeBankName(b.name);
-    if (normB.includes(normInput) || normInput.includes(normB)) {
-      if (normInput.length >= 3 && normB.length >= 3) return b;
-    }
-  }
-
-  // 4. TOP_INDIAN_BANKS match
-  const top = TOP_INDIAN_BANKS.find(
-    (t) => t.code.toLowerCase() === rawInput || t.label.toLowerCase() === rawInput
-  );
-  if (top) {
-    for (const b of bankList) {
-      const normB = normalizeBankName(b.name);
-      if (top.match.some((m) => normB.includes(m) || m.includes(normB))) {
-        return b;
-      }
-    }
-  }
-
-  return null;
+  // Canonical bank-name matcher: exact name only. Use matchBankExactName for
+  // watcher/AI extraction and keep code-based selection in UI-specific logic.
+  return matchBankExactName(inputName, bankList);
 }
 
 export type PortalSourcePurpose =
