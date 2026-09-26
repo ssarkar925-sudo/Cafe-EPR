@@ -201,7 +201,7 @@ class AepsWatcher {
       validSources.map((source) => this.startSourceSession(source, portalId, portalName, intervalSeconds))
     );
 
-    const startedSources = results.filter((r) => r.status === "fulfilled").length;
+    const startedSources = results.filter((r) => r.status === "fulfilled" && r.value === true).length;
     const failedSources = results.length - startedSources;
 
     this.liveEmit({
