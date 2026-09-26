@@ -17,6 +17,8 @@ export interface CustomerSearchRecord {
   code?: string | null;
   name?: string | null;
   phone?: string | null;
+  aadhaarLast4?: string | null;
+  aadhaar_last4?: string | null;
 }
 
 /** Strip formatting; drop trunk prefixes. Never prepends country codes. */
@@ -105,6 +107,21 @@ export function matchCustomerRecord(
     return { tier: "exact-id", score: MATCH_SCORES["exact-id"], field: query === id.toLowerCase() ? "id" : "code" };
   }
 
+  // Exact code matching ignoring hyphen (e.g. CUST00125 matches CUST-00125, preserving leading zeros)
+  if (code && query) {
+    const codeNoHyphen = code.replace(/-/g, "").toLowerCase();
+    const queryNoHyphen = query.replace(/-/g, "").toLowerCase();
+    if (codeNoHyphen === queryNoHyphen) {
+      return { tier: "exact-id", score: MATCH_SCORES["exact-id"], field: "code" };
+    }
+  }
+
+  // Exact Aadhaar last 4 match (4 digits, or masked ••••1234)
+  const aadhaarDigits = String(record.aadhaarLast4 || record.aadhaar_last4 || "").replace(/\D/g, "");
+  if (queryDigits.length === 4 && aadhaarDigits.length >= 4 && aadhaarDigits.slice(-4) === queryDigits) {
+    return { tier: "exact-id", score: MATCH_SCORES["exact-id"], field: "id" };
+  }
+
   // 2. Exact phone (normalized, with last-10 cross-format equality).
   if (queryDigits.length >= 7 && phoneDigits) {
     if (queryDigits === phoneDigits) {
@@ -124,6 +141,7 @@ export function matchCustomerRecord(
   const haystacks = [
     { text: id.toLowerCase(), field: "id" as const },
     { text: code.toLowerCase(), field: "code" as const },
+    { text: code.replace(/-/g, "").toLowerCase(), field: "code" as const },
     { text: nameNorm, field: "name" as const },
   ];
   if (queryDigits.length >= 3 && phoneDigits.startsWith(queryDigits)) {
@@ -196,7 +214,10 @@ export function formatCustomerResult(record: CustomerSearchRecord): { title: str
   const title = String(record.name || "Unnamed Customer").trim() || "Unnamed Customer";
   const code = String(record.code || "").trim();
   const phone = String(record.phone || "").trim();
-  const subtitle = [code, phone].filter(Boolean).join(" · ") || "No ID / phone on file";
+  const aadhaar = String(record.aadhaarLast4 || record.aadhaar_last4 || "").trim();
+  const parts = [code, phone];
+  if (aadhaar) parts.push(`••••${aadhaar.slice(-4)}`);
+  const subtitle = parts.filter(Boolean).join(" · ") || "No ID / phone on file";
   return { title, subtitle };
 }
 

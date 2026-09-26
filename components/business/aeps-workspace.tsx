@@ -44,6 +44,15 @@ export function maskMobile(mobile: string | null | undefined): string {
   return clean;
 }
 
+/** Get customer initials for avatar display e.g. "Amit Biswas" -> "AB" */
+export function getCustomerInitials(fullName: string | null | undefined): string {
+  if (!fullName) return "CU";
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "CU";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 function fmtDate(d?: string | null) {
   if (!d) return "—";
   const dt = new Date(d.length === 10 ? d + "T00:00:00" : d);
@@ -135,6 +144,10 @@ export default function AepsWorkspace({
   const [customerSearchQuery, setCustomerSearchQuery] = useState("");
   const [customerSearchResults, setCustomerSearchResults] = useState<any[]>([]);
   const [isSearchingCustomer, setIsSearchingCustomer] = useState(false);
+  const [customerSearchError, setCustomerSearchError] = useState<string | null>(null);
+  const [searchHasQueried, setSearchHasQueried] = useState(false);
+  const [selectedCustomerRecord, setSelectedCustomerRecord] = useState<any | null>(null);
+  const searchAbortRef = useRef<AbortController | null>(null);
 
   // Drafts
   const [drafts, setDrafts] = useState<DraftRecord[]>([]);
@@ -277,72 +290,106 @@ export default function AepsWorkspace({
   const receiptUrl = (id: string) => "/business/receipt/" + id + receiptQuery(receiptMode);
   const invoiceUrl = (id: string) => "/business/receipt/" + id + "/a4" + receiptQuery(receiptMode);
 
-  // Universal Customer Search Handler
-  const handleCustomerSearch = useCallback(
-    async (rawQuery: string) => {
-      setCustomerSearchQuery(rawQuery);
-      const q = rawQuery.trim().toLowerCase();
-      if (q.length < 2) {
-        setCustomerSearchResults([]);
-        return;
-      }
+  // Debounced Universal Customer Search (Authoritative CafeERP Directory)
+  useEffect(() => {
+    const raw = customerSearchQuery.trim();
+    if (raw.length < 2) {
+      searchAbortRef.current?.abort();
+      setCustomerSearchResults([]);
+      setIsSearchingCustomer(false);
+      setCustomerSearchError(null);
+      setSearchHasQueried(false);
+      return;
+    }
 
-      setIsSearchingCustomer(true);
+    setIsSearchingCustomer(true);
+    setCustomerSearchError(null);
+
+    const timer = setTimeout(async () => {
+      searchAbortRef.current?.abort();
+      const controller = new AbortController();
+      searchAbortRef.current = controller;
+
       try {
-        const localMatches = initialCustomers.filter((c) => {
-          const phone = String(c.phone || "").replace(/\D/g, "");
-          const code = String(c.code || "").toLowerCase();
-          const nameMatch = (c.name || "").toLowerCase().includes(q);
-          const phoneMatch = phone.includes(q);
-          const codeMatch = code.includes(q);
-          return nameMatch || phoneMatch || codeMatch;
+        const res = await fetch(`/api/customers/search?q=${encodeURIComponent(raw)}&limit=10`, {
+          signal: controller.signal,
         });
-
-        // Search historical transaction rows for Aadhaar last 4 matches
-        const aadhaarMatches: any[] = [];
-        if (/^\d{3,4}$/.test(q)) {
-          for (const t of rows) {
-            if (t.aadhaar_last4 && t.aadhaar_last4.includes(q) && t.customers) {
-              if (!localMatches.some((m) => m.id === t.customer_id)) {
-                aadhaarMatches.push({
-                  id: t.customer_id,
-                  name: t.customers.name,
-                  phone: t.customer_mobile || t.customers.phone,
-                  aadhaar_last4: t.aadhaar_last4,
-                });
-              }
-            }
-          }
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data?.error || `Search failed (${res.status})`);
         }
-
-        const combined = [...localMatches, ...aadhaarMatches];
-        const unique = Array.from(new Map(combined.map((item) => [item.id, item])).values());
-        setCustomerSearchResults(unique.slice(0, 6));
+        setCustomerSearchResults(Array.isArray(data?.results) ? data.results : []);
+        setSearchHasQueried(true);
+      } catch (err: any) {
+        if (err?.name === "AbortError") return;
+        setCustomerSearchError("Customer search unavailable. Try again.");
+        setCustomerSearchResults([]);
+        setSearchHasQueried(true);
       } finally {
         setIsSearchingCustomer(false);
       }
-    },
-    [initialCustomers, rows]
-  );
+    }, 300);
+
+    return () => {
+      clearTimeout(timer);
+      searchAbortRef.current?.abort();
+    };
+  }, [customerSearchQuery]);
+
+  const handleCustomerSearch = useCallback((rawQuery: string) => {
+    setCustomerSearchQuery(rawQuery);
+    if (rawQuery.trim().length < 2) {
+      setCustomerSearchResults([]);
+      setIsSearchingCustomer(false);
+      setCustomerSearchError(null);
+      setSearchHasQueried(false);
+    }
+  }, []);
+
+  const handleClearSearch = useCallback(() => {
+    setCustomerSearchQuery("");
+    setCustomerSearchResults([]);
+    setSearchHasQueried(false);
+    setCustomerSearchError(null);
+  }, []);
 
   const handleSelectCustomer = (c: any) => {
     setCustomerId(c.id);
     setName(c.name || "");
-    const cleanPhone = String(c.phone || "").replace(/\D/g, "").slice(0, 10);
+    const cleanPhone = String(c.mobile || c.phone || "").replace(/\D/g, "").slice(0, 10);
     setMobile(cleanPhone);
 
-    // If customer has Aadhaar last 4 in recent transactions, populate it
-    const pastTxn = rows.find((t) => t.customer_id === c.id && t.aadhaar_last4);
-    if (pastTxn?.aadhaar_last4) {
-      setAadhaar(pastTxn.aadhaar_last4);
-    } else if (c.aadhaar_last4) {
-      setAadhaar(c.aadhaar_last4);
+    const aadh = c.aadhaarLast4 || c.aadhaar_last4;
+    if (aadh) {
+      setAadhaar(String(aadh).slice(-4));
+    } else {
+      const pastTxn = rows.find((t) => t.customer_id === c.id && t.aadhaar_last4);
+      if (pastTxn?.aadhaar_last4) {
+        setAadhaar(String(pastTxn.aadhaar_last4).slice(-4));
+      }
     }
+
+    setSelectedCustomerRecord({
+      id: c.id,
+      customerId: c.customerId || c.customerCode || c.code || c.id,
+      customerCode: c.customerCode || c.code || null,
+      name: c.name,
+      mobile: cleanPhone,
+      aadhaarLast4: aadh ? String(aadh).slice(-4) : undefined,
+    });
 
     setCustomerSearchQuery("");
     setCustomerSearchResults([]);
+    setSearchHasQueried(false);
+    setCustomerSearchError(null);
     showToast("success", `Customer ${c.name} selected and linked from CafeERP directory.`);
   };
+
+  const handleUnlinkCustomer = useCallback(() => {
+    setCustomerId("");
+    setSelectedCustomerRecord(null);
+    showToast("info", "Customer unlinked from transaction. Details remain editable.");
+  }, [showToast]);
 
   // Customer matching candidates based on mobile / Aadhaar
   const candidates = useMemo(() => {
@@ -356,23 +403,57 @@ export default function AepsWorkspace({
     });
   }, [initialCustomers, cleanMobile, cleanAadhaar, rows]);
 
-  const selectedCustomer = initialCustomers.find((c) => c.id === customerId) || candidates[0] || null;
+  // Selected customer object (Authoritative CafeERP DB)
+  const selectedCustomer = selectedCustomerRecord || initialCustomers.find((c) => c.id === customerId) || null;
 
-  // Auto-fill customer if unique match found on mobile
+  // Auto-fill customer if unique match found on mobile from CafeERP directory
   useEffect(() => {
     if (cleanMobile.length === 10 && !customerId) {
-      const exactMatch = initialCustomers.find(
-        (c) => String(c.phone || "").replace(/\D/g, "") === cleanMobile
-      );
-      if (exactMatch) {
-        setCustomerId(exactMatch.id);
-        setName(exactMatch.name);
-      }
+      let cancelled = false;
+      const resolveCustomerByMobile = async () => {
+        try {
+          const res = await fetch(`/api/customers/search?q=${cleanMobile}&limit=5`);
+          if (!res.ok) return;
+          const data = await res.json().catch(() => ({}));
+          if (cancelled) return;
+          const results = Array.isArray(data?.results) ? data.results : [];
+          const exactPhoneMatches = results.filter(
+            (r: any) => String(r.mobile || r.phone || "").replace(/\D/g, "").slice(-10) === cleanMobile
+          );
+          if (exactPhoneMatches.length === 1) {
+            const matched = exactPhoneMatches[0];
+            setCustomerId(matched.id);
+            if (!name) setName(matched.name || "");
+            if (!aadhaar && (matched.aadhaarLast4 || matched.aadhaar_last4)) {
+              setAadhaar(String(matched.aadhaarLast4 || matched.aadhaar_last4).slice(-4));
+            }
+            setSelectedCustomerRecord({
+              id: matched.id,
+              customerId: matched.customerId || matched.customerCode || matched.code || matched.id,
+              customerCode: matched.customerCode || matched.code || null,
+              name: matched.name,
+              mobile: cleanMobile,
+              aadhaarLast4: matched.aadhaarLast4 ? String(matched.aadhaarLast4).slice(-4) : undefined,
+            });
+          }
+        } catch {
+          // silently skip
+        }
+      };
+      resolveCustomerByMobile();
+      return () => {
+        cancelled = true;
+      };
     }
-  }, [cleanMobile, customerId, initialCustomers]);
+  }, [cleanMobile, customerId, name, aadhaar]);
 
   const handleNewCashOut = useCallback(() => {
     setCustomerId("");
+    setSelectedCustomerRecord(null);
+    setCustomerSearchQuery("");
+    setCustomerSearchResults([]);
+    setSearchHasQueried(false);
+    setCustomerSearchError(null);
     setMobile("");
     setName("");
     setAadhaar("");
@@ -477,6 +558,13 @@ export default function AepsWorkspace({
 
   const handleLoadDraft = (d: DraftRecord) => {
     setCustomerId(d.customerId);
+    setSelectedCustomerRecord(
+      d.customerId ? { id: d.customerId, name: d.name, mobile: d.mobile, customerId: d.customerId } : null
+    );
+    setCustomerSearchQuery("");
+    setCustomerSearchResults([]);
+    setSearchHasQueried(false);
+    setCustomerSearchError(null);
     setMobile(d.mobile);
     setName(d.name);
     setAadhaar(d.aadhaar);
@@ -1613,45 +1701,143 @@ export default function AepsWorkspace({
 
                 {/* UNIVERSAL CUSTOMER SEARCH (Name, Mobile, ID, Aadhaar) */}
                 <div className="relative">
-                  <label className="block text-[10px] font-black text-slate-700 mb-1">
-                    Universal Customer Search
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[10px] font-black text-slate-700">
+                      Universal Customer Search
+                    </label>
+                    <span className="text-[9px] font-semibold text-slate-400">
+                      Name · Mobile · ID · Aadhaar
+                    </span>
+                  </div>
                   <div className="relative">
                     <input
                       value={customerSearchQuery}
                       onChange={(e) => handleCustomerSearch(e.target.value)}
                       placeholder="Search customer by name, mobile, customer ID, or Aadhaar..."
-                      className="w-full rounded-xl border border-blue-200 bg-white pl-8 pr-3 py-2 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
+                      className="w-full rounded-xl border border-blue-200 bg-white pl-8 pr-8 py-2 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm"
                     />
-                    <span className="absolute left-2.5 top-2.5 text-xs text-slate-400">🔍</span>
+                    <span className="absolute left-2.5 top-2.5 text-xs text-slate-400 select-none">
+                      🔍
+                    </span>
+                    {customerSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={handleClearSearch}
+                        className="absolute right-2.5 top-2 text-xs text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full h-5 w-5 flex items-center justify-center transition-colors"
+                        title="Clear search text"
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
 
-                  {/* Customer Search Dropdown Results */}
-                  {customerSearchResults.length > 0 && (
-                    <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl space-y-1">
-                      {customerSearchResults.map((c) => (
-                        <button
-                          key={c.id}
-                          type="button"
-                          onClick={() => handleSelectCustomer(c)}
-                          className="w-full rounded-lg p-2 text-left text-xs hover:bg-blue-50 transition-colors flex items-center justify-between"
-                        >
-                          <div>
-                            <span className="font-bold text-slate-900 block">{c.name}</span>
-                            <span className="text-[11px] text-slate-500 font-mono">
-                              {maskMobile(c.phone)} · Code: {c.code || c.id.slice(0, 6)}
-                            </span>
+                  {/* Customer Search Dropdown / States */}
+                  {(isSearchingCustomer || customerSearchError || (searchHasQueried && customerSearchQuery.trim().length >= 2)) && (
+                    <div className="absolute left-0 right-0 top-full z-40 mt-1 max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-2xl space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-150">
+                      {/* Loading State */}
+                      {isSearchingCustomer && (
+                        <div className="flex items-center gap-2 p-3 text-xs text-slate-500">
+                          <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+                          <span className="font-medium">Searching customers...</span>
+                        </div>
+                      )}
+
+                      {/* Error State */}
+                      {!isSearchingCustomer && customerSearchError && (
+                        <div className="p-3 text-xs text-rose-600 bg-rose-50 rounded-lg border border-rose-100 font-medium">
+                          {customerSearchError}
+                        </div>
+                      )}
+
+                      {/* No Results State */}
+                      {!isSearchingCustomer && !customerSearchError && searchHasQueried && customerSearchResults.length === 0 && (
+                        <div className="p-3 text-center text-xs text-slate-500 space-y-1">
+                          <p className="font-bold text-slate-700">No matching customers found</p>
+                          <p className="text-[11px] text-slate-400">
+                            Try searching by mobile number or customer code
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Results List */}
+                      {!isSearchingCustomer && !customerSearchError && customerSearchResults.length > 0 && (
+                        <div>
+                          <div className="flex items-center justify-between px-2 py-1 text-[10px] font-black uppercase text-slate-400 tracking-wider border-b border-slate-100 mb-1">
+                            <span>Matching Customers ({customerSearchResults.length})</span>
+                            <span className="text-[9px] font-normal normal-case text-slate-400">Select to link</span>
                           </div>
-                          {c.aadhaar_last4 && (
-                            <span className="rounded bg-blue-50 border border-blue-200 px-2 py-0.5 font-mono text-[10px] font-bold text-blue-700">
-                              •••• {c.aadhaar_last4}
-                            </span>
-                          )}
-                        </button>
-                      ))}
+                          <div className="space-y-1">
+                            {customerSearchResults.map((c) => {
+                              const initials = getCustomerInitials(c.name);
+                              const custCode = c.customerCode || c.code || c.id?.slice(0, 8);
+                              const dispMobile = c.mobile || c.phone;
+                              const aadhaarLast4 = c.aadhaarLast4 || c.aadhaar_last4;
+                              return (
+                                <button
+                                  key={c.id}
+                                  type="button"
+                                  onClick={() => handleSelectCustomer(c)}
+                                  className="w-full rounded-xl p-2.5 text-left text-xs hover:bg-blue-50 border border-transparent hover:border-blue-200 transition-all flex items-center justify-between group"
+                                >
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700 font-bold text-xs group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                      {initials}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <span className="font-bold text-slate-900 block truncate group-hover:text-blue-950">
+                                        {c.name || "Unnamed Customer"}
+                                      </span>
+                                      <div className="text-[11px] text-slate-500 font-mono flex items-center gap-1.5 flex-wrap">
+                                        {custCode && <span>Customer ID: {custCode}</span>}
+                                        {custCode && dispMobile && <span>·</span>}
+                                        {dispMobile && <span>Mobile: {dispMobile}</span>}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 shrink-0 pl-2">
+                                    {aadhaarLast4 && (
+                                      <span className="rounded-md bg-blue-50 border border-blue-200 px-2 py-0.5 font-mono text-[10px] font-bold text-blue-700 whitespace-nowrap">
+                                        ••••{String(aadhaarLast4).slice(-4)}
+                                      </span>
+                                    )}
+                                    <span className="text-slate-300 group-hover:text-blue-600 text-xs">→</span>
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
+
+                {/* Linked Customer Indicator Card */}
+                {customerId && (
+                  <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50/80 px-3 py-2 text-xs transition-all shadow-sm">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-[10px] font-black text-white">
+                        ✓
+                      </span>
+                      <div className="min-w-0">
+                        <span className="font-bold text-emerald-950 block truncate">
+                          Linked Customer: {name || selectedCustomerRecord?.name || "Verified Customer"}
+                        </span>
+                        <span className="text-[10px] font-mono text-emerald-700 block truncate">
+                          Customer ID: {selectedCustomerRecord?.customerCode || selectedCustomerRecord?.customerId || customerId.slice(0, 8)}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleUnlinkCustomer}
+                      className="shrink-0 rounded-lg border border-emerald-300 bg-white px-2.5 py-1 text-[10px] font-bold text-emerald-800 hover:bg-emerald-100 hover:text-emerald-950 transition-colors shadow-xs"
+                      title="Unlink customer from transaction (form details remain editable)"
+                    >
+                      Unlink
+                    </button>
+                  </div>
+                )}
 
                 {/* Customer Mobile */}
                 <div>

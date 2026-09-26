@@ -8252,6 +8252,19 @@ assert(
   } catch (err) {
     assert(false, "1560. AEPS Fee Collection & Balance Suite: All 25 Tests (A to Y) Passed Cleanly", err.message);
   }
+
+  // 13. Execute Full AEPS Universal Customer Search Acceptance Suite (Tests A to O)
+  try {
+    const suiteOutput4 = execSync("node --experimental-strip-types scripts/test-aeps-customer-search.mjs", {
+      encoding: "utf8",
+    });
+    assert(
+      suiteOutput4.includes("AEPS CUSTOMER SEARCH SUITE: 54 PASSED, 0 FAILED"),
+      "1561. AEPS Universal Customer Search Suite: All Tests (A to O) Passed Cleanly"
+    );
+  } catch (err) {
+    assert(false, "1561. AEPS Universal Customer Search Suite: All Tests (A to O) Passed Cleanly", err.message);
+  }
 }
 
 console.log("\n================================================================================");

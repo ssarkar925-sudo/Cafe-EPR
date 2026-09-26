@@ -59,9 +59,18 @@ opening_balance numeric(15,2) not null default 0,
   balance numeric(15,2) not null default 0,
   customer_type text not null default 'retail',
   is_active boolean not null default true,
+  aadhaar_last4 text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+create index if not exists customers_aadhaar_last4_idx
+  on public.customers (aadhaar_last4)
+  where aadhaar_last4 is not null;
+
+create index if not exists transactions_aadhaar_last4_customer_idx
+  on public.transactions (aadhaar_last4, customer_id)
+  where aadhaar_last4 is not null and customer_id is not null;
 
 -- Canonical customer ID/code generation (single source of truth; mirrors
 -- supabase/migrations/20260917_customer_code_canonical.sql).
