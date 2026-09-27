@@ -264,7 +264,7 @@ export default function ReturnsClient({ initialReturns }: { initialReturns: Retu
       </div>
 
       {/* 4 Hero Bento Metric Cards (Default Light Theme) */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="erp-phase2-kpis grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {/* Total Returns */}
         <div
           onClick={() => setQ("")}
@@ -463,7 +463,7 @@ export default function ReturnsClient({ initialReturns }: { initialReturns: Retu
 
       {/* List Table vs Cards View */}
       {view === "list" ? (
-        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-xs dark:border-white/10 dark:bg-slate-900">
+        <div className="erp-phase2-data-card overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-xs dark:border-white/10 dark:bg-slate-900">
           <table className={`w-full text-left text-xs ${compact ? "rows-compact" : ""}`}>
             <thead className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-black uppercase tracking-wider text-slate-500 dark:border-white/10 dark:bg-slate-950 dark:text-slate-400">
               <tr>
