@@ -1,8 +1,13 @@
 import AepsMobileCollector from "@/components/business/aeps-mobile-collector";
+import { createClient } from "@/lib/supabase/server";
 
-export default function AepsMobileCollectorPage() {
-  // The component gets its portal master from the browser/API in the normal AEPS
-  // workspace. Keep this standalone page intentionally small; it is also useful
-  // as a dedicated Android setup screen.
-  return <AepsMobileCollector initialPortals={[]} />;
+export default async function AepsMobileCollectorPage() {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("aeps_portals")
+    .select("id,name")
+    .eq("is_active", true)
+    .order("name", { ascending: true });
+
+  return <AepsMobileCollector initialPortals={(data || []).map((p) => ({ id: String(p.id), name: String(p.name) }))} />;
 }
