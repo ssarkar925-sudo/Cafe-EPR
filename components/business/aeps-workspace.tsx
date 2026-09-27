@@ -73,6 +73,38 @@ function fmtTime(d?: string | null) {
   }
 }
 
+/**
+ * Parse watcher API responses without leaking the browser's raw HTML/JSON
+ * parser error. Cloudflare/Next deployment failures can otherwise return an
+ * HTML error document, which used to surface as "Unexpected token '<'".
+ */
+async function parseWatcherResponse(res: Response, operation: string) {
+  const contentType = res.headers.get("content-type") || "";
+  const raw = await res.text();
+  let data: any = null;
+
+  if (raw.trim()) {
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      const preview = raw.replace(/\s+/g, " ").trim().slice(0, 140);
+      throw new Error(
+        `${operation} failed: watcher API returned non-JSON (HTTP ${res.status}). ${preview || "No response body."}`
+      );
+    }
+  }
+
+  if (!res.ok) {
+    throw new Error(data?.error || `${operation} failed (HTTP ${res.status}).`);
+  }
+
+  if (!contentType.toLowerCase().includes("application/json") && data == null) {
+    throw new Error(`${operation} failed: watcher API returned an empty non-JSON response.`);
+  }
+
+  return data || {};
+}
+
 interface DraftRecord {
   id: string;
   savedAt: string;
@@ -1172,7 +1204,7 @@ export default function AepsWorkspace({
         }),
       });
 
-      const data = await res.json();
+      const data = await parseWatcherResponse(res, "Portal verification");
       setVerificationProgressStep("Combining results & cross-verifying...");
       await new Promise((r) => setTimeout(r, 150));
 
@@ -1518,8 +1550,7 @@ export default function AepsWorkspace({
           currentPublished: source.currentPublishedValue,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to test source URL.");
+      const data = await parseWatcherResponse(res, "Test source URL");
 
       setWatcherSources((prev) =>
         prev.map((s) =>
@@ -1568,8 +1599,7 @@ export default function AepsWorkspace({
           currentPublished: source.currentPublishedValue,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to collect from source.");
+      const data = await parseWatcherResponse(res, "Collect source");
 
       const now = new Date().toISOString();
 
@@ -1789,8 +1819,8 @@ export default function AepsWorkspace({
           sourceId,
         }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
+      const data = await parseWatcherResponse(res, "Delete source");
+      if (!data.success) {
         showToast("error", data.error || "Failed to delete source from server.");
       } else {
         setWatcherSources((prev) => prev.filter((s) => s.id !== sourceId));
@@ -1945,9 +1975,9 @@ export default function AepsWorkspace({
         }),
       });
 
-      const data = await res.json().catch(() => null);
+      const data = await parseWatcherResponse(res, "Persist source");
 
-      if (!res.ok || !data?.success || !data?.source) {
+      if (!data?.success || !data?.source) {
         throw new Error(data?.error || "Failed to persist source to server.");
       }
 
