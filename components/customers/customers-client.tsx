@@ -526,7 +526,7 @@ export default function CustomersClient({
       {/* =========================================================================
           HERO BENTO KPI GRID (4 Multi-Tone Glowing Bento Surfaces)
       ========================================================================= */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="erp-phase2-kpis grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {KPI_CARDS.map((c) => (
           <div
             key={c.label}
