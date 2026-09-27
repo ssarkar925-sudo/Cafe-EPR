@@ -410,7 +410,10 @@ export default function AppearancePanel({ active }: { active: boolean }) {
               <button
                 key={style.id}
                 type="button"
-                onClick={() => setDesignStyle(style.id as DesignStyle)}
+                onClick={() => {
+                  setDesignStyle(style.id as DesignStyle);
+                  showToast("success", `Visual System applied: ${style.name}`);
+                }}
                 aria-pressed={selected}
                 className={`group rounded-2xl border p-3 text-left transition hover:-translate-y-0.5 hover:shadow-md ${
                   selected

@@ -26,6 +26,17 @@ const requiredCssChecks = [
   { name: "Ambient preset: cosmic", pattern: /html\[data-gradient-enabled="true"\]\[data-gradient-preset="cosmic"\]/ },
   { name: "Settings hub card laser top", pattern: /\.card-laser-top/ },
   { name: "Settings hub icon badge", pattern: /\.settings-hub-icon-badge/ },
+  { name: "Visual systems: Ambient Swiss", pattern: /html\[data-design-style="ambient-swiss"\]/ },
+  { name: "Visual systems: Soft Fintech", pattern: /html\[data-design-style="soft-fintech"\]/ },
+  { name: "Visual systems: Colour-Block Luxury", pattern: /html\[data-design-style="color-block-luxury"\]/ },
+  { name: "Visual systems: Bento Editorial", pattern: /html\[data-design-style="bento-editorial"\]/ },
+  { name: "Visual systems: Warm Paper", pattern: /html\[data-design-style="warm-paper"\]/ },
+  { name: "Visual systems: Soft Glass", pattern: /html\[data-design-style="soft-glass"\]/ },
+  { name: "Visual systems: Dark Anchor", pattern: /html\[data-design-style="dark-anchor"\]/ },
+  { name: "Visual systems: Muted Rainbow", pattern: /html\[data-design-style="muted-rainbow"\]/ },
+  { name: "Visual systems: Quiet Luxury", pattern: /html\[data-design-style="quiet-luxury"\]/ },
+  { name: "Visual systems: Premium Hybrid", pattern: /html\[data-design-style="premium-hybrid"\]/ },
+  { name: "Dark mode card background fix", pattern: /html\.dark\[data-gradient-enabled="true"\] \.rounded-2xl\.border/ },
 ];
 
 let cssPassed = 0;
@@ -48,6 +59,7 @@ const requiredLayoutChecks = [
   { name: "Hydrates data-gradient-enabled", pattern: /setAttribute\("data-gradient-enabled"/ },
   { name: "Hydrates data-gradient-preset", pattern: /setAttribute\("data-gradient-preset"/ },
   { name: "Hydrates contrast-more class", pattern: /classList\.toggle\("contrast-more"/ },
+  { name: "Hydrates data-design-style", pattern: /setAttribute\("data-design-style",ds\)/ },
 ];
 
 let layoutPassed = 0;

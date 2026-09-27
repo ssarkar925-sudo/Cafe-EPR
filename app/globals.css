@@ -651,16 +651,24 @@ html[data-gradient-enabled="true"] .modern-erp .erp-page-content {
   background: transparent !important;
 }
 
-html[data-gradient-enabled="true"] .rounded-2xl.border {
+html[data-gradient-enabled="true"] .rounded-2xl.border,
+html[data-gradient-enabled="true"] .rounded-3xl.border,
+html[data-gradient-enabled="true"] .settings-hub-card {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
 }
-html[data-gradient-enabled="true"].dark .rounded-2xl.border.bg-slate-900,
-html[data-gradient-enabled="true"] .dark .rounded-2xl.border.bg-slate-900 {
+html.dark[data-gradient-enabled="true"] .rounded-2xl.border,
+html.dark[data-gradient-enabled="true"] .rounded-3xl.border,
+html.dark[data-gradient-enabled="true"] .settings-hub-card {
   background-color: rgba(15, 23, 42, 0.82) !important;
 }
-html[data-gradient-enabled="true"]:not(.dark) .rounded-2xl.border.bg-white,
-html[data-gradient-enabled="true"] :not(.dark) .rounded-2xl.border.bg-white {
+html:not(.dark)[data-gradient-enabled="true"] .rounded-2xl.border.bg-white,
+html:not(.dark)[data-gradient-enabled="true"] .rounded-2xl.border.bg-white\/90,
+html:not(.dark)[data-gradient-enabled="true"] .rounded-2xl.border.bg-white\/95,
+html:not(.dark)[data-gradient-enabled="true"] .rounded-3xl.border.bg-white,
+html:not(.dark)[data-gradient-enabled="true"] .rounded-3xl.border.bg-white\/90,
+html:not(.dark)[data-gradient-enabled="true"] .rounded-3xl.border.bg-white\/95,
+html:not(.dark)[data-gradient-enabled="true"] .settings-hub-card {
   background-color: rgba(255, 255, 255, 0.88) !important;
 }
 
@@ -807,5 +815,167 @@ html.dark[data-gradient-enabled="true"][data-gradient-preset="cosmic"] body {
 }
 .settings-hub-card:hover .settings-hub-icon-badge {
   transform: scale(1.06);
+}
+
+/* --------------------------------------------------------------------------
+   Visual Systems (10 Designer Presets)
+   Each preset delivers a distinct visual identity, surface feel, border geometry,
+   and color accent hierarchy across the entire CafeERP workspace.
+   -------------------------------------------------------------------------- */
+
+/* 01 · Ambient Swiss: Precision geometric editorial, crisp 8px radii, indigo/teal */
+html[data-design-style="ambient-swiss"] {
+  --m-radius: 8px;
+  --m-radius-sm: 6px;
+  --m-border: #cbd5e1;
+  --m-accent: #4f46e5;
+  --m-accent-strong: #3730a3;
+  --m-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+html.dark[data-design-style="ambient-swiss"] {
+  --m-border: rgba(255, 255, 255, 0.12);
+  --m-accent: #818cf8;
+  --m-accent-strong: #a5b4fc;
+}
+
+/* 02 · Soft Fintech: Muted mint and lavender surfaces, soft 16px radii */
+html[data-design-style="soft-fintech"] {
+  --m-radius: 16px;
+  --m-radius-sm: 12px;
+  --m-border: #d1fae5;
+  --m-accent: #059669;
+  --m-accent-strong: #047857;
+  --m-shadow: 0 4px 20px rgba(5, 150, 105, 0.06);
+}
+html.dark[data-design-style="soft-fintech"] {
+  --m-border: rgba(16, 185, 129, 0.18);
+  --m-accent: #10b981;
+  --m-accent-strong: #34d399;
+}
+
+/* 03 · Colour-Block Luxury: Terracotta & deep indigo, high contrast blocks */
+html[data-design-style="color-block-luxury"] {
+  --m-radius: 12px;
+  --m-radius-sm: 8px;
+  --m-border: #fed7aa;
+  --m-accent: #c2410c;
+  --m-accent-strong: #9a3412;
+  --m-shadow: 0 4px 16px rgba(194, 65, 12, 0.08);
+}
+html.dark[data-design-style="color-block-luxury"] {
+  --m-border: rgba(234, 88, 12, 0.22);
+  --m-accent: #f97316;
+  --m-accent-strong: #fb923c;
+}
+
+/* 04 · Bento Editorial: Asymmetric bento hierarchy, generous 20px radii, deep shadows */
+html[data-design-style="bento-editorial"] {
+  --m-radius: 20px;
+  --m-radius-sm: 14px;
+  --m-border: #e2e8f0;
+  --m-accent: #2563eb;
+  --m-accent-strong: #1d4ed8;
+  --m-shadow: 0 10px 30px rgba(15, 23, 42, 0.07);
+}
+html.dark[data-design-style="bento-editorial"] {
+  --m-border: rgba(255, 255, 255, 0.10);
+  --m-accent: #60a5fa;
+  --m-accent-strong: #93c5fd;
+  --m-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
+}
+
+/* 05 · Warm Paper: Editorial newsprint, soft warm beige backdrop, rose/olive accents */
+html[data-design-style="warm-paper"] {
+  --m-bg: #fdfbf7;
+  --m-surface: #ffffff;
+  --m-radius: 12px;
+  --m-radius-sm: 8px;
+  --m-border: #e7e0d3;
+  --m-accent: #be123c;
+  --m-accent-strong: #9f1239;
+}
+html.dark[data-design-style="warm-paper"] {
+  --m-bg: #141210;
+  --m-surface: #1e1b18;
+  --m-border: rgba(255, 255, 255, 0.09);
+  --m-accent: #f43f5e;
+  --m-accent-strong: #fb7185;
+}
+
+/* 06 · Soft Glass: Translucent floating controls, glossy borders, heavy blur */
+html[data-design-style="soft-glass"] {
+  --m-radius: 18px;
+  --m-radius-sm: 12px;
+  --m-border: rgba(8, 145, 178, 0.25);
+  --m-accent: #0891b2;
+  --m-accent-strong: #0e7490;
+  --m-shadow: 0 8px 32px rgba(8, 145, 178, 0.08);
+}
+html.dark[data-design-style="soft-glass"] {
+  --m-border: rgba(6, 182, 212, 0.22);
+  --m-accent: #06b6d4;
+  --m-accent-strong: #22d3ee;
+}
+
+/* 07 · Dark Anchor: Deep navy/ink analytical anchors, sapphire contrast */
+html[data-design-style="dark-anchor"] {
+  --m-radius: 14px;
+  --m-radius-sm: 10px;
+  --m-border: #cbd5e1;
+  --m-accent: #4f46e5;
+  --m-accent-strong: #3730a3;
+}
+html.dark[data-design-style="dark-anchor"] {
+  --m-bg: #07090e;
+  --m-surface: #0e121a;
+  --m-border: rgba(99, 102, 241, 0.25);
+  --m-accent: #6366f1;
+  --m-accent-strong: #818cf8;
+}
+
+/* 08 · Muted Rainbow: Mature plum, sage, terracotta and ochre palette */
+html[data-design-style="muted-rainbow"] {
+  --m-radius: 14px;
+  --m-radius-sm: 10px;
+  --m-border: #e9d5ff;
+  --m-accent: #7c3aed;
+  --m-accent-strong: #6d28d9;
+  --m-shadow: 0 4px 20px rgba(124, 58, 237, 0.07);
+}
+html.dark[data-design-style="muted-rainbow"] {
+  --m-border: rgba(168, 85, 247, 0.22);
+  --m-accent: #a855f7;
+  --m-accent-strong: #c084fc;
+}
+
+/* 09 · Quiet Luxury: Monochromatic titanium, sharp low-chrome elegance */
+html[data-design-style="quiet-luxury"] {
+  --m-radius: 10px;
+  --m-radius-sm: 6px;
+  --m-border: #e4e4e7;
+  --m-accent: #18181b;
+  --m-accent-strong: #27272a;
+  --m-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+html.dark[data-design-style="quiet-luxury"] {
+  --m-bg: #09090b;
+  --m-surface: #121215;
+  --m-border: #27272a;
+  --m-accent: #fafafa;
+  --m-accent-strong: #e4e4e7;
+}
+
+/* 10 · Premium Hybrid: Balanced spatial glass, rich dark anchors, modern cards */
+html[data-design-style="premium-hybrid"] {
+  --m-radius: 14px;
+  --m-radius-sm: 10px;
+  --m-border: #dce3ea;
+  --m-accent: #7c3aed;
+  --m-accent-strong: #6d28d9;
+}
+html.dark[data-design-style="premium-hybrid"] {
+  --m-border: #243140;
+  --m-accent: #a78bfa;
+  --m-accent-strong: #c4b5fd;
 }
 

@@ -197,7 +197,7 @@ export default function PosCustomItemModal({
                     onClick={() => setRate(String(amt))}
                     className={`rounded px-1.5 py-0.5 text-[9px] font-black transition ${
                       Number(rate) === amt
-                        ? "bg-blue-600 text-white"
+                        ? "bg-primary text-white"
                         : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300"
                     }`}
                   >
@@ -235,7 +235,7 @@ export default function PosCustomItemModal({
                   +
                 </button>
               </div>
-              <p className="mt-1 text-right text-[10px] font-mono font-bold text-blue-600 dark:text-blue-400">
+              <p className="mt-1 text-right text-[10px] font-mono font-bold text-primary">
                 Line Total: ₹{((Number(rate) || 0) * (Number(qty) || 0)).toFixed(2)}
               </p>
             </div>
@@ -359,7 +359,7 @@ export default function PosCustomItemModal({
             </button>
             <button
               type="submit"
-              className="flex h-9 items-center gap-1.5 rounded-xl bg-blue-600 px-5 text-xs font-black text-white shadow-xs hover:bg-blue-700"
+              className="flex h-9 items-center gap-1.5 rounded-xl bg-primary px-5 text-xs font-black text-white shadow-xs hover:bg-primary-hover active:scale-95 transition"
             >
               <ShoppingCart className="h-3.5 w-3.5" />
               <span>Add to Cart</span>

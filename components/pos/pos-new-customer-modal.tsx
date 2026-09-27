@@ -107,7 +107,7 @@ export default function PosNewCustomerModal({
       title="Quick Add Customer"
       subtitle="Save and immediately attach to the active bill"
       icon="UserPlus"
-      accent="blue"
+      accent="violet"
       size="sm"
       footer={
         <div className="flex w-full gap-2.5">
@@ -121,7 +121,7 @@ export default function PosNewCustomerModal({
           <button
             type="submit"
             disabled={saving}
-            className="h-10 flex-1 rounded-xl bg-blue-600 text-xs font-black text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 disabled:opacity-50"
+            className="h-10 flex-1 rounded-xl bg-primary text-xs font-black text-white shadow-md shadow-primary/20 hover:bg-primary-hover disabled:opacity-50 active:scale-95 transition"
           >
             {saving ? "Saving..." : "Add & Attach"}
           </button>
