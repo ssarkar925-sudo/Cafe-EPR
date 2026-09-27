@@ -342,9 +342,9 @@ export default function UnifiedInvoicesClient({ initialInvoices }: Props) {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-6">
+    <div data-phase2-module="invoices" className="erp-phase2-page space-y-5">
       {/* Executive Module Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="erp-phase2-header flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-slate-900">
         <div>
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-blue-600 ring-1 ring-blue-500/20 dark:bg-blue-950/50 dark:text-blue-400">
@@ -563,7 +563,7 @@ export default function UnifiedInvoicesClient({ initialInvoices }: Props) {
       )}
 
       {/* Invoice Register Table with Clickable Sort Headers */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs dark:border-white/10 dark:bg-slate-900">
+      <div className="erp-phase2-data-card overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs dark:border-white/10 dark:bg-slate-900">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[950px] text-left text-xs">
             <thead>
