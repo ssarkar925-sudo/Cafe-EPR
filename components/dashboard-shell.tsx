@@ -2,14 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Sidebar from "./sidebar";
 import GlobalSearch from "./global-search";
 import GlobalQuickAccess from "./global-quick-access";
 import NotificationBell from "./notification-bell";
 import ThemeToggle from "./theme-toggle";
 import MobileBottomNav from "./mobile-bottom-nav";
-import SettingsModal from "./settings/settings-modal";
 import { DashboardShellProvider } from "./dashboard-shell-context";
 
 const COLLAPSE_KEY = "sccomm-sidebar-collapsed";
@@ -55,10 +54,10 @@ export default function DashboardShell({
   userId: string;
   children: React.ReactNode;
 }) {
+  const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const pathname = usePathname();
   const isPos = pathname === "/pos";
 
@@ -76,12 +75,12 @@ export default function DashboardShell({
         setSearchOpen((v) => !v);
       } else if ((e.ctrlKey || e.metaKey) && e.key === ",") {
         e.preventDefault();
-        setSettingsOpen((v) => !v);
+        router.push("/settings");
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [pathname]);
+  }, [pathname, router]);
 
   function toggle() {
     setCollapsed((c) => {
@@ -104,8 +103,6 @@ export default function DashboardShell({
     setMobileOpen,
     searchOpen,
     setSearchOpen,
-    settingsOpen,
-    setSettingsOpen,
     name,
     email,
     role,
@@ -133,7 +130,6 @@ export default function DashboardShell({
           onToggle={toggle}
           mobileOpen={mobileOpen}
           onMobileClose={() => setMobileOpen(false)}
-          onOpenSettings={() => setSettingsOpen(true)}
         />
 
         {/* MOBILE HEADER (Reference: Left hamburger, CafeERP brand, Red Bell, Avatar) */}
@@ -159,15 +155,14 @@ export default function DashboardShell({
             <div className="flex items-center gap-2">
               <ThemeToggle />
               <NotificationBell role={role} />
-              <button
-                type="button"
-                onClick={() => setSettingsOpen(true)}
+              <Link
+                href="/settings"
                 className="flex items-center rounded-full transition active:scale-95"
                 title="Settings & System Control Center"
                 aria-label="Open settings"
               >
                 <Avatar name={name || "Saikat Sarkar"} avatarUrl={avatarUrl} size="h-7 w-7" />
-              </button>
+              </Link>
             </div>
           </header>
         )}
@@ -234,10 +229,10 @@ export default function DashboardShell({
 
                 <ThemeToggle />
 
-                <div
-                  onClick={() => setSettingsOpen(true)}
+                <Link
+                  href="/settings"
                   className="flex items-center gap-2.5 rounded-lg pl-2 transition hover:opacity-85 cursor-pointer"
-                  title="Settings & System Control Center (Ctrl + ,)"
+                  title="Settings & System Control Center"
                 >
                   <Avatar name={name || "Saikat Sarkar"} avatarUrl={avatarUrl} size="h-8 w-8" />
                   <div className="text-left hidden sm:block">
@@ -257,7 +252,7 @@ export default function DashboardShell({
                   >
                     <polyline points="6 9 12 15 18 9" />
                   </svg>
-                </div>
+                </Link>
               </div>
             </header>
           )}
@@ -275,7 +270,6 @@ export default function DashboardShell({
         </div>
 
         <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
-        <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
         {!isPos && <MobileBottomNav />}
       </div>
     </DashboardShellProvider>

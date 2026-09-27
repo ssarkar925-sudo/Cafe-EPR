@@ -485,13 +485,15 @@ export default function Sidebar({
 
           {/* DOMAIN 11: SETTINGS COMMAND TRIGGER CARD */}
           <div className="pt-2">
-            <button
-              type="button"
-              onClick={() => {
-                if (onOpenSettings) onOpenSettings();
-              }}
-              title={collapsed ? "Settings Command Center (Ctrl + ,)" : undefined}
+            <Link
+              href="/settings"
+              onClick={onMobileClose}
+              title={collapsed ? "Settings & System Control Center" : undefined}
               className={`flex w-full items-center justify-between rounded-xl border border-indigo-200 bg-indigo-50/70 px-3 py-2 text-xs font-bold text-indigo-700 transition hover:bg-indigo-100 hover:border-indigo-300 dark:border-indigo-500/30 dark:bg-indigo-950/20 dark:text-indigo-300 dark:hover:bg-indigo-950/40 dark:hover:border-indigo-500/50 ${
+                pathname === "/settings"
+                  ? "is-active bg-indigo-100 text-indigo-800 border-indigo-300 dark:bg-indigo-900/40 dark:text-white"
+                  : ""
+              } ${
                 collapsed ? "justify-center px-2" : ""
               }`}
             >
@@ -502,11 +504,11 @@ export default function Sidebar({
                 {!collapsed && <span>Settings Command</span>}
               </div>
               {!collapsed && (
-                <kbd className="rounded-md border border-indigo-200 bg-white px-1.5 py-0.5 font-mono text-[9px] text-indigo-700 shadow-2xs dark:border-indigo-500/30 dark:bg-indigo-950/50 dark:text-indigo-300">
-                  ⌘,
-                </kbd>
+                <span className="rounded-md border border-indigo-200 bg-white px-1.5 py-0.5 text-[9px] font-bold text-indigo-700 shadow-2xs dark:border-indigo-500/30 dark:bg-indigo-950/50 dark:text-indigo-300">
+                  Settings →
+                </span>
               )}
-            </button>
+            </Link>
           </div>
 
         </div>
@@ -514,11 +516,9 @@ export default function Sidebar({
         {/* BOTTOM USER PROFILE STRIP */}
         <div className="border-t border-slate-200 px-3 py-2.5 shrink-0 bg-slate-50 dark:border-slate-800 dark:bg-[#0c1322]">
           <div className="flex items-center justify-between">
-            <div
-              onClick={() => {
-                if (onOpenSettings) onOpenSettings();
-                else setProfileOpen(true);
-              }}
+            <Link
+              href="/settings"
+              onClick={onMobileClose}
               title="Click to open Settings & System Control Center"
               className="flex flex-1 items-center gap-2.5 rounded-lg p-1 hover:bg-slate-200/60 dark:hover:bg-slate-800/60 cursor-pointer transition min-w-0"
             >
@@ -540,7 +540,7 @@ export default function Sidebar({
                   </span>
                 </div>
               )}
-            </div>
+            </Link>
 
             {!collapsed && (
               <div className="flex items-center gap-1">

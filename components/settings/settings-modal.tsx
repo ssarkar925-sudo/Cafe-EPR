@@ -415,25 +415,33 @@ export default function SettingsModal({ open, onClose, initialCategory = "busine
 
   useBodyScrollLock(open && mounted);
 
-  const [activeCategory, setActiveCategory] = useState<string>(initialCategory);
   const [activeSubmodule, setActiveSubmodule] = useState<CardItem | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
 
-  // Handle initialCardId and initialCategory
+  const targetCard = useMemo(() => {
+    if (activeSubmodule) return activeSubmodule;
+    if (initialCardId) {
+      for (const cat of CATEGORIES) {
+        const found = cat.cards.find((c) => c.id === initialCardId);
+        if (found) return found;
+      }
+    }
+    return CATEGORIES[0].cards[0];
+  }, [activeSubmodule, initialCardId]);
+
+  // Handle initialCardId
   useEffect(() => {
     if (open && initialCardId) {
       for (const cat of CATEGORIES) {
         const found = cat.cards.find((c) => c.id === initialCardId);
         if (found) {
-          setActiveCategory(cat.id);
           setActiveSubmodule(found);
           break;
         }
       }
-    } else if (open && initialCategory) {
-      setActiveCategory(initialCategory);
+    } else if (!open) {
+      setActiveSubmodule(null);
     }
-  }, [open, initialCardId, initialCategory]);
+  }, [open, initialCardId]);
 
   // Shop form state
   const [shopName, setShopName] = useState("Cafe ERP");
@@ -463,7 +471,6 @@ export default function SettingsModal({ open, onClose, initialCategory = "busine
   useEffect(() => {
     if (!open) {
       setActiveSubmodule(null);
-      setSearchQuery("");
       return;
     }
 
@@ -488,11 +495,11 @@ export default function SettingsModal({ open, onClose, initialCategory = "busine
     loadInitial();
   }, [open, supabase]);
 
-  // Load specific datasets when a submodule panel is selected
+  // Load specific datasets when targetCard panel is selected
   useEffect(() => {
-    if (!activeSubmodule) return;
+    if (!open || !targetCard) return;
 
-    const key = activeSubmodule.panelKey || activeSubmodule.id;
+    const key = targetCard.panelKey || targetCard.id;
 
     if (key === "payment-methods" && paymentMethods.length === 0) {
       supabase.from("payment_methods").select("*").order("sort_order").then(({ data }) => {
@@ -546,7 +553,7 @@ export default function SettingsModal({ open, onClose, initialCategory = "busine
         setBbpsConfigs(map);
       });
     }
-  }, [activeSubmodule, paymentMethods.length, services.length, instruments.length, supabase]);
+  }, [open, targetCard, paymentMethods.length, services.length, instruments.length, supabase]);
 
   // Handle escape key
   useEffect(() => {
@@ -629,29 +636,6 @@ export default function SettingsModal({ open, onClose, initialCategory = "busine
     }
   }
 
-  // Filter cards based on search query
-  const filteredCards = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return null;
-    const matches: CardItem[] = [];
-    CATEGORIES.forEach((cat) => {
-      cat.cards.forEach((card) => {
-        if (
-          card.title.toLowerCase().includes(q) ||
-          card.desc.toLowerCase().includes(q) ||
-          cat.label.toLowerCase().includes(q)
-        ) {
-          matches.push(card);
-        }
-      });
-    });
-    return matches;
-  }, [searchQuery]);
-
-  const currentCategoryData = useMemo(() => {
-    return CATEGORIES.find((c) => c.id === activeCategory) || CATEGORIES[0];
-  }, [activeCategory]);
-
   if (!open || !mounted) return null;
 
   const modalNode = (
@@ -662,268 +646,126 @@ export default function SettingsModal({ open, onClose, initialCategory = "busine
       }}
     >
       {toastView}
-      {/* Floating Modal Window - Centered Only, No Side, No Bottom */}
+      {/* Focused Card Popup Modal - Zero Sidebar */}
       <div
-        className="relative flex h-[92dvh] sm:h-[88vh] max-h-[780px] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl transition-all dark:border-slate-800 dark:bg-slate-900"
+        className="relative flex h-auto max-h-[92dvh] w-full max-w-3xl sm:max-w-4xl flex-col overflow-hidden rounded-2xl sm:rounded-3xl border border-slate-200 bg-white shadow-2xl transition-all dark:border-slate-800 dark:bg-slate-900 animate-in fade-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
-          
-          {/* Header (Responsive: Two rows on mobile, single flex row on desktop) */}
-          <div className="flex flex-col border-b border-slate-200 bg-slate-50/80 px-4 py-3 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-0 shrink-0 dark:border-slate-800 dark:bg-slate-950/60">
-            <div className="flex items-center justify-between gap-3 w-full sm:w-auto">
-              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-                <div className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-base sm:text-lg text-white shadow-md shadow-blue-500/20">
-                  ⚙️
-                </div>
-                <div className="min-w-0">
-                  <h2 className="text-sm sm:text-base font-bold tracking-tight text-slate-900 dark:text-white truncate">
-                    Settings &amp; System Control Center
-                  </h2>
-                  <p className="hidden sm:block truncate text-xs font-medium text-slate-500 dark:text-slate-400">
-                    All configuration masters, commissions, accounts &amp; system parameters
-                  </p>
-                </div>
+        {/* Modal Header */}
+        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-4 py-3 sm:px-6 sm:py-4 shrink-0 dark:border-slate-800 dark:bg-slate-950/60">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 border border-indigo-200/80 text-xl shadow-2xs dark:bg-indigo-950/40 dark:border-indigo-800">
+              <span>{targetCard.icon}</span>
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm sm:text-base font-bold tracking-tight text-slate-900 dark:text-white truncate">
+                  {targetCard.title}
+                </h2>
+                {targetCard.badge && (
+                  <span className="hidden sm:inline-block rounded-full bg-blue-50 px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide text-blue-700 dark:bg-blue-950/70 dark:text-blue-300">
+                    {targetCard.badge}
+                  </span>
+                )}
               </div>
+              <p className="truncate text-xs font-medium text-slate-500 dark:text-slate-400">
+                {targetCard.desc}
+              </p>
+            </div>
+          </div>
 
-              {/* Mobile Close Button */}
-              <button
-                type="button"
+          <div className="flex items-center gap-2 shrink-0 ml-3">
+            {targetCard.directHref && (
+              <Link
+                href={targetCard.directHref}
                 onClick={onClose}
-                className="flex sm:hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white transition"
-                aria-label="Close"
-                title="Close"
+                className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-600 hover:bg-slate-50 transition dark:border-slate-700 dark:bg-slate-800 dark:text-blue-400"
               >
-                ✕
-              </button>
-            </div>
+                <span>Standalone Workspace</span>
+                <span>↗</span>
+              </Link>
+            )}
 
-            {/* Header Search Box: Full width on mobile, max-w-xs on desktop */}
-            <div className="relative flex flex-1 w-full sm:max-w-xs items-center mt-2.5 sm:mt-0 sm:mx-4">
-              <span className="pointer-events-none absolute left-3 text-xs text-slate-400">🔍</span>
-              <input
-                type="text"
-                placeholder="Search settings, masters & slabs..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-white py-1.5 sm:py-2 pl-8 sm:pl-9 pr-7 sm:pr-3 text-xs text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-800/80 dark:text-white dark:focus:ring-blue-900/30"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-2 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-
-            {/* Desktop Close Button */}
             <button
               type="button"
               onClick={onClose}
-              className="hidden sm:flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white transition"
+              className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white transition"
               aria-label="Close"
               title="Close (Esc)"
             >
               ✕
             </button>
           </div>
+        </div>
 
-          {/* Mobile Horizontal Category Scroller (Shown only when browsing cards, not in active submodule) */}
-          {!activeSubmodule && (
-            <div className="flex sm:hidden overflow-x-auto gap-1.5 border-b border-slate-200 bg-slate-50/80 px-3 py-2 shrink-0 no-scrollbar dark:border-slate-800 dark:bg-slate-950/60">
-              {CATEGORIES.map((cat) => {
-                const isSelected = !searchQuery && activeCategory === cat.id;
-                return (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => {
-                      setSearchQuery("");
-                      setActiveCategory(cat.id);
-                      setActiveSubmodule(null);
-                    }}
-                    className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition ${
-                      isSelected
-                        ? "bg-blue-600 text-white shadow-xs"
-                        : "bg-white text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
-                    }`}
-                  >
-                    <span>{cat.icon}</span>
-                    <span className="truncate max-w-[130px]">{cat.label}</span>
-                    <span
-                      className={`rounded-full px-1.5 py-0.2 text-[9px] font-bold ${
-                        isSelected ? "bg-white/25 text-white" : "bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300"
-                      }`}
-                    >
-                      {cat.cards.length}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Body: Left Categories (Desktop) + Right Main View */}
-          <div className="flex flex-1 overflow-hidden">
-            
-            {/* Left Category Navigation (Desktop Only) */}
-            <div className="hidden sm:flex w-56 shrink-0 flex-col overflow-y-auto border-r border-slate-200 bg-slate-50/50 p-3 dark:border-slate-800 dark:bg-slate-950/40">
-              {["Store Setup", "Catalog & Stock", "Fintech & Slabs", "Accounting & System"].map((grp) => {
-                const groupCategories = CATEGORIES.filter((c) => c.groupName === grp);
-                return (
-                  <div key={grp} className="mb-2">
-                    <div className="px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-                      {grp}
-                    </div>
-                    <div className="space-y-0.5">
-                      {groupCategories.map((cat) => {
-                        const isSelected = !searchQuery && activeCategory === cat.id && !activeSubmodule;
-                        return (
-                          <button
-                            key={cat.id}
-                            type="button"
-                            onClick={() => {
-                              setSearchQuery("");
-                              setActiveCategory(cat.id);
-                              setActiveSubmodule(null);
-                            }}
-                            className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs font-semibold transition ${
-                              isSelected
-                                ? "bg-blue-600 text-white shadow-sm"
-                                : "text-slate-600 hover:bg-slate-200/60 dark:text-slate-300 dark:hover:bg-slate-800/60"
-                            }`}
-                          >
-                            <span className="flex items-center gap-2 truncate">
-                              <span>{cat.icon}</span>
-                              <span className="truncate">{cat.label}</span>
-                            </span>
-                            <span
-                              className={`rounded-md px-1.5 py-0.5 text-[9px] font-bold ${
-                                isSelected ? "bg-white/20 text-white" : "bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
-                              }`}
-                            >
-                              {cat.cards.length}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Right Main Pane: In-Popup Sub-Module OR Cards Grid */}
-            <div className="flex flex-1 flex-col overflow-y-auto p-3.5 sm:p-6">
-              
-              {/* SUBMODULE IN-POPUP VIEW (Opened inside modal) */}
-              {activeSubmodule ? (
-                <div className="flex flex-col gap-4 animate-in fade-in duration-150">
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3 dark:border-slate-800">
-                    <button
-                      type="button"
-                      onClick={() => setActiveSubmodule(null)}
-                      className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 active:scale-95 transition dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                    >
-                      ← Back to Settings
-                    </button>
-
-                    <div className="flex items-center gap-2">
-                      {activeSubmodule.directHref && (
-                        <Link
-                          href={activeSubmodule.directHref}
-                          onClick={onClose}
-                          className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:underline dark:text-blue-400"
-                        >
-                          <span className="hidden sm:inline">Open Standalone Workspace</span>
-                          <span className="sm:hidden">Full View</span> ↗
-                        </Link>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/40">
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">{activeSubmodule.icon}</span>
-                      <div>
-                        <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                          {activeSubmodule.title}
-                        </h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                          {activeSubmodule.desc}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 1. STORE PROFILE, INVOICE & TAX FORMS */}
-                  {activeSubmodule.panelKey === "general" ||
-                  activeSubmodule.panelKey === "receipt" ||
-                  activeSubmodule.panelKey === "tax" ? (
-                    <form onSubmit={handleSaveShopForm} className="space-y-4">
-                      <ShopPanel
-                        tab={activeSubmodule.panelKey}
-                        form={{
-                          shopName,
-                          setShopName,
-                          phone,
-                          setPhone,
-                          address,
-                          setAddress,
-                          footer,
-                          setFooter,
-                          currency,
-                          setCurrency,
-                          gstin,
-                          setGstin,
-                          taxRate,
-                          setTaxRate,
-                          logoUrl,
-                          setLogoUrl,
-                          upiId,
-                          setUpiId,
-                        }}
-                      />
-                      <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
-                        <button
-                          type="button"
-                          onClick={() => setActiveSubmodule(null)}
-                          className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="submit"
-                          disabled={saving}
-                          className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2 text-xs font-bold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 disabled:opacity-50"
-                        >
-                          {saving ? "Saving…" : "Save Changes"}
-                        </button>
-                      </div>
-                    </form>
-                  ) : activeSubmodule.panelKey === "payment-methods" ? (
+        {/* Modal Body: 100% Full Width (Zero Sidebar) */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar">
+          {/* 1. STORE PROFILE, INVOICE & TAX FORMS */}
+          {targetCard.panelKey === "general" ||
+          targetCard.panelKey === "receipt" ||
+          targetCard.panelKey === "tax" ? (
+            <form onSubmit={handleSaveShopForm} className="space-y-4">
+              <ShopPanel
+                tab={targetCard.panelKey}
+                form={{
+                  shopName,
+                  setShopName,
+                  phone,
+                  setPhone,
+                  address,
+                  setAddress,
+                  footer,
+                  setFooter,
+                  currency,
+                  setCurrency,
+                  gstin,
+                  setGstin,
+                  taxRate,
+                  setTaxRate,
+                  logoUrl,
+                  setLogoUrl,
+                  upiId,
+                  setUpiId,
+                }}
+              />
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2 text-xs font-bold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {saving ? "Saving…" : "Save Changes"}
+                </button>
+              </div>
+            </form>
+                  ) : targetCard.panelKey === "payment-methods" ? (
                     /* 2. PAYMENT METHODS MASTER */
                     <div className="space-y-4">
                       <PaymentMethodsPanel initialPaymentMethods={paymentMethods} active={true} />
                     </div>
-                  ) : activeSubmodule.panelKey === "quick-favorites" ? (
+                  ) : targetCard.panelKey === "quick-favorites" ? (
                     /* 3. POS COUNTER FAVORITES */
                     <div className="space-y-4">
                       <QuickFavoritesPanel initialServices={services} active={true} />
                     </div>
-                  ) : activeSubmodule.panelKey === "payment-accounts" ? (
+                  ) : targetCard.panelKey === "payment-accounts" ? (
                     /* 4. PAYMENT ACCOUNTS & LIQUIDITY POOLS */
                     <div className="space-y-4">
                       <PaymentAccountsPanel initialInstruments={instruments} active={true} />
                     </div>
-                  ) : activeSubmodule.panelKey === "accounting-defaults" ? (
+                  ) : targetCard.panelKey === "accounting-defaults" ? (
                     /* 5. ACCOUNTING DEFAULTS & ROUTING */
                     <div className="space-y-4">
                       <DefaultRoutingClient />
                     </div>
-                  ) : activeSubmodule.panelKey === "aeps-banks" ? (
+                  ) : targetCard.panelKey === "aeps-banks" ? (
                     /* 6. AEPS BANKS MASTER */
                     <div className="space-y-4">
                       <MasterClient
@@ -938,7 +780,7 @@ export default function SettingsModal({ open, onClose, initialCategory = "busine
                         embedded={true}
                       />
                     </div>
-                  ) : activeSubmodule.panelKey === "portals-master" ? (
+                  ) : targetCard.panelKey === "portals-master" ? (
                     /* 7. SERVICE PORTALS MASTER */
                     <div className="space-y-4">
                       <MasterClient
@@ -953,7 +795,7 @@ export default function SettingsModal({ open, onClose, initialCategory = "busine
                         embedded={true}
                       />
                     </div>
-                  ) : activeSubmodule.panelKey === "merchant-qrs" ? (
+                  ) : targetCard.panelKey === "merchant-qrs" ? (
                     /* 8. MERCHANT QRS & SOUNDBOX */
                     <div className="space-y-4">
                       <MasterClient
@@ -968,7 +810,7 @@ export default function SettingsModal({ open, onClose, initialCategory = "busine
                         embedded={true}
                       />
                     </div>
-                  ) : activeSubmodule.panelKey === "recharge-slabs" ? (
+                  ) : targetCard.panelKey === "recharge-slabs" ? (
                     /* 9. RECHARGE SLABS & OPERATOR COMMISSIONS */
                     <div className="space-y-4">
                       <RechargeProvidersPanel
@@ -976,7 +818,7 @@ export default function SettingsModal({ open, onClose, initialCategory = "busine
                         initialSlabs={rechargeSlabs}
                       />
                     </div>
-                  ) : activeSubmodule.panelKey === "bbps-comm" ? (
+                  ) : targetCard.panelKey === "bbps-comm" ? (
                     /* 10. BBPS COMMISSIONS MATRIX */
                     <div className="space-y-4">
                       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900">
@@ -1052,135 +894,72 @@ export default function SettingsModal({ open, onClose, initialCategory = "busine
                         </div>
                       </div>
                     </div>
-                  ) : activeSubmodule.panelKey === "appearance" ? (
+                  ) : targetCard.panelKey === "appearance" ? (
                     /* 11. THEME & DISPLAY PREFERENCES */
                     <div className="space-y-4">
                       <AppearancePanel active={true} />
                     </div>
-                  ) : activeSubmodule.panelKey === "security" ? (
+                  ) : targetCard.panelKey === "security" ? (
                     /* 12. SECURITY & 2FA */
                     <div className="space-y-4">
                       <SecurityPanel active={true} />
                     </div>
-                  ) : activeSubmodule.panelKey === "notifications" ? (
+                  ) : targetCard.panelKey === "notifications" ? (
                     /* 13. WHATSAPP GATEWAY */
                     <div className="space-y-4">
                       <NotificationsPanel active={true} />
                     </div>
-                  ) : activeSubmodule.panelKey === "backup" ? (
+                  ) : targetCard.panelKey === "backup" ? (
                     /* 14. DATA BACKUP & SQL EXPORT */
                     <div className="space-y-4">
                       <BackupPanel active={true} />
                     </div>
                   ) : (
                     /* Fallback for deep table workspaces */
-                    <div className="flex flex-col items-center justify-center p-12 text-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
-                      <span className="text-3xl mb-2">{activeSubmodule.icon}</span>
+                    <div className="flex flex-col items-center justify-center p-8 sm:p-12 text-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+                      <span className="text-3xl mb-2">{targetCard.icon}</span>
                       <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                        {activeSubmodule.title}
+                        {targetCard.title}
                       </h4>
                       <p className="max-w-md mt-1 text-xs text-slate-500 dark:text-slate-400">
-                        {activeSubmodule.desc}
+                        {targetCard.desc}
                       </p>
-                      {activeSubmodule.directHref && (
+                      {targetCard.directHref && (
                         <Link
-                          href={activeSubmodule.directHref}
+                          href={targetCard.directHref}
                           onClick={onClose}
                           className="mt-4 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-blue-700"
                         >
-                          Launch {activeSubmodule.title} ↗
+                          Launch {targetCard.title} ↗
                         </Link>
                       )}
                     </div>
                   )}
-                </div>
-              ) : (
-                /* COLOR CARDS GRID VIEW */
-                <div className="space-y-4">
-                  {/* Category Title Header */}
-                  <div className="flex items-center justify-between border-b border-slate-200 pb-3 dark:border-slate-800">
-                    <div>
-                      <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                        {filteredCards ? `Search Results (${filteredCards.length})` : currentCategoryData.label}
-                      </h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        {filteredCards ? "Filtered across all setting categories" : currentCategoryData.desc}
-                      </p>
-                    </div>
-                  </div>
+        </div>
 
-                  {/* Cards Grid */}
-                  <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
-                    {(filteredCards || currentCategoryData.cards).map((card) => {
-                      return (
-                        <div
-                          key={card.id}
-                          onClick={() => {
-                            if (card.panelKey) {
-                              setActiveSubmodule(card);
-                            } else if (card.directHref) {
-                              onClose();
-                              router.push(card.directHref);
-                            }
-                          }}
-                          className="group relative flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4.5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-400 hover:shadow-md cursor-pointer dark:border-slate-800 dark:bg-slate-900/90 dark:hover:border-blue-500"
-                        >
-                          <div className="space-y-2.5">
-                            <div className="flex items-center justify-between">
-                              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-lg transition-transform group-hover:scale-105 dark:bg-slate-800">
-                                {card.icon}
-                              </div>
-                              {card.badge && (
-                                <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide text-blue-700 dark:bg-blue-950/70 dark:text-blue-300">
-                                  {card.badge}
-                                </span>
-                              )}
-                            </div>
-
-                            <div>
-                              <h4 className="text-xs font-bold text-slate-900 group-hover:text-blue-600 dark:text-white dark:group-hover:text-blue-400 transition-colors">
-                                {card.title}
-                              </h4>
-                              <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
-                                {card.desc}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="mt-4 flex items-center gap-1.5 text-[11px] font-bold text-blue-600 dark:text-blue-400">
-                            <span>{card.panelKey ? "Configure In-Popup" : "Open Master"}</span>
-                            <span className="transition-transform group-hover:translate-x-0.5">→</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
+        {/* Modal Footer (Responsive: theme status, Esc hint & Done button) */}
+        <div className="flex h-12 shrink-0 items-center justify-between border-t border-slate-200 bg-slate-50/80 px-4 sm:px-6 text-[11px] sm:text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-950/60 dark:text-slate-400">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <span>Theme: <strong className="capitalize">{displayMode}</strong></span>
+            <span className="hidden sm:inline">•</span>
+            <span className="hidden sm:inline">Settings Hub Active</span>
           </div>
-
-          {/* Footer (Responsive: shows theme and dismiss button on mobile, shortcuts on desktop) */}
-          <div className="flex h-11 sm:h-12 shrink-0 items-center justify-between border-t border-slate-200 bg-slate-50/80 px-3.5 sm:px-6 text-[11px] sm:text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-950/60 dark:text-slate-400">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <span>Theme: <strong className="capitalize">{displayMode}</strong></span>
-              <span className="hidden sm:inline">•</span>
-              <span className="hidden sm:inline">Fast Shortcut: <kbd className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[10px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">Ctrl + ,</kbd></span>
-            </div>
-            <div className="hidden sm:block">
-              <span>Press <kbd className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[10px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">Esc</kbd> to dismiss</span>
-            </div>
+          <div className="flex items-center gap-3">
+            <span className="hidden sm:inline text-slate-400">
+              Press <kbd className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[10px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">Esc</kbd> to close
+            </span>
             <button
               type="button"
               onClick={onClose}
-              className="sm:hidden font-bold text-blue-600 dark:text-blue-400 text-xs px-2.5 py-1 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/40"
+              className="font-bold text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
             >
               Done ✕
             </button>
           </div>
-
         </div>
+
       </div>
+    </div>
   );
 
   return createPortal(modalNode, document.body);

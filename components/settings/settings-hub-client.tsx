@@ -143,50 +143,25 @@ export default function SettingsHubClient() {
           </div>
         </div>
 
-        {/* TOP QUICK ACTIONS & LIVE SEARCH */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
-          <div className="relative w-full sm:w-64">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search settings, masters & slabs..."
-              className="w-full rounded-xl border border-slate-200 bg-white/90 px-3.5 py-2 pl-9 text-xs text-slate-900 placeholder-slate-400 shadow-2xs transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:border-slate-800 dark:bg-slate-950/80 dark:text-white dark:focus:ring-indigo-950"
-            />
-            <span className="absolute left-3 top-2.5 text-xs text-slate-400">🔍</span>
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery("")}
-                className="absolute right-2.5 top-2 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-
-          <div className="flex w-full sm:w-auto items-center gap-2">
-            <Link
-              href="/settings/defaults"
-              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-xs font-bold text-indigo-700 shadow-2xs hover:bg-indigo-50 transition dark:border-indigo-800 dark:bg-slate-800 dark:text-indigo-300"
-            >
-              <span>Routing Defaults</span>
-              <span className="text-indigo-400">→</span>
-            </Link>
-
+        {/* LIVE SEARCH BOX */}
+        <div className="relative w-full sm:w-72">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search settings, masters & slabs..."
+            className="w-full rounded-xl border border-slate-200 bg-white/90 px-3.5 py-2.5 pl-9 text-xs text-slate-900 placeholder-slate-400 shadow-2xs transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:border-slate-800 dark:bg-slate-950/80 dark:text-white dark:focus:ring-indigo-950"
+          />
+          <span className="absolute left-3 top-3 text-xs text-slate-400">🔍</span>
+          {searchQuery && (
             <button
               type="button"
-              onClick={() => {
-                setSelectedCardId(undefined);
-                setSelectedCategoryId("business");
-                setModalOpen(true);
-              }}
-              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 transition"
+              onClick={() => setSearchQuery("")}
+              className="absolute right-2.5 top-2.5 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
             >
-              <span>Open Popup</span>
-              <kbd className="hidden sm:inline-block rounded border border-indigo-400/40 bg-indigo-700 px-1 py-0.2 font-mono text-[9px] text-white">⌘,</kbd>
+              ✕
             </button>
-          </div>
+          )}
         </div>
       </div>
 
