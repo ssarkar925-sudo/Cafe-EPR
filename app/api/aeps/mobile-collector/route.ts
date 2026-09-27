@@ -59,6 +59,63 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
+
+    if (body?.action === "register_source") {
+      const portalId = String(body.portalId || "").trim();
+      const portalName = providerDisplay(String(body.portalCode || ""), String(body.portalName || "")).trim();
+      const packageName = String(body.packageName || "").trim();
+      const sourceId = String(body.sourceId || `android-${String(body.portalCode || "portal")}-${Date.now()}`).trim();
+      if (!portalId || !packageName || !portalName) {
+        return NextResponse.json({ success: false, error: "portalId, portalCode/portalName and packageName are required." }, { status: 400 });
+      }
+
+      const url = `android-app://${packageName}`;
+      const { data: existing } = await auth.supabase
+        .from("aeps_portal_sources")
+        .select("id")
+        .eq("id", sourceId)
+        .maybeSingle();
+
+      if (existing) {
+        return NextResponse.json({ success: true, sourceId, created: false, message: "Mobile source already registered." });
+      }
+
+      const { data: duplicate } = await auth.supabase
+        .from("aeps_portal_sources")
+        .select("id")
+        .eq("portal_id", portalId)
+        .eq("url", url)
+        .eq("is_archived", false)
+        .maybeSingle();
+
+      if (duplicate) {
+        return NextResponse.json({ success: true, sourceId: duplicate.id, created: false, message: "This Android package is already registered for the portal." });
+      }
+
+      const { error } = await auth.supabase.from("aeps_portal_sources").insert({
+        id: sourceId,
+        portal_id: portalId,
+        portal_name: portalName,
+        url,
+        source_type: "android_app",
+        purpose: "transaction_info",
+        is_enabled: body.enabled !== false,
+        priority: Number(body.priority || 1),
+        description: `Android mobile collector: ${packageName}`,
+        last_status: "idle",
+        last_message: "Waiting for the CafeERP Android collector.",
+        current_published_value: {},
+        is_archived: false,
+        created_by: auth.user.id,
+      });
+
+      if (error) {
+        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, sourceId, created: true, sourceType: "android_app", url });
+    }
+
     const items = Array.isArray(body?.transactions) ? body.transactions : [body];
     if (items.length === 0 || items.length > 100) {
       return NextResponse.json({ success: false, error: "Send between 1 and 100 transactions per batch." }, { status: 400 });
