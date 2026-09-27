@@ -116,15 +116,20 @@ public class AepsCollectorPlugin extends Plugin {
     public void discoverPortalApps(PluginCall call) {
         try {
             PackageManager pm = getContext().getPackageManager();
-            List<ApplicationInfo> apps = pm.getInstalledApplications(PackageManager.GET_META_DATA);
+            Intent launcherIntent = new Intent(Intent.ACTION_MAIN);
+            launcherIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+            List<android.content.pm.ResolveInfo> apps = pm.queryIntentActivities(launcherIntent, 0);
             JSArray results = new JSArray();
             String[] terms = new String[]{"digipay", "csc", "ezeepay", "ezee pay", "spice money", "spicemoney", "fino"};
-            for (ApplicationInfo app : apps) {
+            Set<String> seen = new HashSet<>();
+            for (android.content.pm.ResolveInfo info : apps) {
+                if (info.activityInfo == null || info.activityInfo.applicationInfo == null) continue;
+                ApplicationInfo app = info.activityInfo.applicationInfo;
                 String label = String.valueOf(pm.getApplicationLabel(app));
                 String haystack = (label + " " + app.packageName).toLowerCase();
                 boolean match = false;
                 for (String term : terms) if (haystack.contains(term)) { match = true; break; }
-                if (!match) continue;
+                if (!match || !seen.add(app.packageName)) continue;
                 JSObject row = new JSObject();
                 row.put("packageName", app.packageName);
                 row.put("label", label);
