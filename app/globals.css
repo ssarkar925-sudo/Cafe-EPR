@@ -1166,3 +1166,113 @@ html.dark[data-design-style="premium-hybrid"] {
     font-size: .72rem;
   }
 }
+
+
+/* CafeERP Phase 2 — mobile data-card conversion */
+@media (max-width: 767px) {
+  .erp-phase2-page .erp-phase2-data-card table {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+  .erp-phase2-page .erp-phase2-data-card thead {
+    display: none;
+  }
+  .erp-phase2-page .erp-phase2-data-card tbody {
+    display: grid;
+    gap: 8px;
+    padding: 8px;
+  }
+  .erp-phase2-page .erp-phase2-data-card tbody tr {
+    display: block;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 15px;
+    background: color-mix(in srgb, var(--surface) 96%, var(--surface-soft));
+    box-shadow: var(--depth-1-shadow);
+  }
+  .erp-phase2-page .erp-phase2-data-card tbody tr:hover td {
+    background: transparent !important;
+  }
+  .erp-phase2-page .erp-phase2-data-card tbody td {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 7px 9px !important;
+    border-bottom: 1px solid var(--line);
+    text-align: right;
+    white-space: normal;
+  }
+  .erp-phase2-page .erp-phase2-data-card tbody td::before {
+    flex: 0 0 auto;
+    color: var(--muted);
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    text-align: left;
+  }
+  .erp-phase2-page .erp-phase2-data-card tbody td:last-child {
+    justify-content: flex-end;
+    border-bottom: 0;
+    padding-top: 9px !important;
+  }
+  .erp-phase2-page .erp-phase2-data-card tbody td:last-child::before {
+    content: none;
+  }
+
+  [data-phase2-module="customers"] .erp-phase2-data-card tbody td:nth-child(1)::before { content: "Customer"; }
+  [data-phase2-module="customers"] .erp-phase2-data-card tbody td:nth-child(2)::before { content: "Code"; }
+  [data-phase2-module="customers"] .erp-phase2-data-card tbody td:nth-child(3)::before { content: "Email"; }
+  [data-phase2-module="customers"] .erp-phase2-data-card tbody td:nth-child(4)::before { content: "Khata"; }
+  [data-phase2-module="customers"] .erp-phase2-data-card tbody td:nth-child(5)::before { content: "Status"; }
+
+  [data-phase2-module="invoices"] .erp-phase2-data-card tbody td:nth-child(1)::before { content: "Invoice"; }
+  [data-phase2-module="invoices"] .erp-phase2-data-card tbody td:nth-child(2)::before { content: "Type"; }
+  [data-phase2-module="invoices"] .erp-phase2-data-card tbody td:nth-child(3)::before { content: "Customer"; }
+  [data-phase2-module="invoices"] .erp-phase2-data-card tbody td:nth-child(4)::before { content: "Date"; }
+  [data-phase2-module="invoices"] .erp-phase2-data-card tbody td:nth-child(5)::before { content: "Total"; }
+  [data-phase2-module="invoices"] .erp-phase2-data-card tbody td:nth-child(6)::before { content: "Paid"; }
+  [data-phase2-module="invoices"] .erp-phase2-data-card tbody td:nth-child(7)::before { content: "Due"; }
+  [data-phase2-module="invoices"] .erp-phase2-data-card tbody td:nth-child(8)::before { content: "Status"; }
+
+  [data-phase2-module="inventory"] .erp-phase2-data-card tbody td:nth-child(1)::before { content: "Product"; }
+  [data-phase2-module="inventory"] .erp-phase2-data-card tbody td:nth-child(2)::before { content: "Category"; }
+  [data-phase2-module="inventory"] .erp-phase2-data-card tbody td:nth-child(3)::before { content: "On Hand"; }
+  [data-phase2-module="inventory"] .erp-phase2-data-card tbody td:nth-child(4)::before { content: "Reorder"; }
+  [data-phase2-module="inventory"] .erp-phase2-data-card tbody td:nth-child(5)::before { content: "Unit Cost"; }
+  [data-phase2-module="inventory"] .erp-phase2-data-card tbody td:nth-child(6)::before { content: "Stock Value"; }
+  [data-phase2-module="inventory"] .erp-phase2-data-card tbody td:nth-child(7)::before { content: "Status"; }
+
+  [data-phase2-module="purchases"] .erp-phase2-data-card tbody td:nth-child(1)::before { content: "Purchase"; }
+  [data-phase2-module="purchases"] .erp-phase2-data-card tbody td:nth-child(2)::before { content: "Supplier"; }
+  [data-phase2-module="purchases"] .erp-phase2-data-card tbody td:nth-child(3)::before { content: "Date"; }
+  [data-phase2-module="purchases"] .erp-phase2-data-card tbody td:nth-child(4)::before { content: "Items"; }
+  [data-phase2-module="purchases"] .erp-phase2-data-card tbody td:nth-child(5)::before { content: "Total"; }
+  [data-phase2-module="purchases"] .erp-phase2-data-card tbody td:nth-child(6)::before { content: "Paid"; }
+  [data-phase2-module="purchases"] .erp-phase2-data-card tbody td:nth-child(7)::before { content: "Due"; }
+  [data-phase2-module="purchases"] .erp-phase2-data-card tbody td:nth-child(8)::before { content: "Status"; }
+
+  [data-phase2-module="suppliers"] .erp-phase2-data-card tbody td:nth-child(1)::before { content: "Supplier"; }
+  [data-phase2-module="suppliers"] .erp-phase2-data-card tbody td:nth-child(2)::before { content: "Contact"; }
+  [data-phase2-module="suppliers"] .erp-phase2-data-card tbody td:nth-child(3)::before { content: "GSTIN"; }
+  [data-phase2-module="suppliers"] .erp-phase2-data-card tbody td:nth-child(4)::before { content: "Terms"; }
+  [data-phase2-module="suppliers"] .erp-phase2-data-card tbody td:nth-child(5)::before { content: "Payable"; }
+
+  [data-phase2-module="returns"] .erp-phase2-data-card tbody td:nth-child(1)::before { content: "Return"; }
+  [data-phase2-module="returns"] .erp-phase2-data-card tbody td:nth-child(2)::before { content: "Invoice"; }
+  [data-phase2-module="returns"] .erp-phase2-data-card tbody td:nth-child(3)::before { content: "Customer"; }
+  [data-phase2-module="returns"] .erp-phase2-data-card tbody td:nth-child(4)::before { content: "Date"; }
+  [data-phase2-module="returns"] .erp-phase2-data-card tbody td:nth-child(5)::before { content: "Value"; }
+  [data-phase2-module="returns"] .erp-phase2-data-card tbody td:nth-child(6)::before { content: "Refund"; }
+  [data-phase2-module="returns"] .erp-phase2-data-card tbody td:nth-child(7)::before { content: "Status"; }
+
+  /* Internal complex cells keep their own text alignment on small screens. */
+  .erp-phase2-page .erp-phase2-data-card tbody td > div,
+  .erp-phase2-page .erp-phase2-data-card tbody td > span {
+    max-width: 74%;
+    min-width: 0;
+  }
+}
