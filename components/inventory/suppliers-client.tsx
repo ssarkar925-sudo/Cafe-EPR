@@ -154,9 +154,9 @@ export default function SuppliersClient() {
   const totalPayable = suppliers.reduce((acc, s) => acc + Number(s.current_balance || 0), 0);
 
   return (
-    <div className="space-y-6">
+    <div data-phase2-module="suppliers" className="erp-phase2-page space-y-5">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="erp-phase2-header flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-slate-900">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
             Suppliers & Vendors
@@ -238,7 +238,7 @@ export default function SuppliersClient() {
       </div>
 
       {/* Search & List */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs dark:border-white/10 dark:bg-slate-900">
+      <div className="erp-phase2-data-card rounded-2xl border border-slate-200 bg-white p-4 shadow-xs dark:border-white/10 dark:bg-slate-900">
         <div className="mb-4">
           <input
             type="text"
