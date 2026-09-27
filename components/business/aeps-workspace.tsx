@@ -1963,7 +1963,9 @@ export default function AepsWorkspace({
     try {
       const res = await fetch("/api/ai/portal-watcher", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({
           action: "create_source",
           id: newId,
