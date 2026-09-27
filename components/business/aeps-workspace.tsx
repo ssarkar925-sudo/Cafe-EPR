@@ -193,6 +193,8 @@ export default function AepsWorkspace({
   const [liveWatcherLastEventAt, setLiveWatcherLastEventAt] = useState<string | null>(null);
   const [liveWatcherDetectedCount, setLiveWatcherDetectedCount] = useState(0);
   const [liveWatcherError, setLiveWatcherError] = useState<string | null>(null);
+  const [detectedTransactions, setDetectedTransactions] = useState<any[]>([]);
+  const [selectedDetectedTransactionId, setSelectedDetectedTransactionId] = useState<string | null>(null);
   const liveSnapshotBusyRef = useRef(false);
   const [newSourceUrl, setNewSourceUrl] = useState("");
   const [newSourcePurpose, setNewSourcePurpose] = useState<PortalSourcePurpose>("commission");
@@ -325,6 +327,51 @@ export default function AepsWorkspace({
     }
   };
 
+  const reviewDetectedTransaction = (record: any) => {
+    const tx = record?.transaction || {};
+    const detectedPortalId = String(record?.portalId || "").trim();
+    if (!detectedPortalId) return;
+
+    setSelectedDetectedTransactionId(String(record.id || ""));
+    setPortalId(detectedPortalId);
+    setSelectedWatcherPortalId(detectedPortalId);
+
+    const nextType = normalizeRuleTransactionType(tx.transactionType);
+    if (
+      nextType === "cash_out" ||
+      nextType === "payment_collection" ||
+      nextType === "balance_enquiry" ||
+      nextType === "mini_statement"
+    ) {
+      setTransactionType(nextType as AepsTxnType);
+    }
+
+    if (tx.amount != null && Number(tx.amount) > 0) setAmount(String(tx.amount));
+    if (/^\d{10}$/.test(String(tx.customerMobile || ""))) setMobile(String(tx.customerMobile));
+    if (/^\d{4}$/.test(String(tx.aadhaarLast4 || ""))) setAadhaar(String(tx.aadhaarLast4));
+
+    const detectedBank = String(tx.bankName || "").trim();
+    if (detectedBank) {
+      const exact = matchBankExactName(detectedBank, bankOptions);
+      if (exact) {
+        setBankId(exact.id);
+        setUnmatchedBankName(null);
+      } else {
+        setUnmatchedBankName(detectedBank);
+      }
+    }
+
+    const ref = String(tx.externalReference || tx.externalTransactionId || tx.reference || "").trim();
+    if (ref) handleTransactionRefChange(ref);
+
+    if (tx.fee != null && Number.isFinite(Number(tx.fee))) setFee(String(tx.fee));
+    if (tx.commission != null && Number.isFinite(Number(tx.commission))) setCommission(String(tx.commission));
+
+    setEntryMode("ai");
+    setSourceSectionOpen(true);
+    setReviewOpen(true);
+  };
+
   // Native desktop watcher event bridge.
   // Browser builds deliberately do not pretend to have an authenticated watcher.
   useEffect(() => {
@@ -412,61 +459,38 @@ export default function AepsWorkspace({
       if (event.type === "transaction") {
         const tx = event.transaction || {};
         const detectedPortal = eventPortalId;
-        setLiveWatcherDetectedCount((n) => n + 1);
-        setLiveWatcherLastEventAt(event.detectedAt || new Date().toISOString());
+        const detectedRecord = {
+          id: `det-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          portalId: detectedPortal,
+          portalName: event.portalName || "AEPS Portal",
+          sourceId: String(event.sourceId || ""),
+          sourceUrl: String(event.sourceUrl || ""),
+          fingerprint: String(event.fingerprint || ""),
+          detectedAt: event.detectedAt || new Date().toISOString(),
+          transaction: tx,
+        };
 
-        // Only the currently selected portal may populate the active transaction.
-        // Events from other portals remain watcher telemetry and never cross-pollute the form.
+        setLiveWatcherDetectedCount((n) => n + 1);
+        setLiveWatcherLastEventAt(detectedRecord.detectedAt);
+        setDetectedTransactions((prev) => [
+          detectedRecord,
+          ...prev.filter((item) => item.fingerprint !== detectedRecord.fingerprint),
+        ].slice(0, 25));
+
+        // Every detection is now placed in a visible review queue.
+        // Other portals remain isolated until the operator explicitly reviews them.
         if (detectedPortal !== portalId) {
-          showToast("info", `New AEPS transaction detected in ${event.portalName || "another portal"}. Select that portal to review it.`);
+          showToast(
+            "info",
+            `New AEPS transaction detected in ${event.portalName || "another portal"}. Open the review queue to inspect it.`
+          );
           return;
         }
 
-        const nextType = normalizeRuleTransactionType(tx.transactionType);
-        if (nextType === "cash_out" || nextType === "payment_collection" || nextType === "balance_enquiry" || nextType === "mini_statement") {
-          setTransactionType(nextType as AepsTxnType);
-        }
-
-        if (tx.amount != null && Number(tx.amount) > 0) {
-          setAmount(String(tx.amount));
-        }
-        if (/^\d{10}$/.test(String(tx.customerMobile || ""))) {
-          setMobile(String(tx.customerMobile));
-        }
-        if (/^\d{4}$/.test(String(tx.aadhaarLast4 || ""))) {
-          setAadhaar(String(tx.aadhaarLast4));
-        }
-
-        const detectedBank = String(tx.bankName || "").trim();
-        if (detectedBank) {
-          const exact = matchBankExactName(detectedBank, bankOptions);
-          if (exact) {
-            setBankId(exact.id);
-            setUnmatchedBankName(null);
-          } else {
-            setUnmatchedBankName(detectedBank);
-          }
-        }
-
-        const ref = String(tx.externalReference || tx.externalTransactionId || tx.reference || "").trim();
-        if (ref) {
-          setTransactionRef(ref);
-          if (/^\d{10,14}$/.test(ref)) {
-            setBankRef(ref);
-            setPortalRef("");
-          } else {
-            setPortalRef(ref);
-          }
-        }
-
-        if (tx.fee != null && Number.isFinite(Number(tx.fee))) setFee(String(tx.fee));
-        if (tx.commission != null && Number.isFinite(Number(tx.commission))) setCommission(String(tx.commission));
-
-        setEntryMode("ai");
-        setSourceSectionOpen(true);
+        reviewDetectedTransaction(detectedRecord);
         showToast(
           "success",
-          `New AEPS transaction detected from ${event.portalName || "portal"} — details filled for operator review.`
+          `New AEPS transaction detected from ${event.portalName || "portal"} — review opened with captured details.`
         );
       }
 
@@ -2154,6 +2178,12 @@ export default function AepsWorkspace({
       );
 
       setEditingTxnId(null);
+      setDetectedTransactions((prev) =>
+        selectedDetectedTransactionId
+          ? prev.filter((item) => item.id !== selectedDetectedTransactionId)
+          : prev
+      );
+      setSelectedDetectedTransactionId(null);
       handleNewCashOut();
       setReviewOpen(false);
       idempotencyKeyRef.current = null;
@@ -2613,6 +2643,51 @@ export default function AepsWorkspace({
               </div>
             </section>
 
+             {detectedTransactions.length > 0 && (
+               <section className="rounded-2xl border border-blue-200 bg-blue-50/70 shadow-sm overflow-hidden">
+                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-blue-100 bg-white px-4 py-3">
+                   <div>
+                     <h3 className="text-sm font-black text-slate-950">Detected Transactions — Review Queue</h3>
+                     <p className="text-[11px] text-slate-500">
+                       Live watcher captured {detectedTransactions.length} transaction{detectedTransactions.length === 1 ? "" : "s"}. Nothing is recorded until you approve it.
+                     </p>
+                   </div>
+                   <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[10px] font-black text-blue-800">
+                     {detectedTransactions.length} awaiting review
+                   </span>
+                 </div>
+                 <div className="max-h-72 overflow-y-auto p-3 space-y-2">
+                   {detectedTransactions.slice(0, 10).map((record) => {
+                     const tx = record.transaction || {};
+                     const isSelected = selectedDetectedTransactionId === record.id;
+                     return (
+                       <div key={record.id} className={"rounded-xl border p-3 bg-white flex flex-col gap-3 md:flex-row md:items-center md:justify-between " + (isSelected ? "border-blue-400 ring-2 ring-blue-100" : "border-slate-200")}>
+                         <div className="min-w-0">
+                           <div className="flex flex-wrap items-center gap-2">
+                             <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-700">{record.portalName}</span>
+                             <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-emerald-700">{formatRuleTransactionType(tx.transactionType || "cash_out")}</span>
+                             <span className="font-mono text-sm font-black text-slate-950">{tx.amount != null ? inr(Number(tx.amount)) : "Amount not captured"}</span>
+                           </div>
+                           <div className="mt-1 text-[10px] text-slate-500 flex flex-wrap gap-x-3 gap-y-1">
+                             <span>Ref: <b className="font-mono text-slate-700">{tx.externalReference || tx.externalTransactionId || tx.reference || "—"}</b></span>
+                             <span>Bank: <b className="text-slate-700">{tx.bankName || "Not captured"}</b></span>
+                             <span>Detected: <b className="text-slate-700">{fmtTime(record.detectedAt)}</b></span>
+                           </div>
+                         </div>
+                         <button
+                           type="button"
+                           onClick={() => reviewDetectedTransaction(record)}
+                           className="shrink-0 rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white hover:bg-blue-700"
+                         >
+                           Review &amp; Fill
+                         </button>
+                       </div>
+                     );
+                   })}
+                 </div>
+               </section>
+             )}
+
             {/* AUTO-COLLECTED & VERIFIED SUMMARY BANNER */}
             <div className="rounded-2xl border border-emerald-200/90 bg-gradient-to-r from-emerald-50/80 via-teal-50/60 to-blue-50/60 p-4 shadow-sm space-y-2.5">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -2626,13 +2701,13 @@ export default function AepsWorkspace({
                       ? currentRun.verificationStatus === "VERIFIED"
                         ? `${currentRun.successfulSourceCount} / ${currentRun.sourceCount} sources verified`
                         : `${currentRun.successfulSourceCount} / ${currentRun.sourceCount} Partial Verification`
-                      : "Baseline Config Verified"}
+                      : "No live verification yet"}
                   </span>
                 </div>
 
                 <div className="flex items-center gap-3">
                   <span className="text-[11px] text-slate-500 font-medium">
-                    {lastVerifiedAt ? `Verified ${fmtTime(lastVerifiedAt)}` : "Verified from active published rules"}
+                    {lastVerifiedAt ? `Last source check ${fmtTime(lastVerifiedAt)}` : "Waiting for a live/source verification"}
                   </span>
                   <button
                     type="button"
@@ -3043,9 +3118,10 @@ export default function AepsWorkspace({
                   <label className="block text-[10px] font-black text-slate-700 mb-1">
                     Transaction Type *
                   </label>
-                  <div className="grid grid-cols-3 gap-1.5">
+                  <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
                     {[
                       { id: "cash_out", label: "Cash Withdrawal" },
+                      { id: "payment_collection", label: "Payment Collection" },
                       { id: "balance_enquiry", label: "Balance Enquiry" },
                       { id: "mini_statement", label: "Mini Statement" },
                     ].map((item) => (
