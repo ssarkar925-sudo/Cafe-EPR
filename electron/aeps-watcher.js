@@ -212,23 +212,29 @@ class AepsWatcher {
       groups.set(key, group);
     }
 
-    const results = [];
-    for (const group of groups.values()) {
-      // The first URL becomes the authentication leader for this website.
-      // We wait for the operator to finish the manual login before opening
-      // the remaining URLs in the same persistent Electron session.
-      for (let index = 0; index < group.length; index += 1) {
-        const source = group[index];
-        const started = await this.startSourceSession(
-          source,
-          portalId,
-          portalName,
-          intervalSeconds,
-          { waitForAuthentication: index === 0 }
-        );
-        results.push({ status: started ? "fulfilled" : "rejected", value: started });
-      }
-    }
+    // Different websites may start concurrently, but URLs belonging to the
+    // same website are opened one-by-one. This keeps one authentication flow
+    // per website while preserving multi-site concurrency.
+    const groupResults = await Promise.allSettled(
+      Array.from(groups.values()).map(async (group) => {
+        const siteResults = [];
+        for (const source of group) {
+          const started = await this.startSourceSession(
+            source,
+            portalId,
+            portalName,
+            intervalSeconds,
+            { waitForAuthentication: true }
+          );
+          siteResults.push({ status: started ? "fulfilled" : "rejected", value: started });
+        }
+        return siteResults;
+      })
+    );
+
+    const results = groupResults.flatMap((groupResult) =>
+      groupResult.status === "fulfilled" ? groupResult.value : []
+    );
 
     const startedSources = results.filter((r) => r.status === "fulfilled" && r.value === true).length;
     const failedSources = results.length - startedSources;
