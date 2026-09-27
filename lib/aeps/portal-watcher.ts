@@ -201,7 +201,7 @@ export interface PortalWatcherSource {
   portalName: string;
   url: string;
   sourceUrl?: string; // Canonical alias
-  sourceType: "web_page" | "api_endpoint" | "portal_doc";
+  sourceType: "web_page" | "api_endpoint" | "portal_doc" | "android_app";
   purpose: PortalSourcePurpose;
   isEnabled: boolean;
   priority: number;

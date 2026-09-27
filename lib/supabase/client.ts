@@ -1,4 +1,7 @@
 import { createBrowserClient } from "@supabase/ssr";
+import { Capacitor } from "@capacitor/core";
+import { AepsCollector } from "@/lib/aeps/mobile-collector-client";
+
 
 let browserClient: ReturnType<typeof createBrowserClient> | null = null;
 let rejectionListenerInstalled = false;
@@ -158,9 +161,26 @@ export function clearClientAuthCookies() {
   } catch { /* ignore storage cleanup failures */ }
 }
 
+async function syncNativeAepsCollectorSession(session: { access_token?: string } | null) {
+  if (typeof window === "undefined" || !Capacitor.isNativePlatform()) return;
+  try {
+    if (!session?.access_token) {
+      await AepsCollector.clearSession();
+      return;
+    }
+    await AepsCollector.setApiConfig({
+      apiUrl: `${window.location.origin}/api/aeps/mobile-collector`,
+      accessToken: session.access_token,
+    });
+  } catch {
+    // Native collector is optional; never block normal CafeERP authentication.
+  }
+}
+
 function setupBrowserAuthErrorHandlers(client: ReturnType<typeof createBrowserClient>) {
   if (typeof window === "undefined") return;
   client.auth.onAuthStateChange((event, session) => {
+    void syncNativeAepsCollectorSession(session);
     if (event === "SIGNED_OUT" || (event === "TOKEN_REFRESHED" && !session)) clearClientAuthCookies();
   });
   if (!rejectionListenerInstalled) {
