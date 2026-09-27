@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import AvatarModal from "./profile/avatar-modal";
+import { useTheme, type AccentColor } from "./theme-provider";
 
 export type BadgeTone = "emerald" | "amber" | "indigo" | "purple" | "rose" | "slate" | "blue";
 export type NavChild = { label: string; href: string; icon?: string; badge?: { text: string; tone: BadgeTone } };
@@ -27,6 +28,80 @@ const BADGE_STYLES: Record<BadgeTone, string> = {
   rose: "bg-rose-500/15 text-rose-700 border-rose-300 dark:bg-rose-500/20 dark:text-rose-300 dark:border-rose-500/30",
   blue: "bg-blue-500/15 text-blue-700 border-blue-300 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/30",
   slate: "bg-slate-500/15 text-slate-700 border-slate-300 dark:bg-slate-500/20 dark:text-slate-300 dark:border-slate-500/30",
+};
+
+export type AccentSidebarStyle = {
+  logoBg: string;
+  logoShadow: string;
+  tagline: string;
+  topExpandBtn: string;
+  dashboardActive: string;
+  dashboardIcon: string;
+  dashboardPing: string;
+  avatarBg: string;
+};
+
+const ACCENT_STYLES: Record<AccentColor, AccentSidebarStyle> = {
+  violet: {
+    logoBg: "bg-gradient-to-tr from-violet-600 to-indigo-600",
+    logoShadow: "shadow-violet-500/25",
+    tagline: "text-violet-600 dark:text-violet-400",
+    topExpandBtn: "bg-violet-600 hover:bg-violet-500 shadow-violet-500/25",
+    dashboardActive: "is-active bg-gradient-to-r from-violet-500/15 via-indigo-500/10 to-transparent text-violet-700 dark:text-violet-300 border border-violet-300/80 dark:border-violet-500/40 shadow-xs",
+    dashboardIcon: "bg-violet-600 text-white shadow-xs dark:bg-violet-500",
+    dashboardPing: "bg-violet-500",
+    avatarBg: "bg-violet-600",
+  },
+  blue: {
+    logoBg: "bg-gradient-to-tr from-blue-600 to-indigo-600",
+    logoShadow: "shadow-blue-500/25",
+    tagline: "text-blue-600 dark:text-blue-400",
+    topExpandBtn: "bg-blue-600 hover:bg-blue-500 shadow-blue-500/25",
+    dashboardActive: "is-active bg-gradient-to-r from-blue-500/15 via-indigo-500/10 to-transparent text-blue-700 dark:text-blue-300 border border-blue-300/80 dark:border-blue-500/40 shadow-xs",
+    dashboardIcon: "bg-blue-600 text-white shadow-xs dark:bg-blue-500",
+    dashboardPing: "bg-blue-500",
+    avatarBg: "bg-blue-600",
+  },
+  emerald: {
+    logoBg: "bg-gradient-to-tr from-emerald-600 to-teal-600",
+    logoShadow: "shadow-emerald-500/25",
+    tagline: "text-emerald-600 dark:text-emerald-400",
+    topExpandBtn: "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-500/25",
+    dashboardActive: "is-active bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-transparent text-emerald-700 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-500/40 shadow-xs",
+    dashboardIcon: "bg-emerald-600 text-white shadow-xs dark:bg-emerald-500",
+    dashboardPing: "bg-emerald-500",
+    avatarBg: "bg-emerald-600",
+  },
+  amber: {
+    logoBg: "bg-gradient-to-tr from-amber-600 to-orange-600",
+    logoShadow: "shadow-amber-500/25",
+    tagline: "text-amber-600 dark:text-amber-400",
+    topExpandBtn: "bg-amber-600 hover:bg-amber-500 shadow-amber-500/25",
+    dashboardActive: "is-active bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-transparent text-amber-700 dark:text-amber-300 border border-amber-300/80 dark:border-amber-500/40 shadow-xs",
+    dashboardIcon: "bg-amber-600 text-white shadow-xs dark:bg-amber-500",
+    dashboardPing: "bg-amber-500",
+    avatarBg: "bg-amber-600",
+  },
+  rose: {
+    logoBg: "bg-gradient-to-tr from-rose-600 to-pink-600",
+    logoShadow: "shadow-rose-500/25",
+    tagline: "text-rose-600 dark:text-rose-400",
+    topExpandBtn: "bg-rose-600 hover:bg-rose-500 shadow-rose-500/25",
+    dashboardActive: "is-active bg-gradient-to-r from-rose-500/15 via-pink-500/10 to-transparent text-rose-700 dark:text-rose-300 border border-rose-300/80 dark:border-rose-500/40 shadow-xs",
+    dashboardIcon: "bg-rose-600 text-white shadow-xs dark:bg-rose-500",
+    dashboardPing: "bg-rose-500",
+    avatarBg: "bg-rose-600",
+  },
+  cyan: {
+    logoBg: "bg-gradient-to-tr from-cyan-600 to-blue-600",
+    logoShadow: "shadow-cyan-500/25",
+    tagline: "text-cyan-600 dark:text-cyan-400",
+    topExpandBtn: "bg-cyan-600 hover:bg-cyan-500 shadow-cyan-500/25",
+    dashboardActive: "is-active bg-gradient-to-r from-cyan-500/15 via-blue-500/10 to-transparent text-cyan-700 dark:text-cyan-300 border border-cyan-300/80 dark:border-cyan-500/40 shadow-xs",
+    dashboardIcon: "bg-cyan-600 text-white shadow-xs dark:bg-cyan-500",
+    dashboardPing: "bg-cyan-500",
+    avatarBg: "bg-cyan-600",
+  },
 };
 
 export type DomainTheme = {
@@ -219,6 +294,8 @@ export default function Sidebar({
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { accent, gradientEnabled } = useTheme();
+  const activeAccent = ACCENT_STYLES[accent] || ACCENT_STYLES.violet;
   const [profileOpen, setProfileOpen] = useState(false);
   const [currentAvatar, setCurrentAvatar] = useState<string | null>(avatarUrl);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -414,7 +491,11 @@ export default function Sidebar({
 
       {/* LEFT SIDEBAR (LIGHT & DARK THEMED WITH RICH AMBIENT GRADIENTS) */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex flex-col transition-all duration-300 border-r border-slate-200/90 bg-gradient-to-b from-white via-slate-50/90 to-indigo-50/20 text-slate-800 shadow-md dark:border-slate-800 dark:bg-gradient-to-b dark:from-[#0b101d] dark:via-[#0f172a] dark:to-[#080d19] dark:text-slate-200 dark:shadow-2xl ${
+        className={`fixed inset-y-0 left-0 z-50 flex flex-col transition-all duration-300 ${
+          gradientEnabled
+            ? "border-r border-slate-200/80 bg-white/78 backdrop-blur-2xl text-slate-800 shadow-lg dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-200 dark:shadow-2xl"
+            : "border-r border-slate-200/90 bg-gradient-to-b from-white via-slate-50/90 to-slate-100/50 text-slate-800 shadow-md dark:border-slate-800 dark:bg-gradient-to-b dark:from-[#0b101d] dark:via-[#0f172a] dark:to-[#080d19] dark:text-slate-200 dark:shadow-2xl"
+        } ${
           collapsed ? "w-[72px]" : "w-60 xl:w-64"
         } ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
       >
@@ -426,7 +507,7 @@ export default function Sidebar({
               onClick={onToggle}
               aria-label="Expand sidebar"
               title="Expand sidebar"
-              className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md hover:bg-blue-500 transition-colors"
+              className={`flex h-10 w-10 items-center justify-center rounded-xl ${activeAccent.topExpandBtn} text-white shadow-md transition-all active:scale-95`}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="h-5 w-5">
                 <path d="M13 5l7 7-7 7M5 5l7 7-7 7" />
@@ -436,7 +517,7 @@ export default function Sidebar({
         ) : (
           <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200/80 dark:border-slate-800 px-4">
             <Link href="/dashboard" className="flex items-center gap-3 overflow-hidden min-w-0">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25">
+              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${activeAccent.logoBg} text-white shadow-md ${activeAccent.logoShadow}`}>
                 {logoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={logoUrl} alt="Logo" className="h-5 w-5 object-contain" />
@@ -453,7 +534,7 @@ export default function Sidebar({
                     {shopName || "CafeERP"}
                   </span>
                 </div>
-                <span className="block truncate text-[10px] font-semibold text-indigo-600 dark:text-indigo-400">
+                <span className={`block truncate text-[10px] font-semibold ${activeAccent.tagline}`}>
                   Retail • Services • Finance
                 </span>
               </div>
@@ -499,16 +580,16 @@ export default function Sidebar({
               title={collapsed ? "Dashboard" : undefined}
               className={`group flex items-center justify-between rounded-xl px-3 py-2 text-sm font-bold transition-all ${
                 isDashboardActive
-                  ? "is-active bg-gradient-to-r from-indigo-500/15 via-blue-500/10 to-transparent text-indigo-700 dark:text-indigo-300 border border-indigo-300/80 dark:border-indigo-500/40 shadow-xs"
-                  : "text-slate-700 hover:bg-indigo-50/70 hover:text-indigo-700 dark:text-slate-200 dark:hover:bg-indigo-950/40 dark:hover:text-indigo-300"
+                  ? activeAccent.dashboardActive
+                  : `text-slate-700 hover:bg-slate-100/70 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-800/50 dark:hover:text-white`
               }`}
             >
               <div className="flex items-center gap-3 min-w-0">
                 <span
                   className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-transform duration-300 group-hover:scale-115 group-hover:rotate-6 ${
                     isDashboardActive
-                      ? "bg-indigo-600 text-white shadow-xs dark:bg-indigo-500"
-                      : "bg-indigo-500/15 text-indigo-600 dark:bg-indigo-500/25 dark:text-indigo-400"
+                      ? activeAccent.dashboardIcon
+                      : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
                   }`}
                 >
                   <Icon d={ICONS.dashboard} className="h-4 w-4" />
@@ -516,7 +597,7 @@ export default function Sidebar({
                 {!collapsed && <span>Dashboard</span>}
               </div>
               {!collapsed && isDashboardActive && (
-                <span className="h-2 w-2 rounded-full bg-indigo-500 animate-ping" />
+                <span className={`h-2 w-2 rounded-full ${activeAccent.dashboardPing} animate-ping`} />
               )}
             </Link>
           </div>
@@ -641,7 +722,13 @@ export default function Sidebar({
         </div>
 
         {/* BOTTOM USER PROFILE STRIP */}
-        <div className="border-t border-slate-200 px-3 py-2.5 shrink-0 bg-slate-50 dark:border-slate-800 dark:bg-[#0c1322]">
+        <div
+          className={`border-t px-3 py-2.5 shrink-0 transition-colors ${
+            gradientEnabled
+              ? "border-slate-200/60 bg-white/40 dark:border-white/10 dark:bg-white/5"
+              : "border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-[#0c1322]"
+          }`}
+        >
           <div className="flex items-center justify-between">
             <Link
               href="/settings"
@@ -649,7 +736,9 @@ export default function Sidebar({
               title="Click to open Settings & System Control Center"
               className="flex flex-1 items-center gap-2.5 rounded-lg p-1 hover:bg-slate-200/60 dark:hover:bg-slate-800/60 cursor-pointer transition min-w-0"
             >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white shadow-sm overflow-hidden">
+              <div
+                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${activeAccent.avatarBg} text-xs font-bold text-white shadow-sm overflow-hidden`}
+              >
                 {currentAvatar ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={currentAvatar} alt="" className="h-8 w-8 object-cover" />

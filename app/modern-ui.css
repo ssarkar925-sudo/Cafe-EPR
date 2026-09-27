@@ -94,18 +94,45 @@
   border-color:var(--m-border)!important;
 }
 
-/* Sidebar language - fully responsive to light and dark theme */
+/* Sidebar language - fully responsive to light and dark theme & atmosphere */
 .modern-erp aside{
-  background:linear-gradient(180deg,var(--m-sidebar),var(--m-sidebar-2))!important;
-  border-right:1px solid var(--m-sidebar-line)!important;
-  border-top:none!important;
-  border-bottom:none!important;
-  border-left:none!important;
-  border-radius:0!important;
-  box-shadow:none!important;
-  color:var(--m-sidebar-text)!important;
-  backdrop-filter:none!important;
+  background: linear-gradient(180deg, var(--m-sidebar), var(--m-sidebar-2));
+  border-right: 1px solid var(--m-sidebar-line);
+  color: var(--m-sidebar-text);
+  transition: background 0.3s ease, border-color 0.3s ease;
 }
+
+/* Frosted glass atmospheric sidebar when gradient is active */
+html[data-gradient-enabled="true"] .modern-erp aside {
+  background: rgba(255, 255, 255, 0.78) !important;
+  backdrop-filter: blur(24px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+  border-right: 1px solid rgba(226, 232, 240, 0.8) !important;
+  box-shadow: 4px 0 24px rgba(15, 23, 42, 0.04) !important;
+}
+html[data-gradient-enabled="true"].dark .modern-erp aside,
+html[data-gradient-enabled="true"] .dark .modern-erp aside {
+  background: rgba(15, 23, 42, 0.80) !important;
+  backdrop-filter: blur(24px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.35) !important;
+}
+
+html[data-gradient-enabled="true"] .modern-erp aside > div:last-child {
+  background: rgba(255, 255, 255, 0.55) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border-top: 1px solid rgba(226, 232, 240, 0.7) !important;
+}
+html[data-gradient-enabled="true"].dark .modern-erp aside > div:last-child,
+html[data-gradient-enabled="true"] .dark .modern-erp aside > div:last-child {
+  background: rgba(15, 23, 42, 0.55) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
 .modern-erp aside:before{
   display:none!important;
 }
@@ -115,77 +142,43 @@
   background:transparent!important;
 }
 .modern-erp aside>div:first-child a>div:first-child{
-  border-radius:11px!important;
-  box-shadow:0 4px 12px rgba(37,99,235,.20)!important;
+  border-radius:12px!important;
 }
 .modern-erp aside>div:first-child a div:nth-child(2) div:first-child{
   color:var(--m-sidebar-text)!important;
   letter-spacing:-.02em!important;
 }
-.modern-erp aside>div:first-child a div:nth-child(2) div:last-child{
-  color:var(--m-sidebar-muted)!important;
-}
 
 /* Sidebar section labels */
+.modern-erp aside .text-[11px],
 .modern-erp aside .text-[10px]{
-  color:var(--m-sidebar-muted)!important;
-  font-size:9.5px!important;
   letter-spacing:.08em!important;
   font-weight:800!important;
 }
 .modern-erp aside .border-slate-200,
 .modern-erp aside .border-white\/10{border-color:var(--m-sidebar-line)!important;}
 .modern-erp aside a{
-  border-radius:9px!important;
-  color:var(--m-sidebar-text)!important;
-  transition:background .16s ease,color .16s ease,transform .16s ease!important;
+  border-radius:10px!important;
+  transition:background .2s ease,color .2s ease,transform .2s ease,border-color .2s ease!important;
 }
 .modern-erp aside a:hover{
-  background:rgba(15,23,42,.06)!important;
-  color:var(--m-sidebar-text)!important;
+  background:rgba(15,23,42,.05);
 }
 .dark .modern-erp aside a:hover{
-  background:rgba(255,255,255,.07)!important;
-  color:#fff!important;
-}
-.modern-erp aside a.is-active{
-  background:rgba(79,70,229,.10)!important;
-  color:#4338ca!important;
-  border:1px solid rgba(99,102,241,.25)!important;
-  font-weight:700!important;
-}
-.modern-erp aside a.is-active svg{
-  color:#4f46e5!important;
-}
-.dark .modern-erp aside a.is-active{
-  background:rgba(99,102,241,.20)!important;
-  color:#e0e7ff!important;
-  border:1px solid rgba(99,102,241,.35)!important;
-}
-.dark .modern-erp aside a.is-active svg{
-  color:#a5b4fc!important;
-}
-.modern-erp aside a>div:first-child>span:first-child{
-  width:24px!important;height:24px!important;
-  border-radius:6px!important;
-  background:transparent!important;
-  border:1px solid transparent!important;
-}
-.modern-erp aside a:hover>div:first-child>span:first-child{
-  background:transparent!important;
+  background:rgba(255,255,255,.06);
 }
 .modern-erp aside a>div:first-child>span:last-child{
-  font-size:12px!important;
+  font-size:12.5px!important;
   font-weight:600!important;
   letter-spacing:-.01em!important;
 }
 .modern-erp aside a>span:last-child{
-  font-size:8px!important;
+  font-size:8.5px!important;
   padding:2px 6px!important;
 }
 .modern-erp aside>div:last-child{
-  background:var(--m-sidebar-2)!important;
-  border-top:1px solid var(--m-sidebar-line)!important;
+  background:var(--m-sidebar-2);
+  border-top:1px solid var(--m-sidebar-line);
 }
 
 /* Workspace primitives */
