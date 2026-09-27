@@ -312,9 +312,9 @@ export default function PurchasesHistoryClient() {
   }
 
   return (
-    <div className="space-y-6">
+    <div data-phase2-module="purchases" className="erp-phase2-page space-y-5">
       {/* Top Header Card */}
-      <div className="card-glow-indigo relative overflow-hidden rounded-2xl border border-indigo-500/20 bg-gradient-to-br from-indigo-500/[0.04] via-white to-white p-6 shadow-xs transition-all duration-200 hover:shadow-md dark:border-indigo-500/30 dark:from-indigo-950/25 dark:via-slate-900 dark:to-slate-900">
+      <div className="erp-phase2-header card-glow-indigo relative overflow-hidden rounded-2xl border border-indigo-500/20 bg-gradient-to-br from-indigo-500/[0.04] via-white to-white p-4 shadow-xs transition-all duration-200 hover:shadow-md dark:border-indigo-500/30 dark:from-indigo-950/25 dark:via-slate-900 dark:to-slate-900">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="flex items-center gap-2">
@@ -522,7 +522,7 @@ export default function PurchasesHistoryClient() {
       </div>
 
       {/* Purchase Bills Table */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs dark:border-white/10 dark:bg-slate-900">
+      <div className="erp-phase2-data-card overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs dark:border-white/10 dark:bg-slate-900">
         {loading ? (
           <div className="py-14 text-center text-xs text-slate-400">Loading purchase bills...</div>
         ) : filteredPurchases.length === 0 ? (
