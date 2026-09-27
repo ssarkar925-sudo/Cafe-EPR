@@ -71,11 +71,11 @@ export default function WhatsAppStatusBadge() {
       title: "WhatsApp Gateway needs QR scan authentication. Click to scan.",
     },
     offline: {
-      dotColor: "bg-slate-400",
-      pingColor: "bg-slate-300",
-      pillClass: "border-slate-200/80 bg-slate-50/80 text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-400 hover:bg-slate-100",
+      dotColor: "bg-rose-500",
+      pingColor: "bg-rose-400",
+      pillClass: "border-rose-200/80 bg-rose-50/80 text-rose-800 dark:border-rose-900/40 dark:bg-rose-950/40 dark:text-rose-300 hover:bg-rose-100",
       label: "WA Offline",
-      title: "WhatsApp Gateway is not connected. Click to configure.",
+      title: "WhatsApp Gateway is disconnected (Offline). Click to reconnect.",
     },
   }[status];
 
@@ -83,11 +83,13 @@ export default function WhatsAppStatusBadge() {
     <Link
       href="/business/whatsapp"
       title={badgeConfig.title}
-      className={`hidden xl:inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold shadow-2xs transition-all active:scale-95 ${badgeConfig.pillClass}`}
+      className={`hidden sm:inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold shadow-2xs transition-all active:scale-95 ${badgeConfig.pillClass}`}
     >
-      <span className="relative flex h-2 w-2">
+      <span className="relative flex h-2 w-2 shrink-0">
         {status === "connected" || status === "waiting_for_qr" ? (
           <span className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${badgeConfig.pingColor}`} />
+        ) : status === "offline" ? (
+          <span className="absolute inline-flex h-full w-full animate-pulse rounded-full opacity-75 bg-rose-400" />
         ) : null}
         <span className={`relative inline-flex h-2 w-2 rounded-full ${badgeConfig.dotColor}`} />
       </span>

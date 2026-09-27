@@ -9,12 +9,9 @@ import { generateQrDataUrl, generateUpiString } from "@/lib/qr";
 import { createClient } from "@/lib/supabase/client";
 import PosOperations from "./pos-operations";
 import { useDashboardShell } from "@/components/dashboard-shell-context";
-import ThemeToggle from "@/components/theme-toggle";
 import { useTheme } from "@/components/theme-provider";
 import CloudSyncBadge from "@/components/cloud-sync-badge";
-import WhatsAppStatusBadge from "@/components/whatsapp/whatsapp-status-badge";
 import Modal, { useBodyScrollLock } from "@/components/ui/modal";
-import GlobalQuickAccess from "@/components/global-quick-access";
 import GlobalSearch from "@/components/global-search";
 import {
   AlertCircle,
@@ -1411,7 +1408,7 @@ export default function PosShell({
   const cashChange = Math.max(0, (Number(currentTab.cashReceived) || 0) - total);
 
   return (
-    <div className="cafeerp-pos-reference absolute inset-0 z-10 flex h-[100dvh] min-h-0 w-full flex-col overflow-hidden bg-transparent text-slate-900 antialiased select-none font-sans dark:text-slate-100">
+    <div className="cafeerp-pos-reference relative flex flex-1 h-full min-h-0 w-full flex-col overflow-hidden bg-transparent text-slate-900 antialiased select-none font-sans dark:text-slate-100">
       {/* CafeERP POS reference design */}
       <div className="hidden" data-pos-money-out="reference">
         <PosOperations
@@ -1429,59 +1426,56 @@ export default function PosShell({
           onReset={() => {}}
         />
       </div>
-      {/* 1. TOP COMMAND BAR */}
-      <header className="relative z-40 flex h-14 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white/85 px-2.5 sm:px-3.5 shadow-xs backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/85 transition-all">
-        <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
-          <button
-            type="button"
-            onClick={() => setMobileOpen(true)}
-            aria-label="Open navigation menu"
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white transition lg:hidden shrink-0"
-          >
-            <Menu className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={toggleSidebar}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="hidden lg:flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white transition cursor-pointer shrink-0"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
-              {collapsed ? <path d="M13 5l7 7-7 7M5 5l7 7-7 7"/> : <path d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/>}
-            </svg>
-          </button>
-          <div className="flex items-center gap-2 min-w-0">
-            <div className={`flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr ${posTheme.primaryBtnGradient} text-white shadow-md`}>
-              <ShoppingCart className="h-4 w-4" />
-            </div>
-            <div className="min-w-0">
-              <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 whitespace-nowrap">
-                <span>Café ERP</span><span>/</span><span>1. Sales Hub</span><span>/</span><span className={`${posTheme.textAccent} font-black`}>POS</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-xs font-black tracking-tight text-slate-900 dark:text-white">
-                <span className="truncate max-w-[100px] sm:max-w-[150px]">{shopName || "CafeERP"}</span>
-                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 shrink-0"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /><span className="hidden xs:inline">Live</span></span>
-                <span className="text-[10px] font-medium text-slate-400 hidden xl:inline">• {operatorName}</span>
-              </div>
-            </div>
+      {/* POS TERMINAL STRIP */}
+      <div className="relative z-30 flex h-10 sm:h-11 shrink-0 items-center justify-between border-b border-slate-200/70 bg-white/70 px-3 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/70 transition-all">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className={`flex h-6 w-6 sm:h-7 sm:w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-tr ${posTheme.primaryBtnGradient} text-white shadow-xs`}>
+            <ShoppingCart className="h-3.5 w-3.5" />
+          </div>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-xs font-black tracking-tight text-slate-900 dark:text-white truncate">
+              POS Terminal
+            </span>
+            <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-emerald-600 dark:text-emerald-400 shrink-0">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Live</span>
+            </span>
+            <span className="text-[10px] text-slate-400 hidden sm:inline">• {operatorName}</span>
           </div>
         </div>
-        <div className="flex-1 flex justify-center max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg mx-2 sm:mx-4 min-w-0">
-          <button type="button" onClick={() => setGlobalSearchOpen(true)} className="group flex w-full items-center gap-2 rounded-xl border border-slate-200/80 bg-slate-100/70 px-3 py-1.5 text-xs text-slate-400 shadow-inner transition hover:border-slate-300 hover:bg-white hover:text-slate-600 hover:shadow-xs dark:border-white/10 dark:bg-slate-800/60 dark:hover:bg-slate-800 dark:hover:text-slate-200 cursor-pointer">
-            <Search className="h-3.5 w-3.5 text-slate-400 transition-colors shrink-0" />
-            <span className="flex-1 text-left truncate text-[11px] sm:text-xs">Search anything (invoices, items, customers)…</span>
-            <kbd className="hidden sm:inline-flex shrink-0 items-center gap-0.5 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[9px] font-black text-slate-500 shadow-2xs dark:border-white/10 dark:bg-slate-900 dark:text-slate-400">⌘K</kbd>
-          </button>
+
+        {/* Hotkey reference chips */}
+        <div className="hidden md:flex items-center gap-2 text-[10px] font-bold text-slate-500 dark:text-slate-400">
+          <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5"><kbd className="font-mono text-slate-700 dark:text-slate-200">F2</kbd> Tab</span>
+          <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5"><kbd className="font-mono text-slate-700 dark:text-slate-200">F4</kbd> Search</span>
+          <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5"><kbd className="font-mono text-slate-700 dark:text-slate-200">F7</kbd> Custom</span>
+          <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5"><kbd className="font-mono text-slate-700 dark:text-slate-200">F9</kbd> Pay</span>
         </div>
+
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          <button type="button" onClick={() => setMobileCartOpen(true)} className={`flex lg:hidden h-8 items-center gap-1.5 rounded-xl bg-gradient-to-r ${posTheme.primaryBtnGradient} px-2.5 text-white shadow-md active:scale-95 transition`} aria-label="Open Cart"><ShoppingCart className="h-3.5 w-3.5" /><span className="font-mono font-black text-[11px]">{money(total)}</span>{currentTab.cart.reduce((s, l) => s + l.qty, 0) > 0 && <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[8px] font-black text-white">{currentTab.cart.reduce((s, l) => s + l.qty, 0)}</span>}</button>
-          {syncFlash && <div className="flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[9px] sm:text-[10px] font-bold text-emerald-700 dark:text-emerald-300 animate-pulse"><Sparkles className="h-3 w-3 text-emerald-500 shrink-0" /><span className="truncate max-w-[90px] sm:max-w-none">{syncFlash}</span></div>}
-          {peerDevice ? <div title={`Real-time sync active with ${peerDevice}`} className="hidden sm:flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/50 dark:border-emerald-800 dark:text-emerald-300 shadow-xs"><span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" /><span>{peerDevice} Synced</span></div> : <div title="Real-time multi-device cloud sync active. Open POS on mobile or web to sync instantly." className="hidden xl:flex items-center gap-1.5 rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /><span>Live Sync</span></div>}
-          <WhatsAppStatusBadge /><ThemeToggle />
-          <Link href="/dashboard" title="Exit POS to Dashboard" className="flex h-8 items-center gap-1 rounded-xl border border-slate-200 bg-slate-100 px-2.5 text-[10px] font-bold text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"><ArrowLeft className="h-3.5 w-3.5" /><span className="hidden sm:inline">Exit</span></Link>
+          <button type="button" onClick={() => setMobileCartOpen(true)} className={`flex lg:hidden h-7 items-center gap-1.5 rounded-lg bg-gradient-to-r ${posTheme.primaryBtnGradient} px-2 text-white shadow-xs active:scale-95 transition`} aria-label="Open Cart">
+            <ShoppingCart className="h-3 w-3" />
+            <span className="font-mono font-black text-[10px]">{money(total)}</span>
+            {currentTab.cart.reduce((s, l) => s + l.qty, 0) > 0 && <span className="flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-rose-500 px-1 text-[7px] font-black text-white">{currentTab.cart.reduce((s, l) => s + l.qty, 0)}</span>}
+          </button>
+          {syncFlash && <div className="flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[9px] font-bold text-emerald-700 dark:text-emerald-300 animate-pulse"><Sparkles className="h-3 w-3 text-emerald-500 shrink-0" /><span className="truncate max-w-[80px] sm:max-w-none">{syncFlash}</span></div>}
+          {peerDevice ? (
+            <div title={`Real-time sync active with ${peerDevice}`} className="hidden sm:flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[9px] font-bold text-emerald-700 dark:bg-emerald-950/50 dark:border-emerald-800 dark:text-emerald-300 shadow-2xs">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span>{peerDevice}</span>
+            </div>
+          ) : (
+            <div title="Real-time multi-device cloud sync active" className="hidden xl:flex items-center gap-1 rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[9px] font-medium text-slate-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              <span>Cloud Synced</span>
+            </div>
+          )}
+          <Link href="/dashboard" title="Exit POS to Dashboard" className="flex h-7 items-center gap-1 rounded-lg border border-slate-200 bg-white/80 px-2 text-[9px] font-bold text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300">
+            <ArrowLeft className="h-3 w-3" />
+            <span className="hidden sm:inline">Exit</span>
+          </Link>
         </div>
-      </header>
+      </div>
 
       <main className="flex min-h-0 flex-1 relative overflow-hidden lg:grid lg:[grid-template-columns:minmax(0,1fr)_420px] max-[1100px]:lg:[grid-template-columns:minmax(0,1fr)_370px]">
         <section className="flex min-h-0 flex-1 flex-col w-full border-r border-slate-200/60 bg-white/40 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/40">

@@ -8,8 +8,10 @@ import GlobalSearch from "./global-search";
 import GlobalQuickAccess from "./global-quick-access";
 import NotificationBell from "./notification-bell";
 import ThemeToggle from "./theme-toggle";
+import WhatsAppStatusBadge from "./whatsapp/whatsapp-status-badge";
 import MobileBottomNav from "./mobile-bottom-nav";
 import { DashboardShellProvider } from "./dashboard-shell-context";
+import { Sparkles } from "lucide-react";
 
 const COLLAPSE_KEY = "sccomm-sidebar-collapsed";
 
@@ -132,14 +134,62 @@ export default function DashboardShell({
           onMobileClose={() => setMobileOpen(false)}
         />
 
-        {/* MOBILE HEADER (Reference: Left hamburger, CafeERP brand, Red Bell, Avatar) */}
-        {!isPos && (
-          <header className="erp-mobile-header sticky top-0 z-30 flex h-14 items-center justify-between border-b border-slate-200/80 bg-white/85 px-4 backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/85 lg:hidden">
-            <div className="flex items-center gap-3">
+        {/* MOBILE HEADER (Reference: Left hamburger, CafeERP brand, AI, Bell, Avatar) */}
+        <header className="erp-mobile-header sticky top-0 z-30 flex h-14 items-center justify-between border-b border-slate-200/80 bg-white/85 px-4 backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/85 lg:hidden">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setMobileOpen(true)}
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-700 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+              aria-label="Open menu"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+            </button>
+            <span className="text-base font-bold tracking-tight text-slate-900 dark:text-white">
+              {shopName || "CafeERP"}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <Link
+              href="/ai-agent"
+              title="AI Copilot & Smart Assistant (/ai-agent)"
+              aria-label="AI Copilot"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-violet-600 hover:bg-violet-50 dark:text-violet-400 dark:hover:bg-violet-950/40"
+            >
+              <Sparkles className="h-4 w-4" />
+            </Link>
+            <ThemeToggle />
+            <NotificationBell role={role} />
+            <Link
+              href="/settings"
+              className="flex items-center rounded-full transition active:scale-95"
+              title="Settings & System Control Center"
+              aria-label="Open settings"
+            >
+              <Avatar name={name || "Saikat Sarkar"} avatarUrl={avatarUrl} size="h-7 w-7" />
+            </Link>
+          </div>
+        </header>
+
+        <div
+          style={workspaceStyle}
+          className={`erp-workspace ${
+            collapsed ? "lg:pl-[72px]" : "lg:pl-60 xl:pl-64"
+          } ${isPos ? "is-pos flex flex-col h-screen overflow-hidden" : "min-h-screen"} transition-all duration-300`}
+        >
+          {/* DESKTOP HEADER (Reference: Left hamburger, Wide search, WhatsApp dot, red bell, modern AI copilot, theme toggle, Saikat Sarkar Owner • Admin) */}
+          <header className="erp-desktop-header sticky top-0 z-30 hidden lg:flex h-16 w-full items-center justify-between border-b border-slate-200/80 bg-white/80 px-6 backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/80 transition-all duration-300">
+            <div className="flex items-center gap-4 flex-1 max-w-2xl min-w-0">
               <button
-                onClick={() => setMobileOpen(true)}
-                className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-700 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-                aria-label="Open menu"
+                type="button"
+                onClick={toggle}
+                aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+                title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white transition shrink-0"
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
                   <line x1="3" y1="6" x2="21" y2="6" />
@@ -147,120 +197,75 @@ export default function DashboardShell({
                   <line x1="3" y1="18" x2="21" y2="18" />
                 </svg>
               </button>
-              <span className="text-base font-bold tracking-tight text-slate-900 dark:text-white">
-                {shopName || "CafeERP"}
-              </span>
+
+              <div
+                onClick={() => setSearchOpen(true)}
+                className="flex flex-1 items-center gap-2.5 rounded-lg border border-slate-200/90 bg-slate-50/90 px-3.5 py-2 text-xs text-slate-400 cursor-pointer hover:border-slate-300 hover:bg-white transition dark:border-slate-800 dark:bg-slate-800/60 dark:hover:bg-slate-800"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  className="h-4 w-4 text-slate-400 shrink-0"
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                <span className="truncate">
+                  Search customers, products, invoices, or menu... (Ctrl + K)
+                </span>
+              </div>
             </div>
 
-            <div className="flex items-center gap-1.5">
-              <ThemeToggle />
+            <div className="flex items-center gap-2.5 sm:gap-3 shrink-0 ml-4">
+              <WhatsAppStatusBadge />
+
               <NotificationBell role={role} />
+
+              <Link
+                href="/ai-agent"
+                title="AI Copilot & Smart Assistant (/ai-agent)"
+                aria-label="AI Copilot"
+                className="group relative flex h-9 w-9 items-center justify-center rounded-xl border border-violet-200/80 bg-gradient-to-tr from-violet-500/10 to-indigo-500/10 text-violet-600 hover:border-violet-300 hover:from-violet-500/20 hover:to-indigo-500/20 hover:text-violet-700 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-300 dark:hover:border-violet-500/50 dark:hover:bg-violet-500/20 transition-all shadow-2xs hover:scale-105 active:scale-95 cursor-pointer"
+              >
+                <Sparkles className="h-4 w-4 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
+                <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-violet-500 animate-pulse" />
+              </Link>
+
+              <ThemeToggle />
+
               <Link
                 href="/settings"
-                className="flex items-center rounded-full transition active:scale-95"
+                className="flex items-center gap-2.5 rounded-lg pl-2 transition hover:opacity-85 cursor-pointer"
                 title="Settings & System Control Center"
-                aria-label="Open settings"
               >
-                <Avatar name={name || "Saikat Sarkar"} avatarUrl={avatarUrl} size="h-7 w-7" />
+                <Avatar name={name || "Saikat Sarkar"} avatarUrl={avatarUrl} size="h-8 w-8" />
+                <div className="text-left hidden sm:block">
+                  <span className="block text-xs font-bold text-slate-900 dark:text-white leading-tight">
+                    {name || "Saikat Sarkar"}
+                  </span>
+                  <span className="block text-[10px] font-medium text-slate-400 leading-tight">
+                    Owner • Admin
+                  </span>
+                </div>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  className="h-3.5 w-3.5 text-slate-400"
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
               </Link>
             </div>
           </header>
-        )}
-
-        <div
-          style={workspaceStyle}
-          className={`erp-workspace ${
-            collapsed ? "lg:pl-[72px]" : "lg:pl-60 xl:pl-64"
-          } ${isPos ? "is-pos" : ""} min-h-screen transition-all duration-300`}
-        >
-          {/* DESKTOP HEADER (Reference: Left hamburger, Wide search, Right red bell, help, theme toggle, Saikat Sarkar Owner • Admin) */}
-          {!isPos && (
-            <header className="erp-desktop-header sticky top-0 z-30 hidden lg:flex h-16 w-full items-center justify-between border-b border-slate-200/80 bg-white/80 px-6 backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/80 transition-all duration-300">
-              <div className="flex items-center gap-4 flex-1 max-w-2xl min-w-0">
-                <button
-                  type="button"
-                  onClick={toggle}
-                  aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-                  title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-                  className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white transition shrink-0"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
-                    <line x1="3" y1="6" x2="21" y2="6" />
-                    <line x1="3" y1="12" x2="21" y2="12" />
-                    <line x1="3" y1="18" x2="21" y2="18" />
-                  </svg>
-                </button>
-
-                <div
-                  onClick={() => setSearchOpen(true)}
-                  className="flex flex-1 items-center gap-2.5 rounded-lg border border-slate-200/90 bg-slate-50/90 px-3.5 py-2 text-xs text-slate-400 cursor-pointer hover:border-slate-300 hover:bg-white transition dark:border-slate-800 dark:bg-slate-800/60 dark:hover:bg-slate-800"
-                >
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    className="h-4 w-4 text-slate-400 shrink-0"
-                  >
-                    <circle cx="11" cy="11" r="8" />
-                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                  </svg>
-                  <span className="truncate">
-                    Search customers, products, invoices, or menu... (Ctrl + K)
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 shrink-0 ml-4">
-                <NotificationBell role={role} />
-
-                <Link
-                  href="/ai-agent"
-                  title="Help"
-                  aria-label="Help"
-                  className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white transition"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4.5 w-4.5">
-                    <circle cx="12" cy="12" r="10" />
-                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-                    <line x1="12" y1="17" x2="12.01" y2="17" />
-                  </svg>
-                </Link>
-
-                <ThemeToggle />
-
-                <Link
-                  href="/settings"
-                  className="flex items-center gap-2.5 rounded-lg pl-2 transition hover:opacity-85 cursor-pointer"
-                  title="Settings & System Control Center"
-                >
-                  <Avatar name={name || "Saikat Sarkar"} avatarUrl={avatarUrl} size="h-8 w-8" />
-                  <div className="text-left hidden sm:block">
-                    <span className="block text-xs font-bold text-slate-900 dark:text-white leading-tight">
-                      {name || "Saikat Sarkar"}
-                    </span>
-                    <span className="block text-[10px] font-medium text-slate-400 leading-tight">
-                      Owner • Admin
-                    </span>
-                  </div>
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    className="h-3.5 w-3.5 text-slate-400"
-                  >
-                    <polyline points="6 9 12 15 18 9" />
-                  </svg>
-                </Link>
-              </div>
-            </header>
-          )}
 
           <div
             className={`erp-page-content ${
               isPos
-                ? "relative h-[100dvh] min-h-0 p-0 overflow-hidden"
+                ? "relative flex flex-col flex-1 min-h-0 p-0 overflow-hidden"
                 : "min-h-[calc(100vh-4rem)] p-4 sm:p-5 lg:p-6 pb-24 lg:pb-8"
             }`}
           >
