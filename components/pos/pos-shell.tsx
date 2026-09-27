@@ -1518,6 +1518,16 @@ export default function PosShell({
         <section className="flex min-h-0 flex-1 flex-col h-full overflow-hidden bg-white/75 backdrop-blur-xl border-r border-slate-200/80 dark:bg-slate-900/75 dark:border-white/10 min-w-0">
           <div className="flex flex-col gap-2 border-b border-slate-200/60 bg-white/60 backdrop-blur-xl p-2.5 sm:p-3 dark:border-white/10 dark:bg-slate-900/60 shrink-0">
             <div className="flex items-center gap-1.5 min-w-0">
+              <div className="flex h-10 items-center gap-1.5 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-2.5 text-[10px] font-black text-emerald-800 shadow-xs shrink-0 select-none dark:text-emerald-300">
+                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-xs">
+                  <ShoppingCart className="h-3.5 w-3.5" />
+                </span>
+                <span className="hidden md:inline">POS Terminal</span>
+                <span className="inline-flex items-center gap-1 font-bold text-emerald-600 dark:text-emerald-400">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Live
+                </span>
+              </div>
               <div data-pos-header-search="reference" className="relative flex-1 min-w-0">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input ref={itemSearchRef} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search item, scan barcode (F4)..." className="h-10 w-full rounded-xl border border-slate-200/80 bg-white/70 pl-9 pr-10 sm:pr-14 text-xs font-bold text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-current focus:bg-white focus:ring-2 focus:ring-primary/20 dark:border-white/10 dark:bg-slate-950/70 dark:text-white dark:focus:bg-slate-900" />
