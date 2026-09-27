@@ -1974,7 +1974,7 @@ export default function PosShell({
           </div>
 
           {/* LUXURY RECEIPT TOTALS & PAYMENT PANEL */}
-          <div className="shrink-0 border-t border-slate-200/80 bg-white/95 p-3 sm:p-3.5 space-y-2.5 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/95 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-xl">
+          <div className="relative shrink-0 max-h-[58%] overflow-y-auto overscroll-contain border-t border-slate-200/80 bg-white/95 p-3 sm:p-3.5 space-y-2.5 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/95 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-xl">
             {/* Quick Discount bar */}
             <div className="flex items-center justify-between gap-2">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -2126,7 +2126,7 @@ export default function PosShell({
 
             {/* UPI QR Panel */}
             {currentTab.paymentChoice === "upi" && currentTab.cart.length > 0 && (
-              <div className="flex flex-col items-center justify-center p-3.5 rounded-2xl border border-slate-200/70 bg-white/70 dark:border-white/10 dark:bg-slate-900/70">
+              <div className="flex max-h-[205px] flex-col items-center justify-center overflow-hidden rounded-2xl border border-slate-200/70 bg-white/70 p-2.5 dark:border-white/10 dark:bg-slate-900/70">
                 {merchantQrs.length > 1 && (
                   <div className="w-full flex items-center gap-1.5 mb-2.5 overflow-x-auto pb-1 [scrollbar-width:none]">
                     <span className="text-[9px] font-black uppercase text-slate-500 dark:text-slate-400 shrink-0">
@@ -2153,14 +2153,14 @@ export default function PosShell({
                 )}
                 <div className="p-2.5 bg-white rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 dark:shadow-lg">
                   {qrDataUrl ? (
-                    <img src={qrDataUrl} alt="UPI Dynamic QR" className="h-36 w-36 object-contain" />
+                    <img src={qrDataUrl} alt="UPI Dynamic QR" className="h-28 w-28 object-contain" />
                   ) : resolvedUpiId ? (
-                    <div className="h-36 w-36 flex flex-col items-center justify-center text-[10px] text-slate-400 gap-1">
+                    <div className="h-28 w-28 flex flex-col items-center justify-center text-[10px] text-slate-400 gap-1">
                       <span className={`animate-spin rounded-full h-5 w-5 border-2 border-current border-t-transparent ${posTheme.textAccent}`} />
                       <span>Generating QR...</span>
                     </div>
                   ) : (
-                    <div className="h-36 w-36 flex flex-col items-center justify-center text-center p-2 text-[10px] text-amber-600 dark:text-amber-400">
+                    <div className="h-28 w-28 flex flex-col items-center justify-center text-center p-2 text-[10px] text-amber-600 dark:text-amber-400">
                       <AlertCircle className="h-6 w-6 mb-1 text-amber-500" />
                       <span className="font-bold">No UPI ID Found</span>
                       <span className="text-[8px] text-slate-500 mt-1">Configure in Settings → Payments</span>
@@ -2286,7 +2286,7 @@ export default function PosShell({
               type="button"
               disabled={!currentTab.cart.length || busy}
               onClick={() => void completeSale()}
-              className={`flex h-12 sm:h-13 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r ${posTheme.primaryBtnGradient} text-xs sm:text-sm font-black uppercase tracking-wider text-white shadow-xl active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer`}
+              className={`sticky bottom-0 z-20 flex h-12 sm:h-13 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r ${posTheme.primaryBtnGradient} text-xs sm:text-sm font-black uppercase tracking-wider text-white shadow-xl ring-4 ring-white/95 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer dark:ring-slate-950/95`}
             >
               {busy ? (
                 <span>Recording Sale...</span>
