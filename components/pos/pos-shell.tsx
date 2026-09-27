@@ -1776,7 +1776,7 @@ export default function PosShell({
           </div>
 
           {/* CUSTOMER PROFILE CARD */}
-          <div className="shrink-0 border-b border-slate-200/80 bg-white/70 px-3 py-2.5 backdrop-blur-md dark:border-white/10 dark:bg-slate-900/70">
+          <div className="shrink-0 border-b border-slate-200/80 bg-white/70 px-3 py-1.5 backdrop-blur-md dark:border-white/10 dark:bg-slate-900/70">
             <div data-pos-customer-action="reference" className="flex items-center justify-between gap-2 mb-1.5">
               <div className="flex items-center gap-1.5">
                 <span className="flex h-4 w-4 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
@@ -1832,7 +1832,7 @@ export default function PosShell({
             />
 
             {selectedCustomer && (
-              <div className="mt-2 rounded-xl border border-slate-200/80 bg-gradient-to-br from-white to-slate-50/80 p-2.5 text-[10px] shadow-xs dark:border-white/10 dark:from-slate-900 dark:to-slate-950/80">
+              <div className="mt-1.5 rounded-lg border border-slate-200/80 bg-gradient-to-br from-white to-slate-50/80 p-1.5 text-[9px] shadow-xs dark:border-white/10 dark:from-slate-900 dark:to-slate-950/80">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary font-black text-[11px] ring-1 ring-primary/20">
@@ -1900,7 +1900,7 @@ export default function PosShell({
             {currentTab.cart.map((line) => (
               <div
                 key={line.key}
-                className="group relative flex items-center justify-between gap-2.5 rounded-2xl border border-slate-200/80 bg-white/95 p-2.5 shadow-xs transition-all hover:border-slate-300 hover:shadow-sm dark:border-white/10 dark:bg-slate-900/90 dark:hover:border-white/20"
+                className="group relative flex items-center justify-between gap-2.5 rounded-xl border border-slate-200/80 bg-white/95 p-1.5 shadow-xs transition-all hover:border-slate-300 hover:shadow-sm dark:border-white/10 dark:bg-slate-900/90 dark:hover:border-white/20"
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
@@ -1921,16 +1921,16 @@ export default function PosShell({
                 </div>
 
                 {/* Tactile Inset Stepper */}
-                <div className="flex items-center rounded-xl border border-slate-200/80 bg-slate-50/90 p-0.5 shadow-2xs dark:border-white/10 dark:bg-slate-800/90 shrink-0">
+                <div className="flex items-center rounded-lg border border-slate-200/80 bg-slate-50/90 p-0.5 shadow-2xs dark:border-white/10 dark:bg-slate-800/90 shrink-0">
                   <button
                     type="button"
                     onClick={() => updateQty(line.key, line.qty - 1)}
                     aria-label="Decrease quantity"
-                    className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-slate-700 shadow-2xs hover:bg-slate-100 hover:text-slate-900 active:scale-90 transition dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+                    className="flex h-6 w-6 items-center justify-center rounded-md bg-white text-slate-700 shadow-2xs hover:bg-slate-100 hover:text-slate-900 active:scale-90 transition dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
                   >
                     <Minus className="h-3 w-3" />
                   </button>
-                  <span className="w-7 text-center font-mono font-black text-xs text-slate-900 dark:text-white select-none">
+                  <span className="w-6 text-center font-mono font-black text-[11px] text-slate-900 dark:text-white select-none">
                     {line.qty}
                   </span>
                   <button
@@ -1973,331 +1973,205 @@ export default function PosShell({
             )}
           </div>
 
-          {/* LUXURY RECEIPT TOTALS & PAYMENT PANEL */}
-          <div className="relative shrink-0 max-h-[58%] overflow-y-auto overscroll-contain border-t border-slate-200/80 bg-white/95 p-3 sm:p-3.5 space-y-2.5 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/95 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-xl">
-            {/* Quick Discount bar */}
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Discount
-              </span>
-              <div className="flex items-center gap-1">
-                {["5%", "10%", "20", "50"].map((chip) => (
-                  <button
-                    key={chip}
-                    type="button"
-                    onClick={() => {
-                      if (chip.includes("%")) updateCurrentTab({ discount: chip.replace("%", ""), discountType: "percent" });
-                      else updateCurrentTab({ discount: chip, discountType: "flat" });
-                      playPosSound("click", soundEnabled);
-                    }}
-                    className="rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[9px] font-bold text-slate-600 hover:border-slate-300 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:text-white active:scale-95 transition"
-                  >
-                    {chip.includes("%") ? chip : `₹${chip}`}
-                  </button>
-                ))}
-                <input
-                  value={currentTab.discount}
-                  onChange={(e) => updateCurrentTab({ discount: e.target.value })}
-                  placeholder="0.00"
-                  className="h-7 w-16 rounded-lg border border-slate-200 bg-slate-50 px-2 text-right text-xs font-black font-mono text-slate-900 outline-none focus:border-current dark:border-slate-800 dark:bg-slate-900 dark:text-white"
-                />
-              </div>
-            </div>
-
-            {/* Receipt Summary Breakdown */}
-            <div className="space-y-1 rounded-xl border border-slate-200/60 bg-slate-50/70 p-2 text-[10px] font-semibold text-slate-600 dark:border-white/5 dark:bg-slate-900/60 dark:text-slate-400">
-              <div className="flex justify-between">
-                <span>Subtotal</span>
-                <span className="font-mono text-slate-900 dark:text-slate-200">{money(subtotal)}</span>
-              </div>
-              {discountValue > 0 && (
-                <div className="flex justify-between text-rose-600 dark:text-rose-400 font-bold">
-                  <span>Discount</span>
-                  <span className="font-mono">- {money(discountValue)}</span>
-                </div>
-              )}
-              <div className="flex justify-between">
-                <span>GST Tax</span>
-                <span className="font-mono text-slate-900 dark:text-slate-200">{money(totalTax)}</span>
-              </div>
-              {dueToCollect > 0 && (
-                <div className="flex justify-between text-amber-700 dark:text-amber-400 font-bold">
-                  <span>+ Previous Due Collected</span>
-                  <span className="font-mono">+{money(dueToCollect)}</span>
-                </div>
-              )}
-              {advanceToUse > 0 && (
-                <div className="flex justify-between text-emerald-700 dark:text-emerald-400 font-bold">
-                  <span>- Advance Credit Used</span>
-                  <span className="font-mono">-{money(advanceToUse)}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Total Payable Hero Card */}
-            <div className="flex items-center justify-between rounded-2xl bg-gradient-to-r from-slate-900 to-slate-800 p-3 shadow-md text-white dark:from-slate-900 dark:to-slate-950 dark:border dark:border-white/10">
-              <div>
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">
-                  Total Payable
-                </span>
-                <div className="text-[10px] text-slate-400 font-medium">
-                  {currentTab.cart.reduce((s, l) => s + l.qty, 0)} items included
-                </div>
-              </div>
-              <span className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-white drop-shadow-xs">
-                {money(total)}
-              </span>
-            </div>
-
-            {/* Tactile Payment Method Selector */}
-            <div className="grid grid-cols-4 gap-1.5 pt-0.5">
-              {[
-                { id: "cash", label: "Cash" },
-                { id: "upi", label: "UPI QR" },
-                { id: "khata", label: "Khata" },
-                { id: "split", label: "Split" },
-              ].map((p) => {
-                const isSelected = currentTab.paymentChoice === p.id;
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => selectPayment(p.id as any)}
-                    className={`h-10 sm:h-9 rounded-xl text-[11px] font-black uppercase tracking-wide transition-all active:scale-95 ${
-                      isSelected
-                        ? `bg-gradient-to-r ${posTheme.primaryBtnGradient} text-white shadow-md font-extrabold ring-1 scale-[1.02]`
-                        : "bg-white border border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-50 dark:bg-slate-900 dark:border-white/10 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800"
-                    }`}
-                  >
-                    {p.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Cash Tender Panel */}
-            {currentTab.paymentChoice === "cash" && currentTab.cart.length > 0 && (
-              <div className="rounded-xl border border-slate-200/80 bg-white/95 p-2.5 space-y-2 shadow-2xs dark:border-white/10 dark:bg-slate-900/90">
-                <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none]">
-                  <button
-                    type="button"
-                    onClick={setCashTenderExact}
-                    className="shrink-0 rounded-lg bg-emerald-50 border border-emerald-200 px-2 py-1 text-[9px] font-black text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:border-emerald-800/60 dark:text-emerald-300"
-                  >
-                    Exact
-                  </button>
-                  <button
-                    type="button"
-                    onClick={roundCashNext50}
-                    className="shrink-0 rounded-lg bg-slate-100 border border-slate-200 px-2 py-1 text-[9px] font-bold text-slate-700 hover:bg-slate-200 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800"
-                  >
-                    Next ₹50
-                  </button>
-                  {[100, 200, 500].map((note) => (
+          {/* COMPACT CART CHECKOUT: important actions stay visible */}
+          <div className="relative flex min-h-0 flex-[0_0_42%] flex-col border-t border-slate-200/80 bg-white/95 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/95 shadow-xl">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pt-2.5 pb-2 space-y-2">
+              {/* Discount + compact bill summary */}
+              <div className="flex items-center gap-2">
+                <span className="shrink-0 text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Discount</span>
+                <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  {["5%", "10%", "20", "50"].map((chip) => (
                     <button
-                      key={note}
+                      key={chip}
                       type="button"
-                      onClick={() => addCashNote(note)}
-                      className="shrink-0 rounded-lg bg-slate-100 border border-slate-200 px-2 py-1 text-[9px] font-bold text-slate-700 hover:bg-slate-200 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800"
+                      onClick={() => {
+                        if (chip.includes("%")) updateCurrentTab({ discount: chip.replace("%", ""), discountType: "percent" });
+                        else updateCurrentTab({ discount: chip, discountType: "flat" });
+                        playPosSound("click", soundEnabled);
+                      }}
+                      className="shrink-0 rounded-md border border-slate-200 bg-white px-1.5 py-1 text-[8px] font-bold text-slate-600 hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400"
                     >
-                      +₹{note}
+                      {chip.includes("%") ? chip : `₹${chip}`}
                     </button>
                   ))}
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">
-                    Cash Received
-                  </span>
                   <input
-                    value={currentTab.cashReceived}
-                    onChange={(e) => updateCurrentTab({ cashReceived: e.target.value })}
+                    value={currentTab.discount}
+                    onChange={(e) => updateCurrentTab({ discount: e.target.value })}
                     placeholder="0.00"
-                    className="h-8 w-28 rounded-lg border border-slate-200 bg-slate-50 px-2 text-right font-mono font-black text-sm text-slate-900 outline-none focus:border-current dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+                    className="h-7 w-16 shrink-0 rounded-md border border-slate-200 bg-slate-50 px-1.5 text-right text-[10px] font-black font-mono text-slate-900 outline-none focus:border-current dark:border-slate-800 dark:bg-slate-900 dark:text-white"
                   />
                 </div>
-                {cashChange > 0 && (
-                  <div className="flex items-center justify-between rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 text-emerald-800 font-bold text-xs dark:bg-emerald-950/40 dark:border-emerald-900/60 dark:text-emerald-300">
-                    <span>Change to return:</span>
-                    <span className="font-black font-mono text-sm">{money(cashChange)}</span>
-                  </div>
-                )}
               </div>
-            )}
 
-            {/* UPI QR Panel */}
-            {currentTab.paymentChoice === "upi" && currentTab.cart.length > 0 && (
-              <div className="flex max-h-[205px] flex-col items-center justify-center overflow-hidden rounded-2xl border border-slate-200/70 bg-white/70 p-2.5 dark:border-white/10 dark:bg-slate-900/70">
-                {merchantQrs.length > 1 && (
-                  <div className="w-full flex items-center gap-1.5 mb-2.5 overflow-x-auto pb-1 [scrollbar-width:none]">
-                    <span className="text-[9px] font-black uppercase text-slate-500 dark:text-slate-400 shrink-0">
-                      QR Account:
-                    </span>
-                    {merchantQrs.map((mqr) => {
-                      const isCurrent = activeMerchantQr?.id === mqr.id;
-                      return (
-                        <button
-                          key={mqr.id}
-                          type="button"
-                          onClick={() => setSelectedMerchantQrId(mqr.id)}
-                          className={`shrink-0 rounded-lg px-2 py-0.5 text-[9px] font-bold border transition ${
-                            isCurrent
-                              ? `${posTheme.pillActive} shadow-sm`
-                              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800"
-                          }`}
-                        >
-                          {mqr.display_name || mqr.qr_name || mqr.upi_id}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-                <div className="p-2.5 bg-white rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 dark:shadow-lg">
-                  {qrDataUrl ? (
-                    <img src={qrDataUrl} alt="UPI Dynamic QR" className="h-28 w-28 object-contain" />
-                  ) : resolvedUpiId ? (
-                    <div className="h-28 w-28 flex flex-col items-center justify-center text-[10px] text-slate-400 gap-1">
-                      <span className={`animate-spin rounded-full h-5 w-5 border-2 border-current border-t-transparent ${posTheme.textAccent}`} />
-                      <span>Generating QR...</span>
-                    </div>
-                  ) : (
-                    <div className="h-28 w-28 flex flex-col items-center justify-center text-center p-2 text-[10px] text-amber-600 dark:text-amber-400">
-                      <AlertCircle className="h-6 w-6 mb-1 text-amber-500" />
-                      <span className="font-bold">No UPI ID Found</span>
-                      <span className="text-[8px] text-slate-500 mt-1">Configure in Settings → Payments</span>
-                    </div>
-                  )}
+              <div className="rounded-xl border border-slate-200/70 bg-slate-50/70 px-2.5 py-1.5 text-[9px] dark:border-white/5 dark:bg-slate-900/60">
+                <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                  <span>Subtotal</span>
+                  <span className="font-mono font-bold text-slate-900 dark:text-slate-200">{money(subtotal)}</span>
                 </div>
-                <div className="mt-2.5 text-center">
-                  <p className="text-xs font-black text-slate-900 dark:text-white">
-                    Scan with PhonePe / GPay / Paytm: <span className={posTheme.textAccent}>{money(total)}</span>
-                  </p>
-                  {resolvedUpiId ? (
-                    <div className="mt-1 flex items-center justify-center gap-1">
-                      <span className="text-[10px] font-mono font-bold text-slate-600 dark:text-slate-400">
-                        {resolvedUpiId}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          navigator.clipboard?.writeText(resolvedUpiId);
-                          setCopiedUpi(true);
-                          setTimeout(() => setCopiedUpi(false), 2000);
-                        }}
-                        className={`rounded px-1.5 py-0.5 text-[8px] font-bold ${posTheme.textAccent} hover:bg-slate-100 dark:hover:bg-slate-800`}
-                        title="Copy UPI ID"
-                      >
-                        {copiedUpi ? "Copied! ✓" : "Copy"}
-                      </button>
-                    </div>
-                  ) : null}
-                  {(activeMerchantQr?.display_name || activeMerchantQr?.qr_name) && (
-                    <p className="text-[9px] text-slate-400 font-semibold">
-                      {activeMerchantQr.display_name || activeMerchantQr.qr_name}
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Khata Panel */}
-            {currentTab.paymentChoice === "khata" && currentTab.cart.length > 0 && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-2.5 text-[10px] space-y-1 dark:border-amber-900/50 dark:bg-amber-950/20">
-                <div className="text-amber-800 dark:text-amber-300 font-bold flex items-center gap-1.5">
-                  <AlertCircle className="h-3.5 w-3.5 text-amber-600" />
-                  <span>Customer Ledger Invoice (Unpaid Credit)</span>
-                </div>
-                <p className="text-slate-600 dark:text-slate-400">
-                  Total of {money(total)} will be debited to {selectedCustomer?.name || "the selected customer's"} khata ledger.
-                </p>
-              </div>
-            )}
-
-            {/* Split Panel */}
-            {currentTab.paymentChoice === "split" && currentTab.cart.length > 0 && (
-              <div className="rounded-xl border border-slate-200 bg-white p-2.5 space-y-2 dark:border-slate-800 dark:bg-slate-950">
-                <div className="flex items-center justify-between text-[10px] font-bold">
-                  <span className="text-slate-700 dark:text-slate-300">Multi-Account Split</span>
-                  <span
-                    className={
-                      Math.abs(remainingSplit) < 0.01
-                        ? "text-emerald-600 dark:text-emerald-400 font-black"
-                        : remainingSplit < 0
-                        ? "text-rose-600 dark:text-rose-400 font-black"
-                        : "text-amber-600 dark:text-amber-400 font-black"
-                    }
-                  >
-                    {Math.abs(remainingSplit) < 0.01 ? "Balanced ✓" : `Remaining: ${money(remainingSplit)}`}
+                <div className="mt-0.5 flex items-center justify-between text-slate-500 dark:text-slate-400">
+                  <span>{discountValue > 0 ? `Discount - ${money(discountValue)}` : "GST Tax"}</span>
+                  <span className={discountValue > 0 ? "font-mono font-bold text-rose-600 dark:text-rose-400" : "font-mono font-bold text-slate-900 dark:text-slate-200"}>
+                    {discountValue > 0 ? `-${money(discountValue)}` : money(totalTax)}
                   </span>
                 </div>
-                {splitInstrumentOptions.length === 0 ? (
-                  <div className="p-2 text-center text-[10px] text-amber-700 bg-amber-50 rounded-lg border border-amber-200">
-                    No payment accounts active. Please check Settings → Payment Accounts.
-                  </div>
-                ) : (
-                  <div className="space-y-1.5">
-                    {currentTab.splitRows.map((row) => (
-                      <div key={row.id} className="flex items-center gap-1.5">
-                        <select
-                          value={row.instrumentId}
-                          onChange={(e) => updateSplitRow(row.id, { instrumentId: e.target.value })}
-                          className="h-8 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-2 text-[10px] font-bold text-slate-900 outline-none focus:border-current dark:border-slate-800 dark:bg-slate-900 dark:text-white"
-                        >
-                          {splitInstrumentOptions.map((opt) => (
-                            <option key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </option>
-                          ))}
-                        </select>
-                        <input
-                          value={row.amount}
-                          onChange={(e) => updateSplitRow(row.id, { amount: e.target.value })}
-                          placeholder="0.00"
-                          className="h-8 w-24 rounded-lg border border-slate-200 bg-slate-50 px-2 text-right font-mono font-bold text-xs text-slate-900 outline-none focus:border-current dark:border-slate-800 dark:bg-slate-900 dark:text-white"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeSplitRow(row.id)}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/40"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ))}
+                {(dueToCollect > 0 || advanceToUse > 0) && (
+                  <div className="mt-0.5 flex items-center justify-between text-slate-500 dark:text-slate-400">
+                    <span>Adjustments</span>
+                    <span className="font-mono font-bold">{dueToCollect > 0 ? `+${money(dueToCollect)}` : `-${money(advanceToUse)}`}</span>
                   </div>
                 )}
-                <button
-                  type="button"
-                  onClick={addSplitRow}
-                  className={`text-[9px] font-black hover:underline ${posTheme.textAccent}`}
-                >
-                  + Add Split Row
-                </button>
+                <div className="mt-1 flex items-center justify-between border-t border-slate-200/70 pt-1 dark:border-slate-800">
+                  <span className="text-[10px] font-black uppercase text-slate-700 dark:text-slate-200">Total Payable</span>
+                  <span className={`font-mono text-lg font-black tracking-tight ${posTheme.textAccent}`}>{money(total)}</span>
+                </div>
               </div>
-            )}
 
-            {error && (
-              <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[10px] font-bold text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300">
-                {error}
+              {/* Payment method */}
+              <div className="grid grid-cols-4 gap-1.5">
+                {[
+                  { id: "cash", label: "Cash" },
+                  { id: "upi", label: "UPI QR" },
+                  { id: "khata", label: "Khata" },
+                  { id: "split", label: "Split" },
+                ].map((p) => {
+                  const isSelected = currentTab.paymentChoice === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => selectPayment(p.id as any)}
+                      className={`h-8 rounded-lg text-[9px] font-black uppercase tracking-wide transition active:scale-95 ${
+                        isSelected
+                          ? `bg-gradient-to-r ${posTheme.primaryBtnGradient} text-white shadow-sm ring-1 scale-[1.01]`
+                          : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-white/10 dark:text-slate-400"
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  );
+                })}
               </div>
-            )}
 
-            {/* Complete Sale Hero Button */}
-            <button
-              type="button"
-              disabled={!currentTab.cart.length || busy}
-              onClick={() => void completeSale()}
-              className={`sticky bottom-0 z-20 flex h-12 sm:h-13 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r ${posTheme.primaryBtnGradient} text-xs sm:text-sm font-black uppercase tracking-wider text-white shadow-xl ring-4 ring-white/95 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer dark:ring-slate-950/95`}
-            >
-              {busy ? (
-                <span>Recording Sale...</span>
-              ) : (
-                <>
-                  <Sparkles className="h-4 w-4" />
-                  <span>Complete Sale • {money(total)}</span>
-                </>
+              {/* Cash */}
+              {currentTab.paymentChoice === "cash" && currentTab.cart.length > 0 && (
+                <div className="rounded-xl border border-slate-200/80 bg-white p-2 dark:border-white/10 dark:bg-slate-900/90">
+                  <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    <button type="button" onClick={setCashTenderExact} className="shrink-0 rounded-md bg-emerald-50 border border-emerald-200 px-2 py-1 text-[8px] font-black text-emerald-700 dark:bg-emerald-950/60 dark:border-emerald-800/60 dark:text-emerald-300">Exact</button>
+                    <button type="button" onClick={roundCashNext50} className="shrink-0 rounded-md bg-slate-100 border border-slate-200 px-2 py-1 text-[8px] font-bold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300">Next ₹50</button>
+                    {[100,200,500].map((note) => (
+                      <button key={note} type="button" onClick={() => addCashNote(note)} className="shrink-0 rounded-md bg-slate-100 border border-slate-200 px-2 py-1 text-[8px] font-bold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300">+₹{note}</button>
+                    ))}
+                    <input
+                      value={currentTab.cashReceived}
+                      onChange={(e) => updateCurrentTab({ cashReceived: e.target.value })}
+                      placeholder="Cash received"
+                      className="ml-auto h-7 w-24 shrink-0 rounded-md border border-slate-200 bg-slate-50 px-2 text-right text-[10px] font-black font-mono text-slate-900 outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                    />
+                  </div>
+                  {cashChange > 0 && <div className="mt-1 flex items-center justify-between rounded-md bg-emerald-50 px-2 py-1 text-[9px] font-bold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"><span>Change</span><span className="font-mono">{money(cashChange)}</span></div>}
+                </div>
               )}
-            </button>
+
+              {/* UPI QR: horizontal and compact */}
+              {currentTab.paymentChoice === "upi" && currentTab.cart.length > 0 && (
+                <div className="flex items-center gap-2.5 rounded-xl border border-blue-200/70 bg-blue-50/60 p-2 dark:border-blue-900/40 dark:bg-blue-950/20">
+                  <div className="shrink-0 rounded-lg border border-white bg-white p-1 shadow-sm dark:border-slate-800">
+                    {qrDataUrl ? (
+                      <img src={qrDataUrl} alt="UPI Dynamic QR" className="h-20 w-20 object-contain" />
+                    ) : resolvedUpiId ? (
+                      <div className="flex h-20 w-20 flex-col items-center justify-center text-[8px] text-slate-400 gap-1">
+                        <span className={`animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent ${posTheme.textAccent}`} />
+                        <span>QR...</span>
+                      </div>
+                    ) : (
+                      <div className="flex h-20 w-20 flex-col items-center justify-center text-center p-1 text-[8px] text-amber-600 dark:text-amber-400">
+                        <AlertCircle className="h-4 w-4 mb-0.5" />
+                        <span className="font-bold">No UPI ID</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[9px] font-black uppercase text-blue-700 dark:text-blue-300">UPI QR Payment</div>
+                    <div className={`mt-0.5 font-mono text-xl font-black ${posTheme.textAccent}`}>{money(total)}</div>
+                    <div className="truncate text-[8px] text-slate-500 dark:text-slate-400">Scan with PhonePe / GPay / Paytm</div>
+                    {resolvedUpiId && (
+                      <div className="mt-1 flex items-center gap-1 min-w-0">
+                        <span className="truncate font-mono text-[8px] font-bold text-slate-600 dark:text-slate-400">{resolvedUpiId}</span>
+                        <button type="button" onClick={() => { navigator.clipboard?.writeText(resolvedUpiId); setCopiedUpi(true); setTimeout(() => setCopiedUpi(false), 2000); }} className={`shrink-0 rounded px-1.5 py-0.5 text-[8px] font-bold ${posTheme.textAccent} hover:bg-white dark:hover:bg-slate-800`}>
+                          {copiedUpi ? "Copied" : "Copy"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {merchantQrs.length > 1 && (
+                    <div className="hidden sm:flex max-w-[110px] shrink-0 flex-col gap-1">
+                      <span className="text-[8px] font-black uppercase text-slate-500 dark:text-slate-400">QR Account</span>
+                      <select value={selectedMerchantQrId} onChange={(e) => setSelectedMerchantQrId(e.target.value)} className="h-7 max-w-[110px] rounded-md border border-slate-200 bg-white px-1 text-[8px] font-bold dark:border-slate-800 dark:bg-slate-900 dark:text-white">
+                        {merchantQrs.map((mqr) => <option key={mqr.id} value={mqr.id}>{mqr.display_name || mqr.qr_name || mqr.upi_id}</option>)}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Khata */}
+              {currentTab.paymentChoice === "khata" && currentTab.cart.length > 0 && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[9px] dark:border-amber-900/50 dark:bg-amber-950/20">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-800 dark:text-amber-300">
+                    <AlertCircle className="h-3 w-3 text-amber-600" />
+                    <span>Khata: {selectedCustomer?.name || "Select a customer"} · {money(total)}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Split */}
+              {currentTab.paymentChoice === "split" && currentTab.cart.length > 0 && (
+                <div className="rounded-xl border border-slate-200 bg-white p-2 dark:border-slate-800 dark:bg-slate-950">
+                  <div className="flex items-center justify-between text-[9px] font-bold">
+                    <span className="text-slate-700 dark:text-slate-300">Split Payment</span>
+                    <span className={Math.abs(remainingSplit) < 0.01 ? "text-emerald-600 dark:text-emerald-400 font-black" : remainingSplit < 0 ? "text-rose-600 dark:text-rose-400 font-black" : "text-amber-600 dark:text-amber-400 font-black"}>
+                      {Math.abs(remainingSplit) < 0.01 ? "Balanced ✓" : `Remaining: ${money(remainingSplit)}`}
+                    </span>
+                  </div>
+                  {splitInstrumentOptions.length > 0 ? (
+                    <div className="mt-1.5 space-y-1">
+                      {currentTab.splitRows.map((row) => (
+                        <div key={row.id} className="flex items-center gap-1">
+                          <select value={row.instrumentId} onChange={(e) => updateSplitRow(row.id, { instrumentId: e.target.value })} className="h-7 min-w-0 flex-1 rounded-md border border-slate-200 bg-slate-50 px-1.5 text-[9px] font-bold text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-white">
+                            {splitInstrumentOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                          </select>
+                          <input value={row.amount} onChange={(e) => updateSplitRow(row.id, { amount: e.target.value })} placeholder="0.00" className="h-7 w-20 rounded-md border border-slate-200 bg-slate-50 px-1.5 text-right text-[9px] font-mono font-bold text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-white" />
+                          <button type="button" onClick={() => removeSplitRow(row.id)} className="flex h-7 w-7 items-center justify-center rounded-md text-rose-600 hover:bg-rose-50 dark:text-rose-400"><X className="h-3 w-3" /></button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-1 rounded-md bg-amber-50 px-2 py-1 text-[8px] text-amber-700 dark:bg-amber-950/30">No payment accounts active.</div>
+                  )}
+                  <button type="button" onClick={addSplitRow} className={`mt-1 text-[8px] font-black hover:underline ${posTheme.textAccent}`}>+ Add Split Row</button>
+                </div>
+              )}
+
+              {error && (
+                <div className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-[9px] font-bold text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300">
+                  {error}
+                </div>
+              )}
+            </div>
+
+            {/* Fixed checkout footer: never pushed below the cart viewport */}
+            <div className="shrink-0 border-t border-slate-200/80 bg-white/98 p-2.5 dark:border-white/10 dark:bg-slate-950/98">
+              <button
+                type="button"
+                disabled={!currentTab.cart.length || busy}
+                onClick={() => void completeSale()}
+                className={`flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r ${posTheme.primaryBtnGradient} text-xs font-black uppercase tracking-wider text-white shadow-lg active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 transition cursor-pointer`}
+              >
+                {busy ? <span>Recording Sale...</span> : <><Sparkles className="h-4 w-4" /><span>Complete Sale • {money(total)}</span></>}
+              </button>
+            </div>
           </div>
+
         </aside>
       </main>
 
