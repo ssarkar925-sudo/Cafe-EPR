@@ -548,7 +548,7 @@ export default function InventoryClient({
       </div>
 
       {/* Operational KPI Metric Cards */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="erp-phase2-kpis grid grid-cols-2 gap-3 lg:grid-cols-4">
         {/* Total Cost Valuation */}
         <div className="card-glow-emerald relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/[0.07] via-white to-white p-5 shadow-xs transition hover:shadow-md dark:border-emerald-500/30 dark:from-emerald-950/25 dark:via-slate-900 dark:to-slate-900">
           <div className="flex items-center justify-between">
