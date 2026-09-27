@@ -19,7 +19,8 @@ public class MainActivity extends BridgeActivity {
         // would silently have no effect. (Auto-discovery via
         // assets/capacitor.plugins.json only lists npm plugin packages, which
         // this project has none of — the manifest is and stays [].)
-        registerPlugin(AiIngestionPlugin.class);\n        registerPlugin(AepsCollectorPlugin.class);
+        registerPlugin(AiIngestionPlugin.class);
+        registerPlugin(AepsCollectorPlugin.class);
         super.onCreate(savedInstanceState);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
