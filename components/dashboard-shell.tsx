@@ -204,19 +204,6 @@ export default function DashboardShell({
                 </svg>
               </button>
 
-              {isPos && (
-                <div className="flex items-center gap-2 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-xs font-black text-emerald-800 dark:text-emerald-300 shadow-2xs shrink-0 select-none">
-                  <span className="flex h-5 w-5 items-center justify-center rounded-md bg-emerald-600 text-white shadow-xs">
-                    <ShoppingCart className="h-3 w-3" />
-                  </span>
-                  <span className="hidden xl:inline">POS Terminal</span>
-                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    Live
-                  </span>
-                </div>
-              )}
-
               <div
                 onClick={() => setSearchOpen(true)}
                 className="flex flex-1 items-center gap-2.5 rounded-lg border border-slate-200/90 bg-slate-50/90 px-3.5 py-2 text-xs text-slate-400 cursor-pointer hover:border-slate-300 hover:bg-white transition dark:border-slate-800 dark:bg-slate-800/60 dark:hover:bg-slate-800"
