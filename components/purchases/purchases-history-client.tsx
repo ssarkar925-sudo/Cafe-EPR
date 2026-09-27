@@ -353,7 +353,7 @@ export default function PurchasesHistoryClient() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="erp-phase2-kpis grid grid-cols-2 gap-3 lg:grid-cols-4">
         {/* Total Purchases Value */}
         <div className="card-glow-indigo relative overflow-hidden rounded-2xl border border-indigo-500/20 bg-gradient-to-br from-indigo-500/[0.06] via-white to-white p-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-indigo-500/30 dark:from-indigo-950/25 dark:via-slate-900 dark:to-slate-900">
           <div className="flex items-center justify-between">
