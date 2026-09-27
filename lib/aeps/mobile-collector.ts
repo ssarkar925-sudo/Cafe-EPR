@@ -45,7 +45,7 @@ export const MOBILE_PORTAL_CATALOG: Record<Exclude<MobilePortalCode, "unknown">,
   },
 };
 
-const BLOCKED_KEYS = /(?:otp|one\s*time\s*password|pin|mpin|password|passcode|biometric|fingerprint|face\s*id|aadhaar\s*(?:number|no\.?))/i;
+const BLOCKED_KEYS = /(?:otp|one\\s*time\\s*password|pin|mpin|password|passcode|biometric|fingerprint|face\\s*id)/i;
 
 function clean(value: string | null | undefined): string | null {
   const v = String(value || "").replace(/\\s+/g, " ").trim();
