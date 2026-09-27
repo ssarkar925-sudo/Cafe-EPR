@@ -777,25 +777,25 @@ export default function UpiWorkspace({
       {/* ========================================================================= */}
       {/* 1. EXECUTIVE HERO HEADER: UPI Collections */}
       {/* ========================================================================= */}
-      <section className="relative overflow-hidden rounded-[26px] bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-5 text-white shadow-xl ring-1 ring-white/10 sm:p-6">
+      <section className="relative overflow-hidden rounded-[22px] bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 p-4 text-white shadow-xl ring-1 ring-white/10 sm:p-5">
         <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-cyan-500/20 blur-3xl" />
         <div className="pointer-events-none absolute -left-16 -bottom-16 h-64 w-64 rounded-full bg-indigo-500/20 blur-3xl" />
 
-        <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-1.5">
+        <div className="relative z-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 space-y-1.5">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-0.5 text-xs font-bold text-emerald-400">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-bold text-emerald-400">
                 <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
                 ● LIVE UPI RAIL ONLINE
               </span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-xs text-slate-300">
+              <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-[10px] text-slate-300">
                 DYNAMIC QR TERMINAL ACTIVE
               </span>
             </div>
-            <h1 className="text-2xl font-black tracking-tight sm:text-3xl text-white">
+            <h1 className="text-xl font-black tracking-tight sm:text-2xl !text-white">
               UPI Collections &amp; Cash Out
             </h1>
-            <p className="text-xs text-indigo-200/80 sm:text-sm">
+            <p className="max-w-2xl text-[11px] leading-5 text-indigo-200/80 sm:text-xs">
               Instant customer cash withdrawal, live dynamic QR generator and double-entry till settlement.
             </p>
           </div>
@@ -811,10 +811,10 @@ export default function UpiWorkspace({
             >
               <span className={`inline-block text-base ${isRefreshing ? "animate-spin text-cyan-400" : ""}`}>↻</span>
             </button>
-            <div className="card-glow-cyan flex flex-col items-end rounded-2xl border border-white/10 bg-white/10 p-3.5 backdrop-blur-md min-w-[170px] shadow-lg">
-              <span className="text-[10px] font-black uppercase tracking-wider text-cyan-200">AVAILABLE UPI FLOAT</span>
-              <div className="text-2xl font-black font-mono tracking-tight text-emerald-400">{inr(upiCurrentBalance)}</div>
-              <span className="text-[10px] text-cyan-300/70">Live Settlement Position</span>
+            <div className="card-glow-cyan flex flex-col items-end rounded-xl border border-white/10 bg-white/10 p-2.5 backdrop-blur-md min-w-[150px] shadow-lg">
+              <span className="text-[9px] font-black uppercase tracking-wider text-cyan-200">AVAILABLE UPI FLOAT</span>
+              <div className="text-xl font-black font-mono tracking-tight text-emerald-400">{inr(upiCurrentBalance)}</div>
+              <span className="text-[9px] text-cyan-300/70">Live settlement position</span>
             </div>
           </div>
         </div>
@@ -823,9 +823,9 @@ export default function UpiWorkspace({
       {/* ========================================================================= */}
       {/* 2. UPI FINANCIAL POSITION STRIP */}
       {/* ========================================================================= */}
-      <section className="card-glow-indigo relative overflow-hidden rounded-[22px] border border-slate-200/80 bg-white p-4.5 sm:p-5 shadow-sm dark:border-white/10 dark:bg-slate-900">
-        <div className="flex flex-col gap-3.5">
-          <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-2 border-b border-slate-200/70 pb-3 dark:border-white/10">
+      <section className="card-glow-indigo relative overflow-hidden rounded-[20px] border border-slate-200/80 bg-white p-3.5 sm:p-4 shadow-sm dark:border-white/10 dark:bg-slate-900">
+        <div className="flex flex-col gap-2.5">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-200/70 pb-2.5 dark:border-white/10">
             <div className="flex items-center gap-2.5 flex-wrap">
               <span className="text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">
                 UPI POSITION
@@ -852,18 +852,18 @@ export default function UpiWorkspace({
           </div>
 
           {/* Connected Metrics Grid */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="card-glow-emerald rounded-xl border border-emerald-500/20 bg-emerald-50/30 p-3 dark:border-emerald-500/20 dark:bg-emerald-950/20">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="card-glow-emerald rounded-xl border border-emerald-500/20 bg-emerald-50/30 p-2.5 dark:border-emerald-500/20 dark:bg-emerald-950/20">
               <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400">COLLECTIONS</p>
               <p className="mt-0.5 text-lg font-black font-mono text-emerald-600 dark:text-emerald-400">{inr(metrics.totalCredits)}</p>
               <p className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80">QR Credits Inflow</p>
             </div>
-            <div className="card-glow-indigo rounded-xl border border-slate-200/60 bg-slate-50/80 p-3 dark:border-white/5 dark:bg-white/5">
+            <div className="card-glow-indigo rounded-xl border border-slate-200/60 bg-slate-50/80 p-2.5 dark:border-white/5 dark:bg-white/5">
               <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">CASH OUT</p>
               <p className="mt-0.5 text-lg font-black font-mono text-slate-900 dark:text-white">{inr(metrics.totalCashOut)}</p>
               <p className="text-[10px] text-slate-400">Till Cash Disbursed</p>
             </div>
-            <div className="card-glow-cyan rounded-xl border border-cyan-500/20 bg-cyan-50/30 p-3 dark:border-cyan-500/20 dark:bg-cyan-950/20">
+            <div className="card-glow-cyan rounded-xl border border-cyan-500/20 bg-cyan-50/30 p-2.5 dark:border-cyan-500/20 dark:bg-cyan-950/20">
               <p className="text-[10px] font-black uppercase tracking-wider text-cyan-700 dark:text-cyan-400">FEES</p>
               <p className="mt-0.5 text-lg font-black font-mono text-cyan-600 dark:text-cyan-400">+{inr(metrics.totalFees)}</p>
               <p className="text-[10px] text-cyan-600/80 dark:text-cyan-400/80">Net Shop Earnings</p>
@@ -880,7 +880,7 @@ export default function UpiWorkspace({
       {/* ========================================================================= */}
       {/* 3. PRIMARY QUICK OPERATIONS TILES */}
       {/* ========================================================================= */}
-      <section className="space-y-3">
+      <section className="space-y-2.5">
         <div className="flex items-center justify-between">
           <h2 className="text-xs font-black uppercase tracking-wider text-slate-400">
             QUICK OPERATIONS
@@ -908,32 +908,32 @@ export default function UpiWorkspace({
           </div>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2">
           {/* Tile 1: QR Collection */}
-          <div className="card-glow-indigo group relative overflow-hidden rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm transition hover:border-indigo-400 hover:shadow-md dark:border-white/10 dark:bg-slate-900 dark:hover:border-indigo-500/40 flex flex-col justify-between">
+          <div className="card-glow-indigo group relative overflow-hidden rounded-[18px] border border-slate-200 bg-white p-3.5 shadow-sm transition hover:border-indigo-400 hover:shadow-md dark:border-white/10 dark:bg-slate-900 dark:hover:border-indigo-500/40 flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between gap-3">
-                <div className="icon-box-3d flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-xl text-white shadow-md shadow-indigo-500/25">
+                <div className="icon-box-3d flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-xl text-white shadow-md shadow-indigo-500/25">
                   📱
                 </div>
                 <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-[10px] font-bold text-indigo-700 ring-1 ring-indigo-200/60 dark:bg-indigo-950/40 dark:text-indigo-300 dark:ring-indigo-800/40">
                   {qrs.length} Active QRs
                 </span>
               </div>
-              <h3 className="mt-3 text-base font-black text-slate-900 dark:text-white">QR COLLECTION</h3>
-              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              <h3 className="mt-2 text-sm font-black text-slate-900 dark:text-white">QR COLLECTION</h3>
+              <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
                 Receive customer payment via dynamic merchant QR code
               </p>
-              <p className="mt-2 font-mono text-[11px] text-slate-400">
+              <p className="mt-1.5 font-mono text-[10px] text-slate-400">
                 Active: <strong className="text-slate-700 dark:text-slate-300">{activeQr?.display_name || "Default QR"}</strong> ({activeQr?.upi_id || "No UPI configured"})
               </p>
             </div>
-            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/5 flex items-center justify-between">
+            <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-white/5 flex items-center justify-between">
               <span className="text-xs text-slate-400 font-medium">Real Scannable QR</span>
               <button
                 type="button"
                 onClick={() => setQrModalOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white transition hover:bg-slate-800 active:scale-95 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 shadow-sm"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-[11px] font-bold text-white transition hover:bg-slate-800 active:scale-95 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 shadow-sm"
               >
                 <span>View Fullscreen QR</span>
                 <span>→</span>
@@ -956,7 +956,7 @@ export default function UpiWorkspace({
               <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                 Customer cash withdrawal against confirmed UPI receipt
               </p>
-              <p className="mt-2 text-[11px] text-slate-400">
+              <p className="mt-1.5 text-[10px] text-slate-400">
                 Dynamic QR on-screen · Automatic fee deduction · Double-entry cashbook
               </p>
             </div>
@@ -965,7 +965,7 @@ export default function UpiWorkspace({
               <button
                 type="button"
                 onClick={() => terminalFormRef.current?.scrollIntoView({ behavior: "smooth" })}
-                className="btn-3d-tactile-emerald inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold text-white shadow-md transition hover:brightness-110 active:scale-[0.98]"
+                className="btn-3d-tactile-emerald inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold text-white shadow-md transition hover:brightness-110 active:scale-[0.98]"
               >
                 <span>Record UPI Cash Out</span>
                 <span>↓</span>
@@ -1070,15 +1070,15 @@ export default function UpiWorkspace({
         )}
 
         {/* The Dual Column Terminal */}
-        <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-12">
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-12">
           {/* Left Column: Fast Operation Console (8 Cols) */}
-          <div className="rounded-[24px] border border-slate-200 bg-white p-5 lg:col-span-7 shadow-sm dark:border-white/10 dark:bg-slate-900 space-y-4">
+          <div className="rounded-[20px] border border-slate-200 bg-white p-4 lg:col-span-7 shadow-sm dark:border-white/10 dark:bg-slate-900 space-y-4">
             <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3 dark:border-white/5">
               <div>
                 <span className="text-[10px] font-black uppercase tracking-wider text-cyan-600 dark:text-cyan-400">
                   Step-by-Step Counter Workflow
                 </span>
-                <h3 className="text-base font-black text-slate-900 dark:text-white">
+                <h3 className="text-lg font-black text-slate-900 dark:text-white">
                   UPI Cash Out Terminal
                 </h3>
               </div>
@@ -1290,13 +1290,13 @@ export default function UpiWorkspace({
           </div>
 
           {/* Right Column: Real-Time Dynamic QR Display & Settlement HUD (5 Cols) */}
-          <div className="rounded-[24px] border border-slate-200 bg-white p-5 lg:col-span-5 shadow-sm dark:border-white/10 dark:bg-slate-900 space-y-4">
+          <div className="rounded-[20px] border border-slate-200 bg-white p-4 lg:col-span-5 lg:sticky lg:top-4 shadow-sm dark:border-white/10 dark:bg-slate-900 space-y-4">
             <div className="border-b border-slate-100 pb-2.5 dark:border-white/5 flex items-center justify-between">
               <div>
                 <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                   Customer Scan Screen
                 </span>
-                <h3 className="text-base font-black text-slate-900 dark:text-white">
+                <h3 className="text-lg font-black text-slate-900 dark:text-white">
                   Dynamic UPI QR
                 </h3>
               </div>
@@ -1470,9 +1470,9 @@ export default function UpiWorkspace({
       {/* ========================================================================= */}
       {/* 6. TRANSACTION HISTORY / LEDGER CONSOLE */}
       {/* ========================================================================= */}
-      <section className="card-glow-indigo overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
+      <section className="card-glow-indigo overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
         {/* Ledger Header & Search/Filters */}
-        <div className="border-b border-slate-100 p-4 sm:p-5 dark:border-white/5 space-y-3.5">
+        <div className="border-b border-slate-100 p-3.5 sm:p-4 dark:border-white/5 space-y-3.5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-base font-black text-slate-900 dark:text-white">TRANSACTION HISTORY</h2>
