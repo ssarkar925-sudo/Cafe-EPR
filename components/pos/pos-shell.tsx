@@ -15,9 +15,11 @@ import Modal, { useBodyScrollLock } from "@/components/ui/modal";
 import GlobalSearch from "@/components/global-search";
 import {
   AlertCircle,
+  Banknote,
   ArrowDownToLine,
   ArrowLeft,
   ArrowRight,
+  BookOpen,
   Check,
   ChevronDown,
   Clock,
@@ -1875,11 +1877,14 @@ export default function PosShell({
             {currentTab.cart.map((line) => (
               <div
                 key={line.key}
-                className="group relative flex items-center justify-between gap-2.5 rounded-xl border border-slate-200/80 bg-white/95 p-1.5 shadow-xs transition-all hover:border-slate-300 hover:shadow-sm dark:border-white/10 dark:bg-slate-900/90 dark:hover:border-white/20"
+                className="group relative flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white/95 px-2 py-1.5 shadow-xs transition-all hover:border-slate-300 hover:shadow-sm dark:border-white/10 dark:bg-slate-900/90 dark:hover:border-white/20"
               >
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-[8px] font-black text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                  {currentTab.cart.indexOf(line) + 1}
+                </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
-                    <span className="truncate text-xs font-black text-slate-900 dark:text-white">
+                    <span className="truncate text-[11px] font-black text-slate-900 dark:text-white">
                       {line.name}
                     </span>
                     {line.isCustom && (
@@ -1888,7 +1893,7 @@ export default function PosShell({
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono mt-0.5 dark:text-slate-400">
+                  <div className="flex items-center gap-1.5 text-[8px] text-slate-500 font-mono mt-0.5 dark:text-slate-400">
                     <span>{money(line.rate)}</span>
                     <span className="text-slate-300 dark:text-slate-600">/</span>
                     <span className="uppercase text-[9px] font-bold text-slate-400">{line.unit}</span>
@@ -1950,6 +1955,10 @@ export default function PosShell({
 
           {/* COMPACT CART CHECKOUT: important actions stay visible */}
           <div className="relative flex min-h-0 flex-[0_0_42%] flex-col border-t border-slate-200/80 bg-white/95 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/95 shadow-xl">
+            <div className="flex h-5 shrink-0 items-center justify-between px-3 text-[7px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+              <span>Checkout</span>
+              <span>{currentTab.paymentChoice === "upi" ? "UPI Payment" : currentTab.paymentChoice === "khata" ? "Credit / Khata" : currentTab.paymentChoice === "split" ? "Split Payment" : "Cash Payment"}</span>
+            </div>
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pt-2.5 pb-2 space-y-2">
               {/* Discount + compact bill summary */}
               <div className="flex items-center gap-2">
@@ -1996,18 +2005,18 @@ export default function PosShell({
                   </div>
                 )}
                 <div className="mt-1 flex items-center justify-between border-t border-slate-200/70 pt-1 dark:border-slate-800">
-                  <span className="text-[10px] font-black uppercase text-slate-700 dark:text-slate-200">Total Payable</span>
-                  <span className={`font-mono text-lg font-black tracking-tight ${posTheme.textAccent}`}>{money(total)}</span>
+                  <span className="text-[10px] font-black uppercase tracking-wide text-slate-700 dark:text-slate-200">Total Payable</span>
+                  <span className={`font-mono text-xl font-black tracking-tight ${posTheme.textAccent}`}>{money(total)}</span>
                 </div>
               </div>
 
               {/* Payment method */}
               <div className="grid grid-cols-4 gap-1.5">
                 {[
-                  { id: "cash", label: "Cash" },
-                  { id: "upi", label: "UPI QR" },
-                  { id: "khata", label: "Khata" },
-                  { id: "split", label: "Split" },
+                  { id: "cash", label: "Cash", icon: Banknote },
+                  { id: "upi", label: "UPI QR", icon: QrCode },
+                  { id: "khata", label: "Khata", icon: BookOpen },
+                  { id: "split", label: "Split", icon: LayoutGrid },
                 ].map((p) => {
                   const isSelected = currentTab.paymentChoice === p.id;
                   return (
@@ -2015,13 +2024,14 @@ export default function PosShell({
                       key={p.id}
                       type="button"
                       onClick={() => selectPayment(p.id as any)}
-                      className={`h-8 rounded-lg text-[9px] font-black uppercase tracking-wide transition active:scale-95 ${
+                      className={`flex h-8 items-center justify-center gap-1.5 rounded-lg text-[8px] font-black uppercase tracking-wide transition active:scale-95 ${
                         isSelected
                           ? `bg-gradient-to-r ${posTheme.primaryBtnGradient} text-white shadow-sm ring-1 scale-[1.01]`
                           : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-white/10 dark:text-slate-400"
                       }`}
                     >
-                      {p.label}
+                      <p.icon className="h-3 w-3" />
+                      <span>{p.label}</span>
                     </button>
                   );
                 })}
@@ -2142,7 +2152,7 @@ export default function PosShell({
                 onClick={() => void completeSale()}
                 className={`flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r ${posTheme.primaryBtnGradient} text-xs font-black uppercase tracking-wider text-white shadow-lg active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 transition cursor-pointer`}
               >
-                {busy ? <span>Recording Sale...</span> : <><Sparkles className="h-4 w-4" /><span>Complete Sale • {money(total)}</span></>}
+                {busy ? <span>Recording Sale...</span> : <><Sparkles className="h-4 w-4" /><span>Complete Sale • {currentTab.paymentChoice === "upi" ? "UPI" : currentTab.paymentChoice === "khata" ? "Khata" : currentTab.paymentChoice === "split" ? "Split" : "Cash"} • {money(total)}</span></>}
               </button>
             </div>
           </div>
