@@ -197,9 +197,38 @@ class AepsWatcher {
     this.liveConfig = { portalId, portalName, intervalSeconds };
     this.liveEmit = typeof emit === "function" ? emit : () => {};
 
-    const results = await Promise.allSettled(
-      validSources.map((source) => this.startSourceSession(source, portalId, portalName, intervalSeconds))
-    );
+    // Sources from the same website must authenticate through ONE browser
+    // session before we fan out to the other URLs. Starting every URL in
+    // parallel can make every window see the login page at the same time,
+    // causing repeated login/OTP prompts even though all windows share the
+    // same Electron partition.
+    //
+    // Different websites are still isolated and can start independently.
+    const groups = new Map();
+    for (const source of validSources) {
+      const key = getSiteKey(String(source.url));
+      const group = groups.get(key) || [];
+      group.push(source);
+      groups.set(key, group);
+    }
+
+    const results = [];
+    for (const group of groups.values()) {
+      // The first URL becomes the authentication leader for this website.
+      // We wait for the operator to finish the manual login before opening
+      // the remaining URLs in the same persistent Electron session.
+      for (let index = 0; index < group.length; index += 1) {
+        const source = group[index];
+        const started = await this.startSourceSession(
+          source,
+          portalId,
+          portalName,
+          intervalSeconds,
+          { waitForAuthentication: index === 0 }
+        );
+        results.push({ status: started ? "fulfilled" : "rejected", value: started });
+      }
+    }
 
     const startedSources = results.filter((r) => r.status === "fulfilled" && r.value === true).length;
     const failedSources = results.length - startedSources;
@@ -231,7 +260,8 @@ class AepsWatcher {
     };
   }
 
-  async startSourceSession(source, portalId, portalName, intervalSeconds) {
+  async startSourceSession(source, portalId, portalName, intervalSeconds, options = {}) {
+    const waitForAuthentication = Boolean(options.waitForAuthentication);
     const sourceId = String(source.id);
     const sourceUrl = String(source.url);
     const startedAt = Date.now();
@@ -312,8 +342,35 @@ class AepsWatcher {
           portalName,
           sourceId,
           sourceUrl,
-          message: "Authentication required. Sign in manually in this watcher window; the same session will be reused for this portal's other sources.",
+          message: "Authentication required. Sign in manually in this watcher window. After one successful login, CafeERP will reuse the same session for the other URLs on this website.",
         });
+
+        if (waitForAuthentication) {
+          this.liveEmit?.({
+            type: "source_auth_waiting",
+            portalId,
+            portalName,
+            sourceId,
+            sourceUrl,
+            message: "Waiting for the manual login to complete before opening the other URLs for this website.",
+          });
+
+          const authenticated = await waitForAuthenticationCompletion(win, 300000);
+          if (!authenticated) {
+            throw new Error(
+              "Login was not completed within 5 minutes. Other URLs for this website were not opened to avoid repeated login attempts."
+            );
+          }
+
+          this.liveEmit?.({
+            type: "source_auth_resolved",
+            portalId,
+            portalName,
+            sourceId,
+            sourceUrl,
+            message: "Login detected. Reusing this authenticated session for the remaining website URLs.",
+          });
+        }
       }
 
       this.scheduleSourcePoll(sourceId, 0);
@@ -682,6 +739,61 @@ class AepsWatcher {
     this.seen.clear();
     if (current) this.emit?.({ type: "stopped", portalId: current, reason: "manual_stop" });
   }
+}
+
+function getSiteKey(rawUrl) {
+  try {
+    const hostname = new URL(rawUrl).hostname.trim().toLowerCase().replace(/^www\./, "");
+    const labels = hostname.split(".").filter(Boolean);
+    if (labels.length <= 2) return labels.join(".");
+
+    // Treat common multi-part public suffixes such as co.in/com.au as part
+    // of the suffix so portal.example.co.in groups as example.co.in rather
+    // than incorrectly grouping every *.co.in website together.
+    const secondLast = labels[labels.length - 2];
+    const last = labels[labels.length - 1];
+    const multipartSuffixes = new Set([
+      "co.in", "com.au", "co.uk", "co.nz", "co.za", "com.sg", "com.my",
+      "com.bd", "com.pk", "org.in", "net.in", "gov.in", "ac.in"
+    ]);
+
+    if (multipartSuffixes.has(secondLast + "." + last) && labels.length >= 3) {
+      return labels.slice(-3).join(".");
+    }
+
+    return labels.slice(-2).join(".");
+  } catch {
+    return String(rawUrl || "").trim().toLowerCase();
+  }
+}
+
+async function waitForAuthenticationCompletion(win, timeoutMs = 300000) {
+  const started = Date.now();
+
+  while (Date.now() - started < timeoutMs) {
+    if (!win || win.isDestroyed()) return false;
+
+    try {
+      const state = await win.webContents.executeJavaScript(
+        "(" + extractRenderedPage.toString() + ")(1000)",
+        true
+      );
+
+      // The login form disappearing is the authoritative signal here. Do not
+      // require a particular dashboard URL because portals commonly redirect
+      // through several paths after authentication.
+      if (state && !state.authRequired) {
+        return true;
+      }
+    } catch {
+      // Navigation can briefly invalidate the execution context. Keep polling
+      // until the timeout rather than opening another login window.
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+
+  return false;
 }
 
 async function extractRenderedPage(waitMs = 5000) {
