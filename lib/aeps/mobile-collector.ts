@@ -45,10 +45,10 @@ export const MOBILE_PORTAL_CATALOG: Record<Exclude<MobilePortalCode, "unknown">,
   },
 };
 
-const BLOCKED_KEYS = /(?:otp|one\\s*time\\s*password|pin|mpin|password|passcode|biometric|fingerprint|face\\s*id)/i;
+const BLOCKED_KEYS = /(?:otp|one\s*time\s*password|pin|mpin|password|passcode|biometric|fingerprint|face\s*id)/i;
 
 function clean(value: string | null | undefined): string | null {
-  const v = String(value || "").replace(/\\s+/g, " ").trim();
+  const v = String(value || "").replace(/\s+/g, " ").trim();
   return v ? v : null;
 }
 
@@ -62,7 +62,7 @@ function firstMatch(text: string, patterns: RegExp[]): string | null {
 
 function numberValue(value: string | null): number | null {
   if (!value) return null;
-  const n = Number(value.replace(/[₹,\\s]/g, ""));
+  const n = Number(value.replace(/[₹,\s]/g, ""));
   return Number.isFinite(n) ? n : null;
 }
 
@@ -82,7 +82,7 @@ export function parseMobileTransaction(input: {
   capturedAt?: string | null;
   screenSource?: "accessibility" | "ocr" | "api";
 }): MobileCollectedTransaction | null {
-  const text = String(input.screenText || "").replace(/\\u00a0/g, " ");
+  const text = String(input.screenText || "").replace(/\u00a0/g, " ");
   if (!text.trim() || BLOCKED_KEYS.test(text)) {
     // If a sensitive field is visible on the screen, refuse to persist the
     // screen as a transaction candidate. The collector remains read-only.
@@ -94,59 +94,59 @@ export function parseMobileTransaction(input: {
 
   const catalog = MOBILE_PORTAL_CATALOG[portalCode];
   const externalTransactionId = firstMatch(text, [
-    /(?:transaction\\s*(?:id|no|number)|txn\\s*(?:id|no|number)|txn\\s*ref|transaction\\s*ref)\\s*[:#-]?\\s*([A-Za-z0-9-]{5,64})/i,
-    /\\b(TXN[A-Z0-9-]{5,})\\b/i,
+    /(?:transaction\s*(?:id|no|number)|txn\s*(?:id|no|number)|txn\s*ref|transaction\s*ref)\s*[:#-]?\s*([A-Za-z0-9-]{5,64})/i,
+    /\b(TXN[A-Z0-9-]{5,})\b/i,
   ]);
   const rrn = firstMatch(text, [
-    /(?:rrn|retrieval\\s*reference(?:\\s*number)?)\\s*[:#-]?\\s*([0-9]{6,20})/i,
+    /(?:rrn|retrieval\s*reference(?:\s*number)?)\s*[:#-]?\s*([0-9]{6,20})/i,
   ]);
   const externalReference = firstMatch(text, [
-    /(?:reference|ref(?:erence)?\\s*(?:no|number))\\s*[:#-]?\\s*([A-Za-z0-9-]{5,64})/i,
+    /(?:reference|ref(?:erence)?\s*(?:no|number))\s*[:#-]?\s*([A-Za-z0-9-]{5,64})/i,
   ]);
   const amountRaw = firstMatch(text, [
-    /(?:amount|txn\\s*amount|transaction\\s*amount|withdrawal\\s*amount|cash\\s*withdrawal)\\s*[:=-]?\\s*(?:₹|rs\\.?|inr)?\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)/i,
+    /(?:amount|txn\s*amount|transaction\s*amount|withdrawal\s*amount|cash\s*withdrawal)\s*[:=-]?\s*(?:₹|rs\.?|inr)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i,
   ]);
   const amount = numberValue(amountRaw);
   if (!externalTransactionId || amount === null || amount <= 0) return null;
 
   const typeText = [
-    firstMatch(text, [/(?:transaction\\s*type|type|service)\\s*[:=-]?\\s*([^\\n|]+)/i]) || "",
+    firstMatch(text, [/(?:transaction\s*type|type|service)\s*[:=-]?\s*([^\n|]+)/i]) || "",
     text,
   ].join(" ");
   const normalized = typeText.toLowerCase();
   const transactionType: MobileCollectedTransaction["transactionType"] =
-    /collection|aadhaar\\s*pay|merchant\\s*pay|collect/.test(normalized)
+    /collection|aadhaar\s*pay|merchant\s*pay|collect/.test(normalized)
       ? "payment_collection"
       : /balance|enquiry|inquiry/.test(normalized)
       ? "balance_enquiry"
-      : /mini\\s*statement|statement/.test(normalized)
+      : /mini\s*statement|statement/.test(normalized)
       ? "mini_statement"
       : "cash_out";
 
   const status =
-    firstMatch(text, [/(?:status|transaction\\s*status)\\s*[:=-]?\\s*([^\\n|]+)/i]) ||
-    (/\\bsuccess(?:ful)?\\b/i.test(text) ? "SUCCESS" : /\\b(?:failed|failure)\\b/i.test(text) ? "FAILED" : "UNKNOWN");
+    firstMatch(text, [/(?:status|transaction\s*status)\s*[:=-]?\s*([^\n|]+)/i]) ||
+    (/\bsuccess(?:ful)?\b/i.test(text) ? "SUCCESS" : /\b(?:failed|failure)\b/i.test(text) ? "FAILED" : "UNKNOWN");
 
   const customerName = firstMatch(text, [
-    /(?:customer\\s*name|customer)\\s*[:=-]?\\s*([A-Za-z][A-Za-z .'-]{2,80})/i,
+    /(?:customer\s*name|customer)\s*[:=-]?\s*([A-Za-z][A-Za-z .'-]{2,80})/i,
   ]);
   const customerMobile = firstMatch(text, [
-    /(?:mobile|mobile\\s*(?:no|number)|phone)\\s*[:=-]?\\s*(\\+?91[- ]?)?([6-9]\\d{9})/i,
+    /(?:mobile|mobile\s*(?:no|number)|phone)\s*[:=-]?\s*(\+?91[- ]?)?([6-9]\d{9})/i,
   ]);
   const aadhaarLast4 = firstMatch(text, [
-    /(?:aadhaar|aadhar)\\s*(?:last\\s*4|xxxx|x{4,})?\\s*[:#-]?\\s*(?:x{4,}|\\*{4,})?\\s*(\\d{4})\\b/i,
+    /(?:aadhaar|aadhar)\s*(?:last\s*4|xxxx|x{4,})?\s*[:#-]?\s*(?:x{4,}|\*{4,})?\s*(\d{4})\b/i,
   ]);
   const bankName = firstMatch(text, [
-    /(?:bank\\s*name|issuer\\s*bank|customer\\s*bank|bank)\\s*[:=-]?\\s*([A-Za-z][A-Za-z &.()'-]{2,100})/i,
+    /(?:bank\s*name|issuer\s*bank|customer\s*bank|bank)\s*[:=-]?\s*([A-Za-z][A-Za-z &.()'-]{2,100})/i,
   ]);
   const fee = numberValue(firstMatch(text, [
-    /(?:customer\\s*fee|service\\s*fee|fee|charge)\\s*[:=-]?\\s*(?:₹|rs\\.?|inr)?\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)/i,
+    /(?:customer\s*fee|service\s*fee|fee|charge)\s*[:=-]?\s*(?:₹|rs\.?|inr)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i,
   ]));
   const commission = numberValue(firstMatch(text, [
-    /(?:commission|comm)\\s*[:=-]?\\s*(?:₹|rs\\.?|inr)?\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)/i,
+    /(?:commission|comm)\s*[:=-]?\s*(?:₹|rs\.?|inr)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i,
   ]));
   const occurredAt = firstMatch(text, [
-    /(?:date\\s*(?:and|&)\\s*time|transaction\\s*(?:date|time)|date|time)\\s*[:=-]?\\s*([^\\n|]{6,80})/i,
+    /(?:date\s*(?:and|&)\s*time|transaction\s*(?:date|time)|date|time)\s*[:=-]?\s*([^\n|]{6,80})/i,
   ]);
 
   const fieldCount = [
