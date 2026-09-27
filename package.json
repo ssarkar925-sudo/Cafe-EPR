@@ -13,6 +13,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/test-financial-invariants.mjs",
+    "test:theme": "node scripts/test-theme-display-options.mjs",
     "test:invariants": "node scripts/test-financial-invariants.mjs",
     "test:qa": "node scripts/test-comprehensive-qa-suite.mjs",
     "test:reconciliation": "node scripts/test-cross-module-reconciliation.mjs",

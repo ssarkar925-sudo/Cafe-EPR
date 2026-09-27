@@ -617,6 +617,25 @@ html.font-scale-large,
 }
 
 /* --------------------------------------------------------------------------
+   Accessibility: High Contrast Mode (.contrast-more)
+   -------------------------------------------------------------------------- */
+.contrast-more {
+  --surface-border: rgba(15, 23, 42, 0.45);
+  --line: rgba(15, 23, 42, 0.35);
+}
+.dark.contrast-more,
+html.dark.contrast-more {
+  --surface-border: rgba(255, 255, 255, 0.45);
+  --line: rgba(255, 255, 255, 0.35);
+}
+.contrast-more button,
+.contrast-more input,
+.contrast-more select {
+  outline: 2px solid currentColor !important;
+  outline-offset: 1px !important;
+}
+
+/* --------------------------------------------------------------------------
    Atmosphere & Ambient Gradient Engine
    Low-glare, luminescent radial backdrops rendered when gradient is active
    -------------------------------------------------------------------------- */
