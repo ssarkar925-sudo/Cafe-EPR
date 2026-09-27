@@ -1776,7 +1776,7 @@ export default function PosShell({
           </div>
 
           {/* COMPACT CUSTOMER BAR: selected customer is shown once */}
-          <div className="shrink-0 border-b border-slate-200/80 bg-white/70 px-3 py-1.5 backdrop-blur-md dark:border-white/10 dark:bg-slate-900/70">
+          <div className="relative z-40 shrink-0 border-b border-slate-200/80 bg-white/70 px-3 py-1.5 backdrop-blur-md dark:border-white/10 dark:bg-slate-900/70">
             <div data-pos-customer-action="reference" className="flex items-center gap-2">
               <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
                 <User className="h-3 w-3" />
@@ -1871,7 +1871,7 @@ export default function PosShell({
           </div>
 
           {/* SCULPTED CART ITEMS LIST */}
-          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2.5 overscroll-contain space-y-2">
+          <div className="relative z-0 min-h-0 flex-1 overflow-y-auto px-3 py-2.5 overscroll-contain space-y-2">
             {currentTab.cart.map((line) => (
               <div
                 key={line.key}
