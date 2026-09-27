@@ -115,7 +115,7 @@ export default function DashboardShell({
   return (
     <DashboardShellProvider value={shellContextValue}>
       <div
-        className="modern-erp erp-app-shell min-h-screen bg-[#f8fafc] text-slate-900 dark:bg-slate-950 dark:text-white"
+        className="modern-erp erp-app-shell min-h-screen bg-[#f8fafc] text-slate-900 dark:bg-slate-950 dark:text-white sm:bg-gradient-to-br sm:from-slate-50 sm:via-[#f8fafc] sm:to-indigo-50/20 dark:sm:bg-gradient-to-br dark:sm:from-[#030712] dark:sm:via-[#090d16] dark:sm:to-[#040711]"
         data-module={pathname?.split("/")[1] || "dashboard"}
       >
         <Sidebar

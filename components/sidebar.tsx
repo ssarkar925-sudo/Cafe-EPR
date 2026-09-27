@@ -29,6 +29,109 @@ const BADGE_STYLES: Record<BadgeTone, string> = {
   slate: "bg-slate-500/15 text-slate-700 border-slate-300 dark:bg-slate-500/20 dark:text-slate-300 dark:border-slate-500/30",
 };
 
+export type DomainTheme = {
+  headerText: string;
+  headerDot: string;
+  iconBg: string;
+  hoverBg: string;
+  hoverText: string;
+  activeBg: string;
+  activeIconBg: string;
+};
+
+const DOMAIN_THEMES: Record<string, DomainTheme> = {
+  dashboard: {
+    headerText: "text-indigo-600 dark:text-indigo-400",
+    headerDot: "bg-indigo-500",
+    iconBg: "bg-indigo-500/15 text-indigo-600 dark:bg-indigo-500/25 dark:text-indigo-400",
+    hoverBg: "hover:bg-indigo-50/80 dark:hover:bg-indigo-950/40",
+    hoverText: "hover:text-indigo-700 dark:hover:text-indigo-300",
+    activeBg: "is-active bg-indigo-50/90 text-indigo-800 font-bold border-indigo-300/80 shadow-2xs dark:bg-indigo-950/50 dark:text-indigo-200 dark:border-indigo-500/40",
+    activeIconBg: "bg-indigo-600 text-white shadow-xs dark:bg-indigo-500",
+  },
+  sales: {
+    headerText: "text-emerald-600 dark:text-emerald-400",
+    headerDot: "bg-emerald-500",
+    iconBg: "bg-emerald-500/15 text-emerald-600 dark:bg-emerald-500/25 dark:text-emerald-400",
+    hoverBg: "hover:bg-emerald-50/80 dark:hover:bg-emerald-950/40",
+    hoverText: "hover:text-emerald-700 dark:hover:text-emerald-300",
+    activeBg: "is-active bg-emerald-50/90 text-emerald-800 font-bold border-emerald-300/80 shadow-2xs dark:bg-emerald-950/50 dark:text-emerald-200 dark:border-emerald-500/40",
+    activeIconBg: "bg-emerald-600 text-white shadow-xs dark:bg-emerald-500",
+  },
+  fintech: {
+    headerText: "text-sky-600 dark:text-sky-400",
+    headerDot: "bg-sky-500",
+    iconBg: "bg-sky-500/15 text-sky-600 dark:bg-sky-500/25 dark:text-sky-400",
+    hoverBg: "hover:bg-sky-50/80 dark:hover:bg-sky-950/40",
+    hoverText: "hover:text-sky-700 dark:hover:text-sky-300",
+    activeBg: "is-active bg-sky-50/90 text-sky-800 font-bold border-sky-300/80 shadow-2xs dark:bg-sky-950/50 dark:text-sky-200 dark:border-sky-500/40",
+    activeIconBg: "bg-sky-600 text-white shadow-xs dark:bg-sky-500",
+  },
+  bbps: {
+    headerText: "text-purple-600 dark:text-purple-400",
+    headerDot: "bg-purple-500",
+    iconBg: "bg-purple-500/15 text-purple-600 dark:bg-purple-500/25 dark:text-purple-400",
+    hoverBg: "hover:bg-purple-50/80 dark:hover:bg-purple-950/40",
+    hoverText: "hover:text-purple-700 dark:hover:text-purple-300",
+    activeBg: "is-active bg-purple-50/90 text-purple-800 font-bold border-purple-300/80 shadow-2xs dark:bg-purple-950/50 dark:text-purple-200 dark:border-purple-500/40",
+    activeIconBg: "bg-purple-600 text-white shadow-xs dark:bg-purple-500",
+  },
+  finance: {
+    headerText: "text-amber-600 dark:text-amber-400",
+    headerDot: "bg-amber-500",
+    iconBg: "bg-amber-500/15 text-amber-600 dark:bg-amber-500/25 dark:text-amber-400",
+    hoverBg: "hover:bg-amber-50/80 dark:hover:bg-amber-950/40",
+    hoverText: "hover:text-amber-700 dark:hover:text-amber-300",
+    activeBg: "is-active bg-amber-50/90 text-amber-800 font-bold border-amber-300/80 shadow-2xs dark:bg-amber-950/50 dark:text-amber-200 dark:border-amber-500/40",
+    activeIconBg: "bg-amber-600 text-white shadow-xs dark:bg-amber-500",
+  },
+  reports: {
+    headerText: "text-blue-600 dark:text-blue-400",
+    headerDot: "bg-blue-500",
+    iconBg: "bg-blue-500/15 text-blue-600 dark:bg-blue-500/25 dark:text-blue-400",
+    hoverBg: "hover:bg-blue-50/80 dark:hover:bg-blue-950/40",
+    hoverText: "hover:text-blue-700 dark:hover:text-blue-300",
+    activeBg: "is-active bg-blue-50/90 text-blue-800 font-bold border-blue-300/80 shadow-2xs dark:bg-blue-950/50 dark:text-blue-200 dark:border-blue-500/40",
+    activeIconBg: "bg-blue-600 text-white shadow-xs dark:bg-blue-500",
+  },
+  catalog: {
+    headerText: "text-orange-600 dark:text-orange-400",
+    headerDot: "bg-orange-500",
+    iconBg: "bg-orange-500/15 text-orange-600 dark:bg-orange-500/25 dark:text-orange-400",
+    hoverBg: "hover:bg-orange-50/80 dark:hover:bg-orange-950/40",
+    hoverText: "hover:text-orange-700 dark:hover:text-orange-300",
+    activeBg: "is-active bg-orange-50/90 text-orange-800 font-bold border-orange-300/80 shadow-2xs dark:bg-orange-950/50 dark:text-orange-200 dark:border-orange-500/40",
+    activeIconBg: "bg-orange-600 text-white shadow-xs dark:bg-orange-500",
+  },
+  inventory: {
+    headerText: "text-teal-600 dark:text-teal-400",
+    headerDot: "bg-teal-500",
+    iconBg: "bg-teal-500/15 text-teal-600 dark:bg-teal-500/25 dark:text-teal-400",
+    hoverBg: "hover:bg-teal-50/80 dark:hover:bg-teal-950/40",
+    hoverText: "hover:text-teal-700 dark:hover:text-teal-300",
+    activeBg: "is-active bg-teal-50/90 text-teal-800 font-bold border-teal-300/80 shadow-2xs dark:bg-teal-950/50 dark:text-teal-200 dark:border-teal-500/40",
+    activeIconBg: "bg-teal-600 text-white shadow-xs dark:bg-teal-500",
+  },
+  ai: {
+    headerText: "text-fuchsia-600 dark:text-fuchsia-400",
+    headerDot: "bg-fuchsia-500",
+    iconBg: "bg-fuchsia-500/15 text-fuchsia-600 dark:bg-fuchsia-500/25 dark:text-fuchsia-400",
+    hoverBg: "hover:bg-fuchsia-50/80 dark:hover:bg-fuchsia-950/40",
+    hoverText: "hover:text-fuchsia-700 dark:hover:text-fuchsia-300",
+    activeBg: "is-active bg-fuchsia-50/90 text-fuchsia-800 font-bold border-fuchsia-300/80 shadow-2xs dark:bg-fuchsia-950/50 dark:text-fuchsia-200 dark:border-fuchsia-500/40",
+    activeIconBg: "bg-fuchsia-600 text-white shadow-xs dark:bg-fuchsia-500",
+  },
+  admin: {
+    headerText: "text-rose-600 dark:text-rose-400",
+    headerDot: "bg-rose-500",
+    iconBg: "bg-rose-500/15 text-rose-600 dark:bg-rose-500/25 dark:text-rose-400",
+    hoverBg: "hover:bg-rose-50/80 dark:hover:bg-rose-950/40",
+    hoverText: "hover:text-rose-700 dark:hover:text-rose-300",
+    activeBg: "is-active bg-rose-50/90 text-rose-800 font-bold border-rose-300/80 shadow-2xs dark:bg-rose-950/50 dark:text-rose-200 dark:border-rose-500/40",
+    activeIconBg: "bg-rose-600 text-white shadow-xs dark:bg-rose-500",
+  },
+};
+
 const ICONS: Record<string, string> = {
   dashboard: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z",
   pos: "M6 6h15l-1.5 8h-13L4 3H2M9 20a1 1 0 1 0 0 .01M20 20a1 1 0 1 0 0 .01",
@@ -309,15 +412,15 @@ export default function Sidebar({
         />
       )}
 
-      {/* LEFT SIDEBAR (LIGHT & DARK THEMED) */}
+      {/* LEFT SIDEBAR (LIGHT & DARK THEMED WITH RICH AMBIENT GRADIENTS) */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex flex-col transition-all duration-300 border-r border-slate-200 bg-white text-slate-700 shadow-md dark:border-slate-800 dark:bg-[#0f172a] dark:text-slate-300 dark:shadow-xl ${
+        className={`fixed inset-y-0 left-0 z-50 flex flex-col transition-all duration-300 border-r border-slate-200/90 bg-gradient-to-b from-white via-slate-50/90 to-indigo-50/20 text-slate-800 shadow-md dark:border-slate-800 dark:bg-gradient-to-b dark:from-[#0b101d] dark:via-[#0f172a] dark:to-[#080d19] dark:text-slate-200 dark:shadow-2xl ${
           collapsed ? "w-[72px]" : "w-60 xl:w-64"
         } ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
       >
         {/* BRAND HEADER */}
         {collapsed ? (
-          <div className="flex h-16 shrink-0 items-center justify-center border-b border-slate-200 dark:border-slate-800 px-2 py-2">
+          <div className="flex h-16 shrink-0 items-center justify-center border-b border-slate-200/80 dark:border-slate-800 px-2 py-2">
             <button
               type="button"
               onClick={onToggle}
@@ -331,9 +434,9 @@ export default function Sidebar({
             </button>
           </div>
         ) : (
-          <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200 dark:border-slate-800 px-4">
+          <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200/80 dark:border-slate-800 px-4">
             <Link href="/dashboard" className="flex items-center gap-3 overflow-hidden min-w-0">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md shadow-blue-500/20">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25">
                 {logoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={logoUrl} alt="Logo" className="h-5 w-5 object-contain" />
@@ -350,7 +453,7 @@ export default function Sidebar({
                     {shopName || "CafeERP"}
                   </span>
                 </div>
-                <span className="block truncate text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                <span className="block truncate text-[10px] font-semibold text-indigo-600 dark:text-indigo-400">
                   Retail • Services • Finance
                 </span>
               </div>
@@ -388,40 +491,50 @@ export default function Sidebar({
         {/* NAVIGATION ITEMS */}
         <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3.5 custom-scrollbar">
           
-          {/* DOMAIN 1: TOP DASHBOARD ITEM */}
+          {/* DOMAIN 1: TOP DASHBOARD ITEM (ENLARGED & VIBRANT WITH ANIMATED ICON) */}
           <div>
             <Link
               href="/dashboard"
               onClick={onMobileClose}
               title={collapsed ? "Dashboard" : undefined}
-              className={`flex items-center gap-3 rounded-xl px-3 py-2 text-xs font-semibold transition ${
+              className={`group flex items-center justify-between rounded-xl px-3 py-2 text-sm font-bold transition-all ${
                 isDashboardActive
-                  ? "is-active bg-indigo-50/90 text-indigo-700 font-bold border border-indigo-200/80 shadow-2xs dark:bg-indigo-950/40 dark:text-indigo-200 dark:border-indigo-500/30"
-                  : "text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/80 dark:hover:text-white"
+                  ? "is-active bg-gradient-to-r from-indigo-500/15 via-blue-500/10 to-transparent text-indigo-700 dark:text-indigo-300 border border-indigo-300/80 dark:border-indigo-500/40 shadow-xs"
+                  : "text-slate-700 hover:bg-indigo-50/70 hover:text-indigo-700 dark:text-slate-200 dark:hover:bg-indigo-950/40 dark:hover:text-indigo-300"
               }`}
             >
-              <span className={`flex h-5 w-5 shrink-0 items-center justify-center ${isDashboardActive ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400"}`}>
-                <Icon d={ICONS.dashboard} className="h-4 w-4" />
-              </span>
-              {!collapsed && <span>Dashboard</span>}
+              <div className="flex items-center gap-3 min-w-0">
+                <span
+                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-transform duration-300 group-hover:scale-115 group-hover:rotate-6 ${
+                    isDashboardActive
+                      ? "bg-indigo-600 text-white shadow-xs dark:bg-indigo-500"
+                      : "bg-indigo-500/15 text-indigo-600 dark:bg-indigo-500/25 dark:text-indigo-400"
+                  }`}
+                >
+                  <Icon d={ICONS.dashboard} className="h-4 w-4" />
+                </span>
+                {!collapsed && <span>Dashboard</span>}
+              </div>
+              {!collapsed && isDashboardActive && (
+                <span className="h-2 w-2 rounded-full bg-indigo-500 animate-ping" />
+              )}
             </Link>
           </div>
 
-          {/* DOMAINS 2 TO 10: COLLAPSIBLE ACCORDION GROUPS */}
+          {/* DOMAINS 2 TO 10: COLLAPSIBLE ACCORDION GROUPS WITH BESPOKE DOMAIN COLOURS & ANIMATED ICONS */}
           {sections.map((section) => {
             const isExpanded = expandedSections[section.id] ?? false;
+            const theme = DOMAIN_THEMES[section.id] || DOMAIN_THEMES.dashboard;
             return (
               <div key={section.id} className="space-y-1">
                 {!collapsed ? (
                   <button
                     type="button"
                     onClick={() => toggleSection(section.id)}
-                    className="flex w-full items-center justify-between px-2 pt-2 pb-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition"
+                    className={`flex w-full items-center justify-between px-2 pt-2 pb-1 text-[11px] font-black uppercase tracking-wider ${theme.headerText} hover:opacity-85 transition`}
                   >
                     <div className="flex items-center gap-2">
-                      <span className="text-slate-400 dark:text-slate-500">
-                        <Icon d={ICONS[section.icon] || ICONS.dashboard} className="h-3.5 w-3.5" />
-                      </span>
+                      <span className={`h-1.5 w-1.5 rounded-full ${theme.headerDot}`} />
                       <span>{section.title}</span>
                     </div>
                     <span
@@ -447,14 +560,30 @@ export default function Sidebar({
                           href={item.href}
                           onClick={onMobileClose}
                           title={collapsed ? item.label : undefined}
-                          className={`flex items-center justify-between rounded-lg px-3 py-1.5 text-xs transition ${
+                          className={`group flex items-center justify-between rounded-lg px-2.5 py-1.5 text-[13px] transition-all ${
                             isActive
-                              ? "is-active bg-indigo-50/90 text-indigo-700 font-bold border border-indigo-200/80 shadow-2xs dark:bg-indigo-950/40 dark:text-indigo-200 dark:border-indigo-500/30"
-                              : "text-slate-700 font-medium hover:bg-slate-100/80 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/70 dark:hover:text-white"
-                          } ${item.isSubItem && !collapsed ? "pl-6" : ""}`}
+                              ? `is-active font-bold border ${theme.activeBg}`
+                              : `text-slate-700 font-semibold dark:text-slate-200 ${theme.hoverBg} ${theme.hoverText}`
+                          } ${item.isSubItem && !collapsed ? "pl-5" : ""}`}
                         >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <span className={`flex h-4 w-4 shrink-0 items-center justify-center ${isActive ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400 group-hover:text-slate-700 dark:group-hover:text-white"}`}>
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span
+                              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-all duration-300 ${
+                                isActive
+                                  ? theme.activeIconBg
+                                  : `${theme.iconBg} group-hover:scale-125 ${
+                                      item.icon === "settings"
+                                        ? "group-hover:rotate-90"
+                                        : item.icon === "dmt"
+                                        ? "group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                                        : item.icon === "billPayment" || item.icon === "recharge"
+                                        ? "group-hover:rotate-12"
+                                        : item.icon === "pos" || item.icon === "purchases"
+                                        ? "group-hover:-rotate-6"
+                                        : "group-hover:rotate-6"
+                                    }`
+                              }`}
+                            >
                               {item.isSubItem ? (
                                 <span className="text-[10px] text-slate-400 dark:text-slate-500">└</span>
                               ) : (
@@ -481,13 +610,13 @@ export default function Sidebar({
             );
           })}
 
-          {/* DOMAIN 11: SETTINGS COMMAND TRIGGER CARD */}
+          {/* DOMAIN 11: SETTINGS COMMAND TRIGGER CARD (WITH ROTATING ANIMATED GEAR) */}
           <div className="pt-2">
             <Link
               href="/settings"
               onClick={onMobileClose}
               title={collapsed ? "Settings & System Control Center" : undefined}
-              className={`flex w-full items-center justify-between rounded-xl border border-indigo-200 bg-indigo-50/70 px-3 py-2 text-xs font-bold text-indigo-700 transition hover:bg-indigo-100 hover:border-indigo-300 dark:border-indigo-500/30 dark:bg-indigo-950/20 dark:text-indigo-300 dark:hover:bg-indigo-950/40 dark:hover:border-indigo-500/50 ${
+              className={`group flex w-full items-center justify-between rounded-xl border border-indigo-200 bg-gradient-to-r from-indigo-50/90 to-blue-50/80 px-3 py-2 text-xs font-bold text-indigo-700 transition hover:bg-indigo-100 hover:border-indigo-300 dark:border-indigo-500/30 dark:bg-gradient-to-r dark:from-indigo-950/40 dark:to-blue-950/30 dark:text-indigo-300 dark:hover:border-indigo-500/50 ${
                 pathname === "/settings"
                   ? "is-active bg-indigo-100 text-indigo-800 border-indigo-300 dark:bg-indigo-900/40 dark:text-white"
                   : ""
@@ -496,8 +625,8 @@ export default function Sidebar({
               }`}
             >
               <div className="flex items-center gap-2.5">
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center text-indigo-600 dark:text-indigo-400">
-                  <Icon d={ICONS.settings} className="h-4 w-4" />
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-xs group-hover:rotate-90 transition-transform duration-500">
+                  <Icon d={ICONS.settings} className="h-3.5 w-3.5" />
                 </span>
                 {!collapsed && <span>Settings Command</span>}
               </div>
