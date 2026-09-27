@@ -570,7 +570,45 @@ input:focus,select:focus,textarea:focus {
     padding-top: 0 !important;
     padding-right: 0 !important;
     padding-bottom: 0 !important;
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    max-height: 100dvh !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
   }
+}
+
+.erp-workspace.is-pos {
+  padding-top: 0 !important;
+  padding-right: 0 !important;
+  padding-bottom: 0 !important;
+  height: 100dvh !important;
+  min-height: 100dvh !important;
+  max-height: 100dvh !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.erp-workspace.is-pos > .erp-page-content {
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  height: calc(100dvh - 4rem) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+}
+
+.erp-workspace.is-pos > .erp-page-content > main {
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  width: 100% !important;
 }
 
 .erp-desktop-header {

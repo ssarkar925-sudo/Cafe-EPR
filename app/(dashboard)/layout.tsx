@@ -55,7 +55,7 @@ export default async function DashboardLayout({
         avatarUrl={profile?.avatar_url || null}
         userId={user.id}
       >
-        <main className="min-w-0">{children}</main>
+        <main className="flex-1 flex flex-col min-h-0 min-w-0 w-full h-full">{children}</main>
       </DashboardShell>
       <RechargeCommissionManager />
     </>
