@@ -153,7 +153,6 @@ export default function Sidebar({
         title: "Fintech & Banking Services",
         icon: "aeps",
         items: [
-          { label: "Services Hub", href: "/business", icon: "billPayment" },
           { label: "AEPS Aadhaar ATM", href: "/business/aeps", icon: "aeps", badge: { text: "Live", tone: "emerald" } },
           { label: "DMT Remittance", href: "/business/dmt", icon: "dmt" },
           { label: "UPI Collections", href: "/business/upi", icon: "upi" },
@@ -166,13 +165,12 @@ export default function Sidebar({
         icon: "billPayment",
         items: [
           {
-            label: "BBPS & Utility Bills",
+            label: "Services Hub",
             /* label: "Bill Payment" */
             href: "/business/bill-payment",
             icon: "billPayment",
+            badge: { text: "BBPS", tone: "indigo" },
           },
-          { label: "Mobile & DTH Recharge", href: "/business/bill-payment?tab=recharge", icon: "recharge", isSubItem: true },
-          { label: "Google Play Cards", href: "/business/bill-payment/google-play", icon: "googlePlay", isSubItem: true },
         ],
       },
       // DOMAIN 5: FINANCE & DOUBLE-ENTRY ACCOUNTING
