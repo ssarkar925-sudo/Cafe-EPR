@@ -2607,6 +2607,9 @@ export default function AepsWorkspace({
                   <button type="button" onClick={verifyAllPortalsLive} disabled={isVerifyingPortal || initialPortals.length === 0} className="rounded-xl border border-blue-200 bg-white px-3.5 py-2 text-xs font-bold text-blue-800 hover:bg-blue-50 disabled:opacity-50">
                     Verify All
                   </button>
+                  <button type="button" onClick={() => detectedTransactions[0] && reviewDetectedTransaction(detectedTransactions[0])} disabled={detectedTransactions.length === 0} className="rounded-xl border border-blue-200 bg-white px-3.5 py-2 text-xs font-black text-blue-700 hover:bg-blue-50 disabled:opacity-50">
+                    Review Detected{detectedTransactions.length > 0 ? ` (${detectedTransactions.length})` : ""}
+                  </button>
                   <button type="button" onClick={() => { setSelectedWatcherPortalId(portalId); setActiveTab("watcher"); }} className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">
                     Open Watcher
                   </button>
