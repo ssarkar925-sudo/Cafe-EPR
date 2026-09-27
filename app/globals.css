@@ -1023,3 +1023,146 @@ html.dark[data-design-style="premium-hybrid"] {
   --m-accent-strong: #c4b5fd;
 }
 
+
+
+/* CafeERP Phase 2 — unified operational module chrome */
+.erp-phase2-page {
+  --phase2-radius: 20px;
+  width: 100%;
+  max-width: 1500px;
+  margin-inline: auto;
+  padding: 18px 20px 48px;
+}
+.erp-phase2-page .erp-phase2-header {
+  border-radius: var(--phase2-radius) !important;
+  border: 1px solid var(--line) !important;
+  background: var(--surface) !important;
+  box-shadow: var(--shadow) !important;
+}
+.erp-phase2-page .erp-phase2-header h1 {
+  color: var(--ink) !important;
+  font-weight: 900;
+  letter-spacing: -.025em;
+}
+.erp-phase2-page .erp-phase2-header p {
+  color: var(--muted);
+}
+.erp-phase2-page .erp-phase2-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.erp-phase2-page .erp-phase2-kpis > * {
+  min-width: 0;
+  border-radius: 18px !important;
+  box-shadow: var(--shadow) !important;
+  border-color: var(--line) !important;
+}
+.erp-phase2-page .erp-phase2-data-card {
+  overflow: hidden;
+  border-radius: var(--phase2-radius) !important;
+  border: 1px solid var(--line) !important;
+  background: var(--surface) !important;
+  box-shadow: var(--shadow) !important;
+}
+.erp-phase2-page .erp-phase2-data-card > .overflow-x-auto,
+.erp-phase2-page .erp-phase2-data-card > .catalog-table-wrap {
+  scrollbar-width: thin;
+}
+.erp-phase2-page .erp-phase2-data-card table {
+  font-variant-numeric: tabular-nums;
+}
+.erp-phase2-page .erp-phase2-data-card thead tr {
+  background: var(--surface-soft) !important;
+}
+.erp-phase2-page .erp-phase2-toolbar {
+  border-radius: 16px !important;
+  border-color: var(--line) !important;
+  background: color-mix(in srgb, var(--surface) 94%, transparent) !important;
+}
+.erp-phase2-page .erp-phase2-section-title {
+  color: var(--ink);
+  font-weight: 900;
+  letter-spacing: -.01em;
+}
+.erp-phase2-page .erp-phase2-action {
+  min-height: 36px;
+  border-radius: 11px !important;
+  white-space: nowrap;
+}
+.erp-phase2-page .erp-phase2-action:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+.erp-phase2-page .erp-phase2-card-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.erp-phase2-page .erp-phase2-card-grid > * {
+  min-width: 0;
+}
+@media (max-width: 1100px) {
+  .erp-phase2-page .erp-phase2-kpis,
+  .erp-phase2-page .erp-phase2-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 767px) {
+  .erp-phase2-page {
+    max-width: none;
+    padding: 10px 12px 36px;
+  }
+  .erp-phase2-page .erp-phase2-header {
+    padding: 13px !important;
+    border-radius: 16px !important;
+  }
+  .erp-phase2-page .erp-phase2-header h1 {
+    font-size: 1.2rem !important;
+    line-height: 1.25;
+  }
+  .erp-phase2-page .erp-phase2-header p {
+    font-size: 10px !important;
+    line-height: 1.55;
+  }
+  .erp-phase2-page .erp-phase2-header > div,
+  .erp-phase2-page .erp-phase2-header .flex {
+    min-width: 0;
+  }
+  .erp-phase2-page .erp-phase2-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .erp-phase2-page .erp-phase2-kpis > * {
+    padding: 10px !important;
+    border-radius: 15px !important;
+  }
+  .erp-phase2-page .erp-phase2-kpis > * [class*="text-2xl"],
+  .erp-phase2-page .erp-phase2-kpis > * [class*="text-3xl"] {
+    font-size: 1.05rem !important;
+  }
+  .erp-phase2-page .erp-phase2-data-card {
+    border-radius: 16px !important;
+  }
+  .erp-phase2-page .erp-phase2-data-card .overflow-x-auto {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .erp-phase2-page .erp-phase2-data-card table {
+    min-width: 760px;
+  }
+  .erp-phase2-page .erp-phase2-toolbar {
+    border-radius: 14px !important;
+    padding: 10px !important;
+  }
+  .erp-phase2-page .erp-phase2-action {
+    min-height: 34px;
+  }
+  .erp-phase2-page .erp-phase2-card-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .erp-phase2-page .erp-phase2-section-title {
+    font-size: .72rem;
+  }
+}
