@@ -4,54 +4,78 @@ import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import SettingsModal, { CATEGORIES, CardItem } from "@/components/settings/settings-modal";
+import { useTheme, ACCENT_PALETTES } from "@/components/theme-provider";
 
-const THEME_CLASSES: Record<string, { bg: string; text: string; border: string; hover: string }> = {
+const THEME_CLASSES: Record<string, { bg: string; text: string; border: string; hover: string; laser: string; glow: string; iconBg: string }> = {
   "theme-blue": {
-    bg: "bg-blue-50/80 dark:bg-blue-950/40",
+    bg: "bg-blue-50/90 dark:bg-blue-950/50",
     text: "text-blue-700 dark:text-blue-300",
     border: "border-blue-200/90 dark:border-blue-900/60",
-    hover: "hover:border-blue-400 hover:shadow-blue-500/10",
+    hover: "hover:border-blue-400 hover:shadow-blue-500/15",
+    laser: "from-blue-500 via-indigo-400 to-cyan-400",
+    glow: "hover:shadow-blue-500/15",
+    iconBg: "bg-gradient-to-tr from-blue-500 to-indigo-600 text-white",
   },
   "theme-emerald": {
-    bg: "bg-emerald-50/80 dark:bg-emerald-950/40",
+    bg: "bg-emerald-50/90 dark:bg-emerald-950/50",
     text: "text-emerald-700 dark:text-emerald-300",
     border: "border-emerald-200/90 dark:border-emerald-900/60",
-    hover: "hover:border-emerald-400 hover:shadow-emerald-500/10",
+    hover: "hover:border-emerald-400 hover:shadow-emerald-500/15",
+    laser: "from-emerald-500 via-teal-400 to-cyan-400",
+    glow: "hover:shadow-emerald-500/15",
+    iconBg: "bg-gradient-to-tr from-emerald-500 to-teal-600 text-white",
   },
   "theme-purple": {
-    bg: "bg-purple-50/80 dark:bg-purple-950/40",
+    bg: "bg-purple-50/90 dark:bg-purple-950/50",
     text: "text-purple-700 dark:text-purple-300",
     border: "border-purple-200/90 dark:border-purple-900/60",
-    hover: "hover:border-purple-400 hover:shadow-purple-500/10",
+    hover: "hover:border-purple-400 hover:shadow-purple-500/15",
+    laser: "from-violet-500 via-purple-400 to-indigo-400",
+    glow: "hover:shadow-purple-500/15",
+    iconBg: "bg-gradient-to-tr from-violet-600 to-purple-600 text-white",
   },
   "theme-amber": {
-    bg: "bg-amber-50/80 dark:bg-amber-950/40",
+    bg: "bg-amber-50/90 dark:bg-amber-950/50",
     text: "text-amber-700 dark:text-amber-300",
     border: "border-amber-200/90 dark:border-amber-900/60",
-    hover: "hover:border-amber-400 hover:shadow-amber-500/10",
+    hover: "hover:border-amber-400 hover:shadow-amber-500/15",
+    laser: "from-amber-500 via-orange-400 to-rose-400",
+    glow: "hover:shadow-amber-500/15",
+    iconBg: "bg-gradient-to-tr from-amber-500 to-orange-600 text-white",
   },
   "theme-indigo": {
-    bg: "bg-indigo-50/80 dark:bg-indigo-950/40",
+    bg: "bg-indigo-50/90 dark:bg-indigo-950/50",
     text: "text-indigo-700 dark:text-indigo-300",
     border: "border-indigo-200/90 dark:border-indigo-900/60",
-    hover: "hover:border-indigo-400 hover:shadow-indigo-500/10",
+    hover: "hover:border-indigo-400 hover:shadow-indigo-500/15",
+    laser: "from-indigo-500 via-purple-400 to-blue-400",
+    glow: "hover:shadow-indigo-500/15",
+    iconBg: "bg-gradient-to-tr from-indigo-500 to-blue-600 text-white",
   },
   "theme-rose": {
-    bg: "bg-rose-50/80 dark:bg-rose-950/40",
+    bg: "bg-rose-50/90 dark:bg-rose-950/50",
     text: "text-rose-700 dark:text-rose-300",
     border: "border-rose-200/90 dark:border-rose-900/60",
-    hover: "hover:border-rose-400 hover:shadow-rose-500/10",
+    hover: "hover:border-rose-400 hover:shadow-rose-500/15",
+    laser: "from-rose-500 via-pink-400 to-amber-400",
+    glow: "hover:shadow-rose-500/15",
+    iconBg: "bg-gradient-to-tr from-rose-500 to-pink-600 text-white",
   },
   "theme-cyan": {
-    bg: "bg-cyan-50/80 dark:bg-cyan-950/40",
+    bg: "bg-cyan-50/90 dark:bg-cyan-950/50",
     text: "text-cyan-700 dark:text-cyan-300",
     border: "border-cyan-200/90 dark:border-cyan-900/60",
-    hover: "hover:border-cyan-400 hover:shadow-cyan-500/10",
+    hover: "hover:border-cyan-400 hover:shadow-cyan-500/15",
+    laser: "from-cyan-500 via-teal-400 to-blue-400",
+    glow: "hover:shadow-cyan-500/15",
+    iconBg: "bg-gradient-to-tr from-cyan-500 to-teal-600 text-white",
   },
 };
 
 export default function SettingsHubClient() {
   const searchParams = useSearchParams();
+  const { resolvedDisplayMode, accent, density, gradientPreset, gradientEnabled } = useTheme();
+  const activeAccentObj = ACCENT_PALETTES.find((p) => p.key === accent) || ACCENT_PALETTES[2];
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedCardId, setSelectedCardId] = useState<string | undefined>(undefined);
@@ -226,23 +250,52 @@ export default function SettingsHubClient() {
               <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {category.cards.map((card) => {
                   const themeStyle = THEME_CLASSES[card.theme] || THEME_CLASSES["theme-indigo"];
+                  const isAppearance = card.id === "appearance";
+
                   return (
                     <div
                       key={card.id}
                       onClick={() => handleCardClick(card, category.id)}
-                      className={`group relative flex cursor-pointer flex-col justify-between rounded-2xl border ${themeStyle.border} bg-white p-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${themeStyle.hover} dark:bg-slate-900`}
+                      className={`settings-hub-card group relative flex cursor-pointer flex-col justify-between overflow-hidden rounded-2xl border ${themeStyle.border} bg-white p-5 shadow-xs transition-all duration-200 hover:shadow-md ${themeStyle.hover} dark:bg-slate-900`}
                     >
+                      {/* Top Laser Accent Streak */}
+                      <div className={`card-laser-top bg-gradient-to-r ${themeStyle.laser}`} />
+
                       <div>
                         {/* Top Icon & Badge */}
                         <div className="flex items-start justify-between gap-2">
-                          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${themeStyle.bg} text-xl shadow-2xs group-hover:scale-105 transition-transform`}>
-                            {card.icon}
-                          </div>
-                          {card.badge && (
+                          {isAppearance ? (
+                            /* 3D Glowing Animated Icon Badge for Theme & Display */
+                            <div className="settings-hub-icon-badge h-11 w-11 shrink-0 bg-gradient-to-tr from-violet-600 via-indigo-600 to-cyan-500 text-white shadow-md shadow-violet-500/25">
+                              <svg className="w-6 h-6 animate-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M7 21a4 4 0 01-4-4 4 4 0 014-4c.7 0 1.37.18 1.95.49a5.98 5.98 0 018.1-8.1A6 6 0 1119 16c0 .41-.04.82-.12 1.22A4 4 0 0115 21H7z" />
+                                <circle cx="12" cy="7" r="1.5" fill="#f59e0b" />
+                                <circle cx="8" cy="11" r="1.5" fill="#06b6d4" />
+                                <circle cx="15" cy="12" r="1.5" fill="#ec4899" />
+                              </svg>
+                            </div>
+                          ) : (
+                            <div className={`settings-hub-icon-badge h-11 w-11 shrink-0 border border-slate-200/60 dark:border-white/10 ${themeStyle.bg} text-xl shadow-2xs`}>
+                              <span>{card.icon}</span>
+                            </div>
+                          )}
+
+                          {/* Dynamic or static badge */}
+                          {isAppearance ? (
+                            <div className="flex flex-col items-end gap-1">
+                              <span className="flex items-center gap-1.5 rounded-full border border-violet-300/80 bg-violet-100/90 dark:border-violet-700/60 dark:bg-violet-950/80 px-2 py-0.5 text-[9px] font-black uppercase text-violet-800 dark:text-violet-300 shadow-2xs">
+                                <span className="h-1.5 w-1.5 rounded-full bg-violet-500 animate-ping" />
+                                <span>{resolvedDisplayMode}</span>
+                              </span>
+                              <span className="text-[8px] font-extrabold uppercase tracking-wider text-slate-400">
+                                {density}
+                              </span>
+                            </div>
+                          ) : card.badge ? (
                             <span className={`rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${themeStyle.border} ${themeStyle.bg} ${themeStyle.text}`}>
                               {card.badge}
                             </span>
-                          )}
+                          ) : null}
                         </div>
 
                         {/* Title & Desc */}
@@ -254,6 +307,19 @@ export default function SettingsHubClient() {
                             {card.desc}
                           </p>
                         </div>
+
+                        {/* Live active preset chip for Theme card */}
+                        {isAppearance && (
+                          <div className="mt-3 flex items-center justify-between rounded-xl bg-slate-50/90 p-2 border border-slate-100 dark:bg-slate-950/60 dark:border-slate-800/80">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="h-2.5 w-2.5 shrink-0 rounded-full ring-2 ring-violet-500/30" style={{ backgroundColor: activeAccentObj.colorHex }} />
+                              <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 truncate capitalize">{activeAccentObj.label}</span>
+                            </div>
+                            <span className="shrink-0 text-[9px] font-extrabold text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/40 px-1.5 py-0.5 rounded border border-cyan-200/60 dark:border-cyan-800/50">
+                              {gradientEnabled ? gradientPreset : "Standard"}
+                            </span>
+                          </div>
+                        )}
                       </div>
 
                       {/* Bottom Action Footer */}

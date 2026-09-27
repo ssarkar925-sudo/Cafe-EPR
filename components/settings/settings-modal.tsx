@@ -379,6 +379,7 @@ export const CATEGORIES: CategoryGroup[] = [
         desc: "System, Dark & Light display modes with UI density and gradient presets.",
         icon: "🎨",
         theme: "theme-purple",
+        badge: "Personalize",
         panelKey: "appearance",
       },
       {
@@ -654,9 +655,20 @@ export default function SettingsModal({ open, onClose, initialCategory = "busine
         {/* Modal Header */}
         <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-4 py-3 sm:px-6 sm:py-4 shrink-0 dark:border-slate-800 dark:bg-slate-950/60">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 border border-indigo-200/80 text-xl shadow-2xs dark:bg-indigo-950/40 dark:border-indigo-800">
-              <span>{targetCard.icon}</span>
-            </div>
+            {targetCard.id === "appearance" ? (
+              <div className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-tr from-violet-600 via-indigo-600 to-cyan-500 text-white shadow-md shadow-violet-500/25">
+                <svg className="w-5 h-5 sm:w-6 sm:h-6 animate-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M7 21a4 4 0 01-4-4 4 4 0 014-4c.7 0 1.37.18 1.95.49a5.98 5.98 0 018.1-8.1A6 6 0 1119 16c0 .41-.04.82-.12 1.22A4 4 0 0115 21H7z" />
+                  <circle cx="12" cy="7" r="1.5" fill="#f59e0b" />
+                  <circle cx="8" cy="11" r="1.5" fill="#06b6d4" />
+                  <circle cx="15" cy="12" r="1.5" fill="#ec4899" />
+                </svg>
+              </div>
+            ) : (
+              <div className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 border border-indigo-200/80 text-xl shadow-2xs dark:bg-indigo-950/40 dark:border-indigo-800">
+                <span>{targetCard.icon}</span>
+              </div>
+            )}
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h2 className="text-sm sm:text-base font-bold tracking-tight text-slate-900 dark:text-white truncate">

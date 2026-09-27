@@ -399,7 +399,7 @@ input:focus,select:focus,textarea:focus {
   border-spacing: 0;
 }
 .erp-table th {
-  padding: .75rem 1rem;
+  padding: var(--erp-cell-th-py, .75rem) var(--erp-cell-px, 1rem);
   background: var(--surface-soft);
   color: var(--ink-secondary);
   border-bottom: 1px solid var(--line);
@@ -409,11 +409,11 @@ input:focus,select:focus,textarea:focus {
   letter-spacing: .06em;
 }
 .erp-table td {
-  padding: .85rem 1rem;
+  padding: var(--erp-cell-py, .85rem) var(--erp-cell-px, 1rem);
   color: var(--ink);
   border-bottom: 1px solid var(--line);
   vertical-align: middle;
-  transition: background .15s ease;
+  transition: background .15s ease, padding .15s ease;
 }
 .erp-table tr:hover td {
   background: color-mix(in srgb, var(--accent-color) 6%, transparent);
@@ -430,7 +430,7 @@ input:focus,select:focus,textarea:focus {
   align-items: center;
   justify-content: center;
   gap: .5rem;
-  padding: .55rem 1.15rem;
+  padding: var(--erp-btn-py, .55rem) var(--erp-btn-px, 1.15rem);
   border-radius: 12px;
   font-size: .8125rem;
   font-weight: 800;
@@ -438,7 +438,7 @@ input:focus,select:focus,textarea:focus {
   cursor: pointer;
   white-space: nowrap;
   user-select: none;
-  transition: transform .15s cubic-bezier(0.16, 1, 0.3, 1), background .15s ease, border-color .15s ease, box-shadow .15s ease, filter .15s ease;
+  transition: transform .15s cubic-bezier(0.16, 1, 0.3, 1), background .15s ease, border-color .15s ease, box-shadow .15s ease, filter .15s ease, padding .15s ease;
 }
 .erp-btn:active { transform: scale(.96); }
 .erp-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-color) 28%, transparent); }
@@ -576,5 +576,122 @@ input:focus,select:focus,textarea:focus {
 .erp-page-content {
   position: relative;
   min-width: 0;
+}
+
+/* --------------------------------------------------------------------------
+   UI Density System (Comfortable vs Compact)
+   Instant application across all tables, forms, buttons, and card surfaces
+   -------------------------------------------------------------------------- */
+:root {
+  --erp-cell-py: 0.85rem;
+  --erp-cell-th-py: 0.75rem;
+  --erp-cell-px: 1rem;
+  --erp-btn-py: 0.55rem;
+  --erp-btn-px: 1.15rem;
+  --erp-card-pad: 1.25rem;
+}
+
+html.density-compact,
+:root[data-density="compact"] {
+  --erp-cell-py: 0.45rem;
+  --erp-cell-th-py: 0.45rem;
+  --erp-cell-px: 0.75rem;
+  --erp-btn-py: 0.35rem;
+  --erp-btn-px: 0.85rem;
+  --erp-card-pad: 0.85rem;
+}
+
+/* --------------------------------------------------------------------------
+   Typography Scaler (Standard vs Large)
+   -------------------------------------------------------------------------- */
+html.font-scale-large,
+:root[data-font-scale="large"] {
+  font-size: 16.5px;
+}
+
+/* --------------------------------------------------------------------------
+   Atmosphere & Ambient Gradient Engine
+   Low-glare, luminescent radial backdrops rendered when gradient is active
+   -------------------------------------------------------------------------- */
+html[data-gradient-enabled="true"] body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+  opacity: 0.08;
+}
+
+html.dark[data-gradient-enabled="true"] body::before {
+  opacity: 0.16;
+}
+
+html[data-gradient-preset="aurora"] body::before {
+  background: radial-gradient(circle at 15% 15%, #2563eb 0%, transparent 40%),
+              radial-gradient(circle at 85% 20%, #7c3aed 0%, transparent 45%),
+              radial-gradient(circle at 50% 80%, #06b6d4 0%, transparent 40%);
+}
+
+html[data-gradient-preset="ocean-luxe"] body::before {
+  background: radial-gradient(circle at 20% 20%, #1d4ed8 0%, transparent 40%),
+              radial-gradient(circle at 80% 25%, #0d9488 0%, transparent 45%),
+              radial-gradient(circle at 45% 85%, #06b6d4 0%, transparent 40%);
+}
+
+html[data-gradient-preset="royal"] body::before {
+  background: radial-gradient(circle at 15% 20%, #4f46e5 0%, transparent 40%),
+              radial-gradient(circle at 85% 15%, #9333ea 0%, transparent 45%),
+              radial-gradient(circle at 50% 85%, #38bdf8 0%, transparent 40%);
+}
+
+html[data-gradient-preset="sunset-luxe"] body::before {
+  background: radial-gradient(circle at 20% 15%, #d97706 0%, transparent 40%),
+              radial-gradient(circle at 80% 20%, #e11d48 0%, transparent 45%),
+              radial-gradient(circle at 50% 80%, #8b5cf6 0%, transparent 40%);
+}
+
+html[data-gradient-preset="emerald-luxe"] body::before {
+  background: radial-gradient(circle at 20% 15%, #059669 0%, transparent 40%),
+              radial-gradient(circle at 80% 25%, #0d9488 0%, transparent 45%),
+              radial-gradient(circle at 45% 85%, #06b6d4 0%, transparent 40%);
+}
+
+html[data-gradient-preset="cosmic"] body::before {
+  background: radial-gradient(circle at 20% 15%, #6d28d9 0%, transparent 40%),
+              radial-gradient(circle at 85% 25%, #2563eb 0%, transparent 45%),
+              radial-gradient(circle at 50% 80%, #d946ef 0%, transparent 40%);
+}
+
+/* --------------------------------------------------------------------------
+   Settings Hub Premium Colorful Cards & Animated Icons
+   -------------------------------------------------------------------------- */
+.settings-hub-card {
+  position: relative;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+}
+.settings-hub-card:hover {
+  transform: translateY(-2px);
+}
+.settings-hub-card .card-laser-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  opacity: 0.8;
+  border-top-left-radius: inherit;
+  border-top-right-radius: inherit;
+}
+.settings-hub-icon-badge {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 1rem;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.settings-hub-card:hover .settings-hub-icon-badge {
+  transform: scale(1.06);
 }
 
