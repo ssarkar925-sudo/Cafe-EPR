@@ -8,6 +8,7 @@ import GlobalSearch from "./global-search";
 import GlobalQuickAccess from "./global-quick-access";
 import NotificationBell from "./notification-bell";
 import ThemeToggle from "./theme-toggle";
+import AtmosphereQuickControl from "./atmosphere-quick-control";
 import MobileBottomNav from "./mobile-bottom-nav";
 import { DashboardShellProvider } from "./dashboard-shell-context";
 
@@ -152,7 +153,8 @@ export default function DashboardShell({
               </span>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
+              <AtmosphereQuickControl />
               <ThemeToggle />
               <NotificationBell role={role} />
               <Link
@@ -227,6 +229,7 @@ export default function DashboardShell({
                   </svg>
                 </Link>
 
+                <AtmosphereQuickControl />
                 <ThemeToggle />
 
                 <Link

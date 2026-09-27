@@ -6,6 +6,7 @@ import "./receipt-visual-fixes.css";
 import "./quick-access.css";
 import "./modern-ui.css";
 import ThemeProvider from "@/components/theme-provider";
+import AmbientBackdrop from "@/components/ambient-backdrop";
 import { NotificationProvider } from "@/components/ui/notification-provider";
 
 export const viewport: Viewport = {
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
         <ThemeProvider>
+          <AmbientBackdrop />
           <NotificationProvider>
             {children}
           </NotificationProvider>

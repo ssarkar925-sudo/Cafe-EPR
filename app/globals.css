@@ -643,6 +643,23 @@ html.dark.contrast-more {
   background: transparent !important;
 }
 
+html[data-gradient-enabled="true"] .erp-app-shell {
+  background: transparent !important;
+}
+
+html[data-gradient-enabled="true"] .rounded-2xl.border {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+html[data-gradient-enabled="true"].dark .rounded-2xl.border.bg-slate-900,
+html[data-gradient-enabled="true"] .dark .rounded-2xl.border.bg-slate-900 {
+  background-color: rgba(15, 23, 42, 0.82) !important;
+}
+html[data-gradient-enabled="true"]:not(.dark) .rounded-2xl.border.bg-white,
+html[data-gradient-enabled="true"] :not(.dark) .rounded-2xl.border.bg-white {
+  background-color: rgba(255, 255, 255, 0.88) !important;
+}
+
 html[data-gradient-enabled="true"] body,
 html[data-gradient-enabled="true"] .erp-app-shell {
   background-attachment: fixed;

@@ -2,10 +2,26 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useTheme, type DisplayMode, ACCENT_PALETTES } from "./theme-provider";
+import {
+  useTheme,
+  type DisplayMode,
+  type GradientPreset,
+  ACCENT_PALETTES,
+  GRADIENT_PRESETS,
+} from "./theme-provider";
 
 export default function ThemeToggle({ className = "" }: { className?: string }) {
-  const { displayMode, resolvedDisplayMode, setDisplayMode, accent, setAccent } = useTheme();
+  const {
+    displayMode,
+    resolvedDisplayMode,
+    setDisplayMode,
+    accent,
+    setAccent,
+    gradientEnabled,
+    setGradientEnabled,
+    gradientPreset,
+    setGradientPreset,
+  } = useTheme();
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -102,8 +118,47 @@ export default function ThemeToggle({ className = "" }: { className?: string }) 
             </div>
           </div>
 
+          {/* Atmosphere & Ambient Gradients */}
+          <div className="mt-3 border-t border-slate-100 pt-2.5 dark:border-white/5">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-extrabold text-slate-900 dark:text-white">Atmosphere Glow</span>
+              <button
+                type="button"
+                onClick={() => setGradientEnabled(!gradientEnabled)}
+                className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${
+                  gradientEnabled ? "bg-violet-600" : "bg-slate-300 dark:bg-slate-700"
+                }`}
+                title="Toggle ambient gradient"
+              >
+                <span
+                  className={`h-4 w-4 translate-y-0.5 rounded-full bg-white shadow transition-transform ${
+                    gradientEnabled ? "translate-x-4" : "translate-x-0.5"
+                  }`}
+                />
+              </button>
+            </div>
+            {gradientEnabled && (
+              <div className="grid grid-cols-3 gap-1">
+                {GRADIENT_PRESETS.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setGradientPreset(p.id)}
+                    className={`rounded-lg px-1.5 py-1 text-[9px] font-bold truncate transition border ${
+                      gradientPreset === p.id
+                        ? "border-violet-500 bg-violet-50 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300"
+                        : "border-slate-200 text-slate-600 dark:border-white/10 dark:text-slate-400 hover:border-slate-300"
+                    }`}
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <p className="mt-2 text-[10px] leading-relaxed text-slate-400">
-            Instant 1-click theme &amp; accent customization.
+            Instant 1-click theme, accent &amp; atmosphere customization.
           </p>
         </div>
       )}
