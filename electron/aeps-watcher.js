@@ -368,6 +368,15 @@ class AepsWatcher {
             );
           }
 
+          // Ensure cookies created by the manual login are committed before
+          // the next source navigates with the same portal partition.
+          try {
+            await win.webContents.session.cookies.flushStore();
+          } catch {
+            // Some Electron builds do not expose cookie flushing reliably;
+            // the shared session remains valid and navigation can continue.
+          }
+
           this.liveEmit?.({
             type: "source_auth_resolved",
             portalId,
@@ -785,11 +794,23 @@ async function waitForAuthenticationCompletion(win, timeoutMs = 300000) {
         true
       );
 
-      // The login form disappearing is the authoritative signal here. Do not
-      // require a particular dashboard URL because portals commonly redirect
-      // through several paths after authentication.
-      if (state && !state.authRequired) {
-        return true;
+      // Require two consecutive non-authenticated checks. This prevents a
+      // transient redirect/rendering gap from being mistaken for a completed
+      // login before the portal has actually established the session.
+      if (state && !state.authRequired && String(state.text || "").trim().length >= 160) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        if (!win || win.isDestroyed()) return false;
+        try {
+          const confirmed = await win.webContents.executeJavaScript(
+            "(" + extractRenderedPage.toString() + ")(1000)",
+            true
+          );
+          if (confirmed && !confirmed.authRequired && String(confirmed.text || "").trim().length >= 160) {
+            return true;
+          }
+        } catch {
+          // Keep waiting for a stable authenticated page.
+        }
       }
     } catch {
       // Navigation can briefly invalidate the execution context. Keep polling
@@ -837,11 +858,15 @@ async function extractRenderedPage(waitMs = 5000) {
           passwordField &&
           loginControl;
 
-        const likelyLoginPage =
-          loginText &&
-          (passwordField || otpField || credentialField || loginControl);
+        const otpOrCredentialLoginForm =
+          (otpField || credentialField) &&
+          loginControl;
 
-        const authRequired = Boolean(passwordAndLoginForm || likelyLoginPage);
+        // Generic "login" text can appear in authenticated dashboards,
+        // navigation menus, help text, or logout/session controls. Only
+        // require authentication when a visible credential/OTP/password
+        // field is paired with an actual login/authentication control.
+        const authRequired = Boolean(passwordAndLoginForm || otpOrCredentialLoginForm);
         resolve({ text, authRequired, title: document.title || "" });
       } catch {
         resolve({ text: "", authRequired: false, title: document.title || "" });
