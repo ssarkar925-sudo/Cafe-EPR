@@ -180,7 +180,7 @@ export default function SuppliersClient() {
       </div>
 
       {/* Summary KPI Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="erp-phase2-kpis grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="bento-surface relative overflow-hidden rounded-2xl border p-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 card-glow-indigo dark:bg-slate-900">
           <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-500 to-indigo-600" />
           <div className="flex items-center justify-between">
