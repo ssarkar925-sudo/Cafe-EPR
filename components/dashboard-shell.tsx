@@ -8,7 +8,6 @@ import GlobalSearch from "./global-search";
 import GlobalQuickAccess from "./global-quick-access";
 import NotificationBell from "./notification-bell";
 import ThemeToggle from "./theme-toggle";
-import AtmosphereQuickControl from "./atmosphere-quick-control";
 import MobileBottomNav from "./mobile-bottom-nav";
 import { DashboardShellProvider } from "./dashboard-shell-context";
 
@@ -116,7 +115,7 @@ export default function DashboardShell({
   return (
     <DashboardShellProvider value={shellContextValue}>
       <div
-        className="modern-erp erp-app-shell min-h-screen text-slate-900 dark:text-white bg-transparent"
+        className="modern-erp erp-app-shell relative z-[1] min-h-screen text-slate-900 dark:text-white bg-transparent"
         data-module={pathname?.split("/")[1] || "dashboard"}
       >
         <Sidebar
@@ -154,7 +153,6 @@ export default function DashboardShell({
             </div>
 
             <div className="flex items-center gap-1.5">
-              <AtmosphereQuickControl />
               <ThemeToggle />
               <NotificationBell role={role} />
               <Link
@@ -229,7 +227,6 @@ export default function DashboardShell({
                   </svg>
                 </Link>
 
-                <AtmosphereQuickControl />
                 <ThemeToggle />
 
                 <Link
