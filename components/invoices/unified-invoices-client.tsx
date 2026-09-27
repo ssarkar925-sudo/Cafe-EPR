@@ -373,7 +373,7 @@ export default function UnifiedInvoicesClient({ initialInvoices }: Props) {
       </div>
 
       {/* 5 Executive KPI Bento Cards (Default Light Theme) */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="erp-phase2-kpis grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {/* Total Billed */}
         <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-xs transition hover:shadow-md dark:border-white/10 dark:bg-slate-900">
           <div className="flex items-center justify-between">
