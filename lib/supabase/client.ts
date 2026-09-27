@@ -1,7 +1,4 @@
 import { createBrowserClient } from "@supabase/ssr";
-import { Capacitor } from "@capacitor/core";
-import { AepsCollector } from "@/lib/aeps/mobile-collector-client";
-
 
 let browserClient: ReturnType<typeof createBrowserClient> | null = null;
 let rejectionListenerInstalled = false;
@@ -162,12 +159,20 @@ export function clearClientAuthCookies() {
 }
 
 async function syncNativeAepsCollectorSession(session: { access_token?: string } | null) {
-  if (typeof window === "undefined" || !Capacitor.isNativePlatform()) return;
+  if (typeof window === "undefined") return;
   try {
+    // Keep the Android-only Capacitor bridge out of the server/Cloudflare bundle.
+    const [{ Capacitor }, { AepsCollector }] = await Promise.all([
+      import("@capacitor/core"),
+      import("@/lib/aeps/mobile-collector-client"),
+    ]);
+    if (!Capacitor.isNativePlatform()) return;
+
     if (!session?.access_token) {
       await AepsCollector.clearSession();
       return;
     }
+
     await AepsCollector.setApiConfig({
       apiUrl: `${window.location.origin}/api/aeps/mobile-collector`,
       accessToken: session.access_token,
