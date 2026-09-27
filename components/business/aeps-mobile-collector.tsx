@@ -36,7 +36,8 @@ export default function AepsMobileCollector({ initialPortals }: { initialPortals
   const [lastSync, setLastSync] = useState("");
   const [lastError, setLastError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");\n  const [consented, setConsented] = useState(false);
+  const [message, setMessage] = useState("");
+  const [consented, setConsented] = useState(false);
 
   const native = Capacitor.isNativePlatform();
 
