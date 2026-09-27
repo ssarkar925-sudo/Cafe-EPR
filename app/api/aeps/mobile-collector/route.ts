@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import { getUserRole, hasRole } from "@/lib/authz";
 import { parseMobileTransaction, transactionFingerprint, type MobileCollectedTransaction } from "@/lib/aeps/mobile-collector";
 
 export const runtime = "nodejs";
@@ -54,8 +53,8 @@ export async function POST(request: Request) {
     const auth = await getAuthorizedClient(request);
     if ("error" in auth) return NextResponse.json({ success: false, error: auth.error }, { status: 401 });
 
-    const role = await getUserRole();
-    if (!hasRole(role, ["admin", "manager", "staff"])) {
+    const { data: profile } = await auth.supabase.from("profiles").select("role").eq("id", auth.user.id).single();
+    if (!["admin", "manager", "staff"].includes(String(profile?.role || ""))) {
       return NextResponse.json({ success: false, error: "Unauthorized." }, { status: 403 });
     }
 
@@ -183,8 +182,8 @@ export async function GET(request: Request) {
   try {
     const auth = await getAuthorizedClient(request);
     if ("error" in auth) return NextResponse.json({ success: false, error: auth.error }, { status: 401 });
-    const role = await getUserRole();
-    if (!hasRole(role, ["admin", "manager", "staff"])) return NextResponse.json({ success: false, error: "Unauthorized." }, { status: 403 });
+    const { data: profile } = await auth.supabase.from("profiles").select("role").eq("id", auth.user.id).single();
+    if (!["admin", "manager", "staff"].includes(String(profile?.role || ""))) return NextResponse.json({ success: false, error: "Unauthorized." }, { status: 403 });
 
     const { data, error } = await auth.supabase
       .from("ai_transaction_imports")
