@@ -1775,123 +1775,98 @@ export default function PosShell({
             </div>
           </div>
 
-          {/* CUSTOMER PROFILE CARD */}
+          {/* COMPACT CUSTOMER BAR: selected customer is shown once */}
           <div className="shrink-0 border-b border-slate-200/80 bg-white/70 px-3 py-1.5 backdrop-blur-md dark:border-white/10 dark:bg-slate-900/70">
-            <div data-pos-customer-action="reference" className="flex items-center justify-between gap-2 mb-1.5">
-              <div className="flex items-center gap-1.5">
-                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-                  <User className="h-2.5 w-2.5" />
-                </span>
-                <span className="text-[9px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">
-                  Customer
-                </span>
-              </div>
-              <div className="shrink-0">
-                {selectedCustomer ? (
+            <div data-pos-customer-action="reference" className="flex items-center gap-2">
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                <User className="h-3 w-3" />
+              </span>
+              <span className="shrink-0 text-[9px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">Customer</span>
+
+              {selectedCustomer ? (
+                <>
+                  <div className="min-w-0 flex-1 flex items-center gap-1.5 overflow-hidden rounded-lg border border-slate-200 bg-white px-2 py-1 dark:border-slate-800 dark:bg-slate-900">
+                    <span className="min-w-0 truncate text-[10px] font-black text-slate-900 dark:text-white">
+                      {selectedCustomer.name}
+                    </span>
+                    <span className="shrink-0 text-[8px] text-slate-400">•</span>
+                    <span className="min-w-0 truncate font-mono text-[8px] text-slate-500 dark:text-slate-400">
+                      {selectedCustomer.phone || "No phone"}
+                    </span>
+                    <span
+                      className={`ml-auto shrink-0 rounded-md px-1.5 py-0.5 text-[8px] font-black ${
+                        customerBalance > 0
+                          ? "bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300"
+                          : customerBalance < 0
+                          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
+                          : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                      }`}
+                    >
+                      {customerBalance > 0
+                        ? `Due ${money(customerBalance)}`
+                        : customerBalance < 0
+                        ? `Credit ${money(Math.abs(customerBalance))}`
+                        : "Clear"}
+                    </span>
+                  </div>
                   <button
                     type="button"
                     onClick={() => updateCurrentTab({ customerId: "" })}
-                    className={`text-[9px] font-black hover:underline ${posTheme.textAccent}`}
+                    className={`shrink-0 text-[9px] font-black hover:underline ${posTheme.textAccent}`}
                   >
                     Change
                   </button>
-                ) : (
+                </>
+              ) : (
+                <>
+                  <div className="min-w-0 flex-1">
+                    <CustomerSearchSelect
+                      value={currentTab.customerId || null}
+                      selected={null}
+                      onChange={(id, record) => {
+                        void handlePosCustomerChange(id, record);
+                      }}
+                      allowWalkIn
+                      walkInLabel="Walk-in Customer (Guest)"
+                      placeholder="Search Name, Phone, ID..."
+                      inputRef={customerSearchRef}
+                      tone="auto"
+                    />
+                  </div>
                   <button
                     type="button"
                     onClick={() => setNewCustomerOpen(true)}
-                    className={`flex items-center gap-1 text-[9px] font-black hover:underline ${posTheme.textAccent}`}
+                    className={`flex h-7 shrink-0 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 text-[9px] font-black dark:border-slate-800 dark:bg-slate-900 ${posTheme.textAccent}`}
                   >
                     <UserPlus className="h-3 w-3" />
-                    <span>+ New Customer</span>
+                    <span>New</span>
                   </button>
-                )}
-              </div>
+                </>
+              )}
             </div>
 
-            <CustomerSearchSelect
-              value={currentTab.customerId || null}
-              selected={
-                selectedCustomer
-                  ? {
-                      id: selectedCustomer.id,
-                      code: selectedCustomer.code ?? null,
-                      name: selectedCustomer.name,
-                      phone: selectedCustomer.phone ?? null,
-                      is_active: true,
-                    }
-                  : null
-              }
-              onChange={(id, record) => {
-                void handlePosCustomerChange(id, record);
-              }}
-              allowWalkIn
-              walkInLabel="Walk-in Customer (Guest)"
-              placeholder="Walk-in Customer / Search Name, Phone, ID..."
-              inputRef={customerSearchRef}
-              tone="auto"
-            />
+            {selectedCustomer && customerHasDue && (
+              <label className="mt-1 flex items-center gap-1.5 border-t border-slate-200/60 pt-1 text-[8px] font-bold text-amber-800 cursor-pointer dark:border-slate-800 dark:text-amber-300">
+                <input
+                  type="checkbox"
+                  checked={currentTab.collectPreviousDue}
+                  onChange={(e) => updateCurrentTab({ collectPreviousDue: e.target.checked })}
+                  className="h-3 w-3 rounded border-slate-300 bg-white text-primary focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-800"
+                />
+                <span>Collect previous due {money(customerBalance)}</span>
+              </label>
+            )}
 
-            {selectedCustomer && (
-              <div className="mt-1.5 rounded-lg border border-slate-200/80 bg-gradient-to-br from-white to-slate-50/80 p-1.5 text-[9px] shadow-xs dark:border-white/10 dark:from-slate-900 dark:to-slate-950/80">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary font-black text-[11px] ring-1 ring-primary/20">
-                      {selectedCustomer.name?.charAt(0)?.toUpperCase() || "C"}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="font-black text-slate-900 dark:text-white truncate text-xs">
-                        {selectedCustomer.name}
-                      </div>
-                      <div className="text-[10px] text-slate-500 font-mono dark:text-slate-400 truncate">
-                        {selectedCustomer.phone || "No Phone Registered"}
-                      </div>
-                    </div>
-                  </div>
-                  <span
-                    className={`inline-flex items-center rounded-lg px-2 py-0.5 text-[9px] font-black shrink-0 ${
-                      customerBalance > 0
-                        ? "bg-rose-50 border border-rose-200 text-rose-700 dark:bg-rose-950/50 dark:border-rose-800 dark:text-rose-300"
-                        : customerBalance < 0
-                        ? "bg-emerald-50 border border-emerald-200 text-emerald-700 dark:bg-emerald-950/50 dark:border-emerald-800 dark:text-emerald-300"
-                        : "bg-slate-100 border border-slate-200 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300"
-                    }`}
-                  >
-                    {customerBalance > 0
-                      ? `Due: ${money(customerBalance)}`
-                      : customerBalance < 0
-                      ? `Credit: ${money(Math.abs(customerBalance))}`
-                      : "Account Clear"}
-                  </span>
-                </div>
-
-                {customerHasDue && (
-                  <label className="mt-2 flex items-center gap-2 pt-1.5 border-t border-slate-200/60 cursor-pointer text-amber-800 dark:border-slate-800 dark:text-amber-300">
-                    <input
-                      type="checkbox"
-                      checked={currentTab.collectPreviousDue}
-                      onChange={(e) => updateCurrentTab({ collectPreviousDue: e.target.checked })}
-                      className="rounded border-slate-300 bg-white text-primary focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-800"
-                    />
-                    <span className="font-bold text-[9px]">
-                      Collect Previous Due ({money(customerBalance)}) with this bill
-                    </span>
-                  </label>
-                )}
-
-                {customerHasAdvance && (
-                  <label className="mt-2 flex items-center gap-2 pt-1.5 border-t border-slate-200/60 cursor-pointer text-emerald-800 dark:border-slate-800 dark:text-emerald-300">
-                    <input
-                      type="checkbox"
-                      checked={currentTab.useAdvance}
-                      onChange={(e) => updateCurrentTab({ useAdvance: e.target.checked })}
-                      className="rounded border-slate-300 bg-white text-primary focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-800"
-                    />
-                    <span className="font-bold text-[9px]">
-                      Use Advance Credit ({money(Math.min(totals.invoiceTotal, Math.abs(customerBalance)))})
-                    </span>
-                  </label>
-                )}
-              </div>
+            {selectedCustomer && customerHasAdvance && (
+              <label className="mt-1 flex items-center gap-1.5 border-t border-slate-200/60 pt-1 text-[8px] font-bold text-emerald-800 cursor-pointer dark:border-slate-800 dark:text-emerald-300">
+                <input
+                  type="checkbox"
+                  checked={currentTab.useAdvance}
+                  onChange={(e) => updateCurrentTab({ useAdvance: e.target.checked })}
+                  className="h-3 w-3 rounded border-slate-300 bg-white text-primary focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-800"
+                />
+                <span>Use advance {money(Math.min(totals.invoiceTotal, Math.abs(customerBalance)))}</span>
+              </label>
             )}
           </div>
 
