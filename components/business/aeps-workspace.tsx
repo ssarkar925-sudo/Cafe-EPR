@@ -3717,7 +3717,7 @@ export default function AepsWorkspace({
                   <h2 className="text-lg font-black text-slate-950">Multi-Source Portal Watcher</h2>
                   <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[10px] font-black text-emerald-700">
                     Independent Purpose Scraping
-                  </span>
+                  </span>\n                  <Link href="/aeps/mobile-collector" className="rounded-full bg-violet-50 border border-violet-200 px-2.5 py-0.5 text-[10px] font-black text-violet-700 hover:bg-violet-100">Android Mobile Collector</Link>
                 </div>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Monitor independent source URLs under each registered portal for Commission, Fee, Rules, and Downtime updates
