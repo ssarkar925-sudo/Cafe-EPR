@@ -73,7 +73,7 @@ const requiredProviderChecks = [
   { name: "applyTheme applies data-gradient-enabled", pattern: /setAttribute\("data-gradient-enabled",String\(ge\)\)/ },
   { name: "applyTheme applies data-gradient-preset", pattern: /setAttribute\("data-gradient-preset",gp\)/ },
   { name: "applyTheme applies motion-reduce", pattern: /classList\.toggle\("motion-reduce",mo==="off"\)/ },
-  { name: "resetToDefaults resets all options", pattern: /resetToDefaults=.*displayMode:"light",gradientEnabled:false,gradientPreset:"aurora"/ },
+  { name: "resetToDefaults resets all options", pattern: /resetToDefaults=.*displayMode:"light",gradientEnabled:true,gradientPreset:"aurora"/ },
 ];
 
 let providerPassed = 0;

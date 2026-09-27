@@ -115,7 +115,7 @@ export default function DashboardShell({
   return (
     <DashboardShellProvider value={shellContextValue}>
       <div
-        className="modern-erp erp-app-shell min-h-screen bg-[#f8fafc] text-slate-900 dark:bg-slate-950 dark:text-white sm:bg-gradient-to-br sm:from-slate-50 sm:via-[#f8fafc] sm:to-indigo-50/20 dark:sm:bg-gradient-to-br dark:sm:from-[#030712] dark:sm:via-[#090d16] dark:sm:to-[#040711]"
+        className="modern-erp erp-app-shell min-h-screen text-slate-900 dark:text-white bg-transparent"
         data-module={pathname?.split("/")[1] || "dashboard"}
       >
         <Sidebar
@@ -134,7 +134,7 @@ export default function DashboardShell({
 
         {/* MOBILE HEADER (Reference: Left hamburger, CafeERP brand, Red Bell, Avatar) */}
         {!isPos && (
-          <header className="erp-mobile-header sticky top-0 z-30 flex h-14 items-center justify-between border-b border-slate-200/80 bg-white/95 px-4 backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/95 lg:hidden">
+          <header className="erp-mobile-header sticky top-0 z-30 flex h-14 items-center justify-between border-b border-slate-200/80 bg-white/85 px-4 backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/85 lg:hidden">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setMobileOpen(true)}
@@ -175,7 +175,7 @@ export default function DashboardShell({
         >
           {/* DESKTOP HEADER (Reference: Left hamburger, Wide search, Right red bell, help, theme toggle, Saikat Sarkar Owner • Admin) */}
           {!isPos && (
-            <header className="erp-desktop-header sticky top-0 z-30 hidden lg:flex h-16 w-full items-center justify-between border-b border-slate-200/80 bg-white/95 px-6 backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/95 transition-all duration-300">
+            <header className="erp-desktop-header sticky top-0 z-30 hidden lg:flex h-16 w-full items-center justify-between border-b border-slate-200/80 bg-white/80 px-6 backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/80 transition-all duration-300">
               <div className="flex items-center gap-4 flex-1 max-w-2xl min-w-0">
                 <button
                   type="button"
