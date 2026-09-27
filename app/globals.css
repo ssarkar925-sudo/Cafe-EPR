@@ -601,6 +601,13 @@ html.density-compact,
   --erp-card-pad: 0.85rem;
 }
 
+html.density-compact input:not([type="checkbox"]):not([type="radio"]),
+html.density-compact select {
+  padding-top: 0.35rem !important;
+  padding-bottom: 0.35rem !important;
+  min-height: 34px !important;
+}
+
 /* --------------------------------------------------------------------------
    Typography Scaler (Standard vs Large)
    -------------------------------------------------------------------------- */
@@ -613,54 +620,94 @@ html.font-scale-large,
    Atmosphere & Ambient Gradient Engine
    Low-glare, luminescent radial backdrops rendered when gradient is active
    -------------------------------------------------------------------------- */
-html[data-gradient-enabled="true"] body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  transition: opacity 0.4s ease;
-  opacity: 0.08;
+html[data-gradient-enabled="true"][data-gradient-preset="aurora"] body {
+  background-image:
+    radial-gradient(circle at 15% 15%, rgba(37, 99, 235, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 85% 20%, rgba(124, 58, 237, 0.08) 0%, transparent 45%),
+    radial-gradient(circle at 50% 80%, rgba(6, 182, 212, 0.08) 0%, transparent 40%);
+  background-attachment: fixed;
+}
+html.dark[data-gradient-enabled="true"][data-gradient-preset="aurora"] body {
+  background-image:
+    radial-gradient(circle at 15% 15%, rgba(37, 99, 235, 0.16) 0%, transparent 40%),
+    radial-gradient(circle at 85% 20%, rgba(124, 58, 237, 0.16) 0%, transparent 45%),
+    radial-gradient(circle at 50% 80%, rgba(6, 182, 212, 0.16) 0%, transparent 40%);
+  background-attachment: fixed;
 }
 
-html.dark[data-gradient-enabled="true"] body::before {
-  opacity: 0.16;
+html[data-gradient-enabled="true"][data-gradient-preset="ocean-luxe"] body {
+  background-image:
+    radial-gradient(circle at 20% 20%, rgba(29, 78, 216, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 80% 25%, rgba(13, 148, 136, 0.08) 0%, transparent 45%),
+    radial-gradient(circle at 45% 85%, rgba(6, 182, 212, 0.08) 0%, transparent 40%);
+  background-attachment: fixed;
+}
+html.dark[data-gradient-enabled="true"][data-gradient-preset="ocean-luxe"] body {
+  background-image:
+    radial-gradient(circle at 20% 20%, rgba(29, 78, 216, 0.16) 0%, transparent 40%),
+    radial-gradient(circle at 80% 25%, rgba(13, 148, 136, 0.16) 0%, transparent 45%),
+    radial-gradient(circle at 45% 85%, rgba(6, 182, 212, 0.16) 0%, transparent 40%);
+  background-attachment: fixed;
 }
 
-html[data-gradient-preset="aurora"] body::before {
-  background: radial-gradient(circle at 15% 15%, #2563eb 0%, transparent 40%),
-              radial-gradient(circle at 85% 20%, #7c3aed 0%, transparent 45%),
-              radial-gradient(circle at 50% 80%, #06b6d4 0%, transparent 40%);
+html[data-gradient-enabled="true"][data-gradient-preset="royal"] body {
+  background-image:
+    radial-gradient(circle at 15% 20%, rgba(79, 70, 229, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 85% 15%, rgba(147, 51, 234, 0.08) 0%, transparent 45%),
+    radial-gradient(circle at 50% 85%, rgba(56, 189, 248, 0.08) 0%, transparent 40%);
+  background-attachment: fixed;
+}
+html.dark[data-gradient-enabled="true"][data-gradient-preset="royal"] body {
+  background-image:
+    radial-gradient(circle at 15% 20%, rgba(79, 70, 229, 0.16) 0%, transparent 40%),
+    radial-gradient(circle at 85% 15%, rgba(147, 51, 234, 0.16) 0%, transparent 45%),
+    radial-gradient(circle at 50% 85%, rgba(56, 189, 248, 0.16) 0%, transparent 40%);
+  background-attachment: fixed;
 }
 
-html[data-gradient-preset="ocean-luxe"] body::before {
-  background: radial-gradient(circle at 20% 20%, #1d4ed8 0%, transparent 40%),
-              radial-gradient(circle at 80% 25%, #0d9488 0%, transparent 45%),
-              radial-gradient(circle at 45% 85%, #06b6d4 0%, transparent 40%);
+html[data-gradient-enabled="true"][data-gradient-preset="sunset-luxe"] body {
+  background-image:
+    radial-gradient(circle at 20% 15%, rgba(217, 119, 6, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 80% 20%, rgba(225, 29, 72, 0.08) 0%, transparent 45%),
+    radial-gradient(circle at 50% 80%, rgba(139, 92, 246, 0.08) 0%, transparent 40%);
+  background-attachment: fixed;
+}
+html.dark[data-gradient-enabled="true"][data-gradient-preset="sunset-luxe"] body {
+  background-image:
+    radial-gradient(circle at 20% 15%, rgba(217, 119, 6, 0.16) 0%, transparent 40%),
+    radial-gradient(circle at 80% 20%, rgba(225, 29, 72, 0.16) 0%, transparent 45%),
+    radial-gradient(circle at 50% 80%, rgba(139, 92, 246, 0.16) 0%, transparent 40%);
+  background-attachment: fixed;
 }
 
-html[data-gradient-preset="royal"] body::before {
-  background: radial-gradient(circle at 15% 20%, #4f46e5 0%, transparent 40%),
-              radial-gradient(circle at 85% 15%, #9333ea 0%, transparent 45%),
-              radial-gradient(circle at 50% 85%, #38bdf8 0%, transparent 40%);
+html[data-gradient-enabled="true"][data-gradient-preset="emerald-luxe"] body {
+  background-image:
+    radial-gradient(circle at 20% 15%, rgba(5, 150, 105, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 80% 25%, rgba(13, 148, 136, 0.08) 0%, transparent 45%),
+    radial-gradient(circle at 45% 85%, rgba(6, 182, 212, 0.08) 0%, transparent 40%);
+  background-attachment: fixed;
+}
+html.dark[data-gradient-enabled="true"][data-gradient-preset="emerald-luxe"] body {
+  background-image:
+    radial-gradient(circle at 20% 15%, rgba(5, 150, 105, 0.16) 0%, transparent 40%),
+    radial-gradient(circle at 80% 25%, rgba(13, 148, 136, 0.16) 0%, transparent 40%),
+    radial-gradient(circle at 45% 85%, rgba(6, 182, 212, 0.16) 0%, transparent 40%);
+  background-attachment: fixed;
 }
 
-html[data-gradient-preset="sunset-luxe"] body::before {
-  background: radial-gradient(circle at 20% 15%, #d97706 0%, transparent 40%),
-              radial-gradient(circle at 80% 20%, #e11d48 0%, transparent 45%),
-              radial-gradient(circle at 50% 80%, #8b5cf6 0%, transparent 40%);
+html[data-gradient-enabled="true"][data-gradient-preset="cosmic"] body {
+  background-image:
+    radial-gradient(circle at 20% 15%, rgba(109, 40, 217, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 85% 25%, rgba(37, 99, 235, 0.08) 0%, transparent 45%),
+    radial-gradient(circle at 50% 80%, rgba(217, 70, 239, 0.08) 0%, transparent 40%);
+  background-attachment: fixed;
 }
-
-html[data-gradient-preset="emerald-luxe"] body::before {
-  background: radial-gradient(circle at 20% 15%, #059669 0%, transparent 40%),
-              radial-gradient(circle at 80% 25%, #0d9488 0%, transparent 45%),
-              radial-gradient(circle at 45% 85%, #06b6d4 0%, transparent 40%);
-}
-
-html[data-gradient-preset="cosmic"] body::before {
-  background: radial-gradient(circle at 20% 15%, #6d28d9 0%, transparent 40%),
-              radial-gradient(circle at 85% 25%, #2563eb 0%, transparent 45%),
-              radial-gradient(circle at 50% 80%, #d946ef 0%, transparent 40%);
+html.dark[data-gradient-enabled="true"][data-gradient-preset="cosmic"] body {
+  background-image:
+    radial-gradient(circle at 20% 15%, rgba(109, 40, 217, 0.16) 0%, transparent 40%),
+    radial-gradient(circle at 85% 25%, rgba(37, 99, 235, 0.16) 0%, transparent 40%),
+    radial-gradient(circle at 50% 80%, rgba(217, 70, 239, 0.16) 0%, transparent 40%);
+  background-attachment: fixed;
 }
 
 /* --------------------------------------------------------------------------
