@@ -11,7 +11,7 @@ import ThemeToggle from "./theme-toggle";
 import WhatsAppStatusBadge from "./whatsapp/whatsapp-status-badge";
 import MobileBottomNav from "./mobile-bottom-nav";
 import { DashboardShellProvider } from "./dashboard-shell-context";
-import { Sparkles } from "lucide-react";
+import { Sparkles, ShoppingCart } from "lucide-react";
 
 const COLLAPSE_KEY = "sccomm-sidebar-collapsed";
 
@@ -151,6 +151,12 @@ export default function DashboardShell({
             <span className="text-base font-bold tracking-tight text-slate-900 dark:text-white">
               {shopName || "CafeERP"}
             </span>
+            {isPos && (
+              <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 px-2 py-0.5 text-[10px] font-black text-emerald-700 dark:text-emerald-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                POS Live
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-1.5">
@@ -181,9 +187,9 @@ export default function DashboardShell({
             collapsed ? "lg:pl-[72px]" : "lg:pl-60 xl:pl-64"
           } ${isPos ? "is-pos flex flex-col h-screen overflow-hidden" : "min-h-screen"} transition-all duration-300`}
         >
-          {/* DESKTOP HEADER (Reference: Left hamburger, Wide search, WhatsApp dot, red bell, modern AI copilot, theme toggle, Saikat Sarkar Owner • Admin) */}
+          {/* DESKTOP HEADER (Reference: Left hamburger, POS Live badge, Wide search, WhatsApp dot, red bell, modern AI copilot, theme toggle, Saikat Sarkar Owner • Admin) */}
           <header className="erp-desktop-header sticky top-0 z-30 hidden lg:flex h-16 w-full items-center justify-between border-b border-slate-200/80 bg-white/80 px-6 backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/80 transition-all duration-300">
-            <div className="flex items-center gap-4 flex-1 max-w-2xl min-w-0">
+            <div className="flex items-center gap-3 sm:gap-4 flex-1 max-w-2xl min-w-0">
               <button
                 type="button"
                 onClick={toggle}
@@ -197,6 +203,19 @@ export default function DashboardShell({
                   <line x1="3" y1="18" x2="21" y2="18" />
                 </svg>
               </button>
+
+              {isPos && (
+                <div className="flex items-center gap-2 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-xs font-black text-emerald-800 dark:text-emerald-300 shadow-2xs shrink-0 select-none">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-md bg-emerald-600 text-white shadow-xs">
+                    <ShoppingCart className="h-3 w-3" />
+                  </span>
+                  <span className="hidden xl:inline">POS Terminal</span>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Live
+                  </span>
+                </div>
+              )}
 
               <div
                 onClick={() => setSearchOpen(true)}
