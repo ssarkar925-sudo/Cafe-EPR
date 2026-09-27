@@ -465,11 +465,11 @@ export default function CustomersClient({
   ];
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 pb-12">
+    <div data-phase2-module="customers" className="erp-phase2-page space-y-5 pb-8">
       {/* =========================================================================
           TOP EXECUTIVE HEADER (Glowing Bento Surface & Tactile Triggers)
       ========================================================================= */}
-      <div className="card-glow-indigo rounded-2xl border border-slate-200/80 bg-white/90 p-5 shadow-xs backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/90 transition-all">
+      <div className="erp-phase2-header card-glow-indigo rounded-2xl border border-slate-200/80 bg-white/90 p-5 shadow-xs backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/90 transition-all">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3.5">
             <div className="icon-box-3d flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 text-white shadow-md shadow-indigo-500/20">
@@ -626,7 +626,7 @@ export default function CustomersClient({
       {/* =========================================================================
           CUSTOMERS DIRECTORY TABLE (Monospace Codes & Soft-Ring Badges)
       ========================================================================= */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-sm dark:border-white/10 dark:bg-slate-900/90">
+      <div className="erp-phase2-data-card overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-sm dark:border-white/10 dark:bg-slate-900/90">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
