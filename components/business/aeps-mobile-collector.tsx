@@ -36,7 +36,7 @@ export default function AepsMobileCollector({ initialPortals }: { initialPortals
   const [lastSync, setLastSync] = useState("");
   const [lastError, setLastError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState("");\n  const [consented, setConsented] = useState(false);
 
   const native = Capacitor.isNativePlatform();
 
@@ -173,7 +173,7 @@ export default function AepsMobileCollector({ initialPortals }: { initialPortals
         </div>
 
         <div className="mt-3 flex flex-wrap gap-2">
-          <button type="button" onClick={toggleCollector} disabled={busy || !accessibilityEnabled || !apiConfigured} className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black text-white disabled:opacity-50">
+          <button type="button" onClick={toggleCollector} disabled={busy || !accessibilityEnabled || !apiConfigured || !consented} className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black text-white disabled:opacity-50">
             {enabled ? "Pause Collector" : "Start Automatic Collection"}
           </button>
           <button type="button" onClick={() => void refresh()} className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-700">Refresh</button>
