@@ -15,4 +15,5 @@ export type SaiCapability = { id: string; description: string; risk: SaiRiskLeve
 export type SaiCommand = { commandId: string; idempotencyKey: string; actor: SaiActor; capability: string; payload: Record<string, unknown>; risk: SaiRiskLevel; approvalId?: string; status: SaiCommandStatus; verification: SaiVerificationStatus; createdAt: string; updatedAt: string };
 export type SaiCapabilityResult = { ok: boolean; output?: Record<string, unknown>; evidenceIds?: string[]; error?: string };
 export type SaiExecutionContext = { command: SaiCommand; now: string };
-export type SaiPlanStep = { stepId: string; capability: string; input: Record<string, unknown>; risk: SaiRiskLevel; dependsOn: string[] };\nexport type SaiPlan = { planId: string; version: 1; compiledAt: string; source: "instruction" | "goal" | "mission"; goal: string; steps: SaiPlanStep[]; requiresApproval: boolean; validation: "validated" };
+export type SaiPlanStep = { stepId: string; capability: string; input: Record<string, unknown>; risk: SaiRiskLevel; dependsOn: string[] };
+export type SaiPlan = { planId: string; version: 1; compiledAt: string; source: "instruction" | "goal" | "mission"; goal: string; steps: SaiPlanStep[]; requiresApproval: boolean; validation: "validated" };
