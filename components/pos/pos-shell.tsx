@@ -1294,6 +1294,29 @@ export default function PosShell({
       const invoiceId = String(raw.invoice_id || raw.id || "");
       const invoiceNumber = String(raw.invoice_number ?? "INV-SUCCESS");
 
+      // SAI observes only after the authoritative create_sale RPC succeeds.
+      // Its worker rereads ERP state and verifies the committed invoice/payment
+      // records; this does not create or mutate another financial transaction.
+      void fetch("/api/sai/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventId: `sale.created:${invoiceId}`,
+          type: "sale.created",
+          entityId: invoiceId,
+          occurredAt: new Date().toISOString(),
+          payload: {
+            saleId: invoiceId,
+            invoiceNumber,
+            totalAmount: Number(raw.total ?? total),
+            paymentStatus: Number(raw.due ?? 0) > 0.01 ? "partial" : "paid",
+          },
+          evidenceIds: [invoiceId],
+        }),
+      }).catch((error) => {
+        console.warn("SAI POS observation could not be delivered:", error);
+      });
+
       playPosSound("success", soundEnabled);
 
       // Snapshot receipt data before resetting the active tab. The success modal can
