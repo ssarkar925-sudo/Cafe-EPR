@@ -1276,3 +1276,105 @@ html.dark[data-design-style="premium-hybrid"] {
     min-width: 0;
   }
 }
+
+
+/* CafeERP Phase 3 — finance workspace chrome */
+.erp-phase3-page {
+  --phase3-radius: 20px;
+  width: 100%;
+  max-width: 1500px;
+  margin-inline: auto;
+  padding: 18px 20px 48px;
+}
+.erp-phase3-page > header.erp-phase3-header,
+.erp-phase3-page > .erp-phase3-header,
+.erp-phase3-page > section.erp-phase3-header {
+  border-radius: var(--phase3-radius);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.erp-phase3-page .erp-phase3-header {
+  box-shadow: var(--shadow);
+}
+.erp-phase3-page .erp-phase3-data-card {
+  overflow: hidden;
+  border-radius: var(--phase3-radius);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.erp-phase3-page .erp-phase3-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.erp-phase3-page .erp-phase3-kpis > * {
+  min-width: 0;
+  border-radius: 18px !important;
+  box-shadow: var(--shadow) !important;
+}
+.erp-phase3-page .erp-phase3-section {
+  border-radius: var(--phase3-radius);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.erp-phase3-page .erp-phase3-page-title {
+  color: var(--ink);
+  font-weight: 900;
+  letter-spacing: -.025em;
+}
+.erp-phase3-page table {
+  font-variant-numeric: tabular-nums;
+}
+.erp-phase3-page .overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+@media (max-width: 1100px) {
+  .erp-phase3-page .erp-phase3-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 767px) {
+  .erp-phase3-page {
+    max-width: none;
+    padding: 10px 12px 34px;
+  }
+  .erp-phase3-page > header.erp-phase3-header,
+  .erp-phase3-page > .erp-phase3-header,
+  .erp-phase3-page > section.erp-phase3-header {
+    border-radius: 16px;
+  }
+  .erp-phase3-page .erp-phase3-header {
+    padding: 13px !important;
+  }
+  .erp-phase3-page .erp-phase3-header h1 {
+    font-size: 1.2rem !important;
+    line-height: 1.25;
+  }
+  .erp-phase3-page .erp-phase3-header p {
+    font-size: 10px !important;
+    line-height: 1.55;
+  }
+  .erp-phase3-page .erp-phase3-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .erp-phase3-page .erp-phase3-kpis > * {
+    padding: 10px !important;
+    border-radius: 15px !important;
+  }
+  .erp-phase3-page .erp-phase3-kpis > * [class*="text-2xl"],
+  .erp-phase3-page .erp-phase3-kpis > * [class*="text-3xl"] {
+    font-size: 1.05rem !important;
+  }
+  .erp-phase3-page .erp-phase3-data-card,
+  .erp-phase3-page .erp-phase3-section {
+    border-radius: 16px;
+  }
+  .erp-phase3-page .overflow-x-auto {
+    overflow-x: auto;
+  }
+}
