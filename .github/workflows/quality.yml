@@ -65,6 +65,9 @@ jobs:
       - name: SAI goals and missions
         run: npm run test:sai-goals-missions
 
+      - name: SAI planner
+        run: npm run test:sai-planner
+
       - name: TypeScript check
         run: npx tsc --noEmit
 

@@ -10,3 +10,4 @@ export * from "./diagnosis";
 export * from "./recovery-policy";
 export * from "./recovery";
 export * from "./goals";
+export * from "../cognition/plan-compiler";
