@@ -11,7 +11,7 @@ import ThemeToggle from "./theme-toggle";
 import WhatsAppStatusBadge from "./whatsapp/whatsapp-status-badge";
 import MobileBottomNav from "./mobile-bottom-nav";
 import { DashboardShellProvider } from "./dashboard-shell-context";
-import { Sparkles, ShoppingCart } from "lucide-react";
+import SAIBackgroundLayer from "@/components/sai/sai-background-layer";
 
 const COLLAPSE_KEY = "sccomm-sidebar-collapsed";
 
@@ -160,14 +160,6 @@ export default function DashboardShell({
           </div>
 
           <div className="flex items-center gap-1.5">
-            <Link
-              href="/ai-agent"
-              title="AI Copilot & Smart Assistant (/ai-agent)"
-              aria-label="AI Copilot"
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-violet-600 hover:bg-violet-50 dark:text-violet-400 dark:hover:bg-violet-950/40"
-            >
-              <Sparkles className="h-4 w-4" />
-            </Link>
             <ThemeToggle />
             <NotificationBell role={role} />
             <Link
@@ -229,16 +221,6 @@ export default function DashboardShell({
 
               <NotificationBell role={role} />
 
-              <Link
-                href="/ai-agent"
-                title="AI Copilot & Smart Assistant (/ai-agent)"
-                aria-label="AI Copilot"
-                className="group relative flex h-9 w-9 items-center justify-center rounded-xl border border-violet-200/80 bg-gradient-to-tr from-violet-500/10 to-indigo-500/10 text-violet-600 hover:border-violet-300 hover:from-violet-500/20 hover:to-indigo-500/20 hover:text-violet-700 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-300 dark:hover:border-violet-500/50 dark:hover:bg-violet-500/20 transition-all shadow-2xs hover:scale-105 active:scale-95 cursor-pointer"
-              >
-                <Sparkles className="h-4 w-4 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
-                <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-violet-500 animate-pulse" />
-              </Link>
-
               <ThemeToggle />
 
               <Link
@@ -279,8 +261,8 @@ export default function DashboardShell({
             {children}
           </div>
         </div>
-
         <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
+        <SAIBackgroundLayer />
         {!isPos && <MobileBottomNav />}
       </div>
     </DashboardShellProvider>
