@@ -14,5 +14,6 @@ export * from "./evidence";
 export * from "./trace";
 export * from "./explanation";
 export * from "./attention";
+export * from "./mission-runner";
 export * from "./goals";
 export * from "../cognition/plan-compiler";

@@ -63,6 +63,9 @@ jobs:
         run: npm run test:sai-tracing
       - name: SAI autonomy and attention policy
         run: npm run test:sai-autonomy
+      - name: SAI mission runner
+        run: npm run test:sai-missions-runner
+
       - name: TypeScript check
         run: npx tsc --noEmit
       - name: Production build
