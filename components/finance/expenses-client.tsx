@@ -210,7 +210,7 @@ export default function ExpensesClient({
     "rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200";
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
+    <div data-phase3-module="expenses" className="erp-phase3-page space-y-5">
       {/* Header & Sub-navigation */}
       <header className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
