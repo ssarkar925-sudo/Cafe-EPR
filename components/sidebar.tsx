@@ -416,17 +416,6 @@ export default function Sidebar({
           { label: "Suppliers Directory", href: "/suppliers", icon: "suppliers" },
         ],
       },
-      // DOMAIN 9: AI & INTELLIGENT AUTOMATION
-      {
-        id: "ai",
-        title: "AI & Automation",
-        icon: "ai",
-        items: [
-          { label: "AI Command Center", href: "/ai-agent", icon: "ai", badge: { text: "AI", tone: "purple" } },
-          { label: "AI Financial Audit", href: "/ai/self-audit", icon: "audit" },
-          { label: "WhatsApp Desk", href: "/business/whatsapp", icon: "whatsapp" },
-        ],
-      },
       // DOMAIN 10: ADMINISTRATION, SECURITY & SYSTEM
       {
         id: "admin",
@@ -461,7 +450,6 @@ export default function Sidebar({
       reports: false,
       catalog: true,
       inventory: true,
-      ai: false,
       admin: false,
     };
   });
