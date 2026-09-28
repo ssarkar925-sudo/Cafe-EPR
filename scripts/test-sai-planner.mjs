@@ -1,10 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 const root=process.cwd(),read=f=>fs.readFileSync(path.join(root,f),"utf8");
-const types=read("lib/sai/core/types.ts"),compiler=read("lib/sai/cognition/plan-compiler.ts"),planner=read("lib/sai/cognition/planner.ts"),api=read("app/api/sai/plan/route.ts"),missionApi=read("app/api/sai/missions/compile/route.ts"),runtime=read("lib/sai/cognition/runtime.ts"),policy=read("lib/sai/core/policy.ts");
+const types=read("lib/sai/core/types.ts"),compiler=read("lib/sai/cognition/plan-compiler.ts"),planner=read("lib/sai/cognition/planner.ts"),api=read("app/api/sai/plan/route.ts"),missionApi=read("app/api/sai/missions/compile/route.ts"),runtime=read("lib/sai/cognition/runtime.ts"),policy=read("lib/sai/core/policy.ts"),capabilities=read("lib/sai/core/capabilities.ts"),capabilitiesApi=read("app/api/sai/capabilities/route.ts");
 let passed=0,failed=0;const check=(c,m)=>c?(passed++,console.log(`  PASS: ${m}`)):(failed++,console.error(`  FAIL: ${m}`));
-// Validate planner/compiler contracts at the CI boundary.
-console.log("SAI planner and plan-compiler regression tests");
+// Validate planner/compiler/registry contracts at the CI boundary.
+console.log("SAI planner, plan-compiler, and capability-registry regression tests");
 check(types.includes("SaiPlanStep"),"Plan steps have typed identity and dependencies");
 check(types.includes('source: "instruction" | "goal" | "mission"'),"Plan source is typed");
 check(compiler.includes("MAX_PLAN_STEPS = 20"),"Plan step count is bounded");
@@ -20,4 +20,16 @@ check(runtime.includes("planSaiInstruction"),"Runtime executes only planner-prod
 check(!/from\(["'](?:invoices|payments|transactions|customer_ledger|journal_entries|journal_lines)["']\)/.test(compiler),"Compiler does not query financial authority tables");
 check(!/update\(["'](?:invoices|payments|transactions|customer_ledger|journal_entries|journal_lines)["']\)/.test(compiler),"Compiler does not mutate financial authority tables");
 check(policy.includes('APPROVAL_RISKS = new Set(["high", "critical"])'),"Command policy remains the authority for approval thresholds");
+check(capabilities.includes("SaiCapabilityDomain"),"Capability domain is typed");
+check(capabilities.includes('SaiCapabilityKind = "observe" | "query" | "execute"'),"Capability kind is typed");
+check(capabilities.includes("verificationRequired"),"Registry tracks verification requirement");
+check(capabilities.includes("mutates"),"Registry tracks mutation authority");
+check(capabilities.includes("SAI read capability cannot mutate"),"Registry blocks read capability mutation");
+check(capabilities.includes("SAI consequential capability must require approval"),"Registry blocks unsafe consequential capabilities");
+check(capabilities.includes("listSaiCapabilityDescriptors"),"Registry exposes safe descriptors without execute functions");
+check(capabilitiesApi.includes("listSaiCapabilityDescriptors"),"Capability API reads registry descriptors");
+check(capabilitiesApi.includes("validateSaiCapabilityRegistry"),"Capability API validates registry before exposure");
+check(capabilitiesApi.includes('hasRole(role, ["admin", "manager", "staff"])'),"Capability API is authenticated and role-gated");
+check(missionApi.includes("compileSaiMissionPlan"),"Mission compile API uses mission compiler");
+check(missionApi.includes("missionId"),"Mission compile API requires a mission id");
 console.log(`\n${passed} passed / ${failed} failed`);process.exitCode=failed?1:0;
