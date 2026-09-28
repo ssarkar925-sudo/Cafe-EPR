@@ -26,15 +26,7 @@ export default function SAIBackgroundLayer() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    async function ask(event?: FormEvent) {
-    event?.preventDefault();
-    const prompt = text.trim();
-    if (!prompt || busy) return;
-    setText("");
-    await askPrompt(prompt);
-  }
-
-  return () => {
+    return () => {
       recognitionRef.current?.abort?.();
     };
   }, []);
