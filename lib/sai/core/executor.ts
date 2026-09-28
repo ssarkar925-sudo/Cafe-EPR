@@ -172,7 +172,7 @@ export async function executeSaiPlan(
           maxAttempts: recovery.decision.maxAttempts,
           safe: recovery.decision.safe,
           recovered: recovery.recovered,
-          approvalId: input.approvalId ?? null,
+          approvalId: approvalId ?? null,
           mode,
           reason: recovery.decision.reason,
         },
