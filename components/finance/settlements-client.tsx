@@ -339,7 +339,7 @@ export default function SettlementsClient({
   return (
     <div data-phase3-module="settlements" className="erp-phase3-page space-y-5">
       {/* SECTION 1: LIVE TREASURY POSITIONS & CHANNEL FLOATS */}
-      <div className="space-y-4">
+      <div className="erp-phase3-header space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
