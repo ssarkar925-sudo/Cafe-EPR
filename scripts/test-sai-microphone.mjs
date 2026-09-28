@@ -19,8 +19,8 @@ check(source.includes("navigator.mediaDevices?.getUserMedia"), "SAI preflights t
 check(source.includes("NotAllowedError"), "Microphone permission denial is distinguished explicitly");
 check(source.includes("NotFoundError"), "Missing microphone device is distinguished explicitly");
 check(source.includes("NotReadableError"), "Busy/unavailable microphone is distinguished explicitly");
-check(source.includes("Microphone access is blocked"), "Permission error message is reserved for actual microphone denial");
-check(source.includes("microphone permission is already granted"), "Speech not-allowed does not falsely claim microphone permission is missing");
+check(source.includes("Chrome has not granted live microphone capture"), "Live capture denial is reported separately from browser site permission");
+check(source.includes("Chrome reports the microphone is allowed"), "Speech not-allowed does not falsely claim microphone permission is missing");
 check(source.includes('if (language.startsWith("bn")) return "bn-IN"'), "Bengali speech locale is selected");
 check(source.includes('if (language.startsWith("hi")) return "hi-IN"'), "Hindi speech locale is selected");
 check(source.includes('if (language.startsWith("en")) return "en-IN"'), "Indian English speech locale is selected");
@@ -30,3 +30,7 @@ check(source.includes('errorCode === "audio-capture"'), "Audio capture failures 
 
 console.log(`\n${passed} passed / ${failed} failed`);
 process.exitCode = failed ? 1 : 0;
+
+check(source.includes("getMicrophonePermissionState"), "SAI checks browser microphone permission state");
+check(source.includes('permission === "granted"'), "Granted microphone permission skips duplicate getUserMedia preflight");
+check(source.includes("prepareVoiceInput"), "Voice startup uses the permission-aware preparation path");
