@@ -132,7 +132,7 @@ export async function runSaiInstruction(input: {
       data: { evidenceCount: execution.results.reduce((n, r) => n + (r.evidenceIds?.length ?? 0), 0) },
     });
 
-    return { traceId, plan, ...execution };
+    return { ...execution, plan };
   } catch (error) {
     await recordSaiTrace({
       traceId,
