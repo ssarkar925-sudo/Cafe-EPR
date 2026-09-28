@@ -72,5 +72,5 @@ create policy sai_contradictions_staff_update on public.sai_contradictions for u
   actor_user_id=(select auth.uid()) and exists(select 1 from public.profiles p where p.id=(select auth.uid()) and p.is_active and p.role in ('admin','manager','staff'))
 );
 
-revoke delete, truncate, references, trigger on table public.sai_simulations from authenticated;
+revoke update, delete, truncate, references, trigger on table public.sai_simulations from authenticated;
 revoke delete, truncate, references, trigger on table public.sai_contradictions from authenticated;
