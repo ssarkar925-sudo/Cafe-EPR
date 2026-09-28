@@ -65,9 +65,9 @@ export function startSaiPosWorker(): void {
       data: { eventId: event.eventId, ok: verification.ok, reason: verification.ok ? null : verification.reason, checks: verification.checks ?? null, evidence: verification.evidence ?? null },
       confidence: verification.ok ? 1 : 0,
     });
-    if (!verification.ok) {
+    if (!verification.ok && event.actor) {
       await createSaiAttention({
-        actor: event.actor ?? { userId: "system", businessId: "" },
+        actor: event.actor,
         type: "pos.verification_failed",
         severity: "critical",
         title: "POS sale verification failed",
