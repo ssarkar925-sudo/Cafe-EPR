@@ -1,0 +1,1 @@
+revoke update, delete, truncate, references, trigger on table public.sai_execution_traces from authenticated;
