@@ -57,6 +57,8 @@ jobs:
         run: npm run test:sai-goals-missions
       - name: SAI planner
         run: npm run test:sai-planner
+      - name: SAI Phase 2A domain intelligence
+        run: node scripts/test-sai-planner.mjs
       - name: SAI evidence provenance
         run: npm run test:sai-evidence
       - name: SAI execution tracing
