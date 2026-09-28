@@ -52,7 +52,8 @@
     "test:sai-recovery": "node scripts/test-sai-recovery.mjs",
     "test:sai-world-state": "node scripts/test-sai-world-state.mjs",
     "test:sai-goals-missions": "node scripts/test-sai-goals-missions.mjs",
-    "test:sai-planner": "node scripts/test-sai-planner.mjs"
+    "test:sai-planner": "node scripts/test-sai-planner.mjs",
+    "test:sai-evidence": "node scripts/test-sai-evidence.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.1",
