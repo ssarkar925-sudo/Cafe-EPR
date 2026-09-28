@@ -301,8 +301,8 @@ export default function DayCloseClient({
 
   return (
     <div data-phase3-module="day-close" className="erp-phase3-page space-y-5">
-      <div>
-        <h2 className="text-lg font-bold text-slate-900 dark:text-white">Day Close</h2>
+      <div className="erp-phase3-header rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900">
+        <h2 className="text-lg font-black text-slate-900 dark:text-white">Day Close</h2>
         <p className="text-sm text-slate-500 dark:text-slate-400">
           Reconcile every account, capture the day&apos;s profit, and lock the books. Closing balances become the next day&apos;s opening.
         </p>
