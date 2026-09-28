@@ -3,6 +3,8 @@ import { saiCommandRequiresApproval, validateSaiCommand } from "./policy";
 import { getSaiCommandResult, persistSaiCommand, persistSaiCommandResult, updateSaiCommand } from "./persistence";
 import type { SaiActor, SaiCommand, SaiRiskLevel, SaiCapabilityResult } from "./types";
 
+const RISK_ORDER: SaiRiskLevel[] = ["read", "low", "medium", "high", "critical"];
+
 export async function buildSaiCommand(input: {
   actor: SaiActor; capability: string; payload: Record<string, unknown>; risk: SaiRiskLevel; idempotencyKey?: string;
 }): Promise<SaiCommand> {
@@ -22,6 +24,9 @@ export async function executeSaiCommand(command: SaiCommand, approvalId?: string
   validateSaiCommand(command);
   const capability = requireSaiCapability(command.capability);
   authorizeSaiCapability(capability, command.actor);
+  if (RISK_ORDER.indexOf(command.risk) < RISK_ORDER.indexOf(capability.risk)) {
+    throw new Error(`SAI_COMMAND_RISK_UNDERRATED:${command.capability}`);
+  }
 
   if (command.status === "executed" || command.status === "verified") {
     const previous = await getSaiCommandResult(command.commandId);
