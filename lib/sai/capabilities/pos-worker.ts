@@ -67,7 +67,7 @@ export function startSaiPosWorker(): void {
       confidence: verification.ok ? 1 : 0,
     });
     if (!verification.ok && event.actor) {
-      await createSaiAttention({
+      const attention = await createSaiAttention({
         actor: event.actor,
         type: "pos.verification_failed",
         severity: "critical",
@@ -79,7 +79,7 @@ export function startSaiPosWorker(): void {
       });
       await diagnosePosVerificationFailure({
         actor: event.actor,
-        attentionId: undefined,
+        attentionId: attention.id,
         sourceRef: event.entityId ?? event.eventId,
         evidenceIds: [evidenceId],
         reason: verification.reason,
