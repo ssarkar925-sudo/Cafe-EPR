@@ -22,10 +22,19 @@ export default function SAIBackgroundLayer() {
   const [listening, setListening] = useState(false);
   const [voiceError, setVoiceError] = useState("");
   const recognitionRef = useRef<any>(null);
+  const voiceTranscriptRef = useRef("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    return () => {
+    async function ask(event?: FormEvent) {
+    event?.preventDefault();
+    const prompt = text.trim();
+    if (!prompt || busy) return;
+    setText("");
+    await askPrompt(prompt);
+  }
+
+  return () => {
       recognitionRef.current?.abort?.();
     };
   }, []);
@@ -60,7 +69,7 @@ export default function SAIBackgroundLayer() {
         .map((result: any) => result[0]?.transcript || "")
         .join("")
         .trim();
-      if (transcript) setText(transcript);
+      if (transcript) { voiceTranscriptRef.current = transcript; setText(transcript); }
     };
     recognition.onerror = (event: any) => {
       setListening(false);
@@ -72,7 +81,7 @@ export default function SAIBackgroundLayer() {
         );
       }
     };
-    recognition.onend = () => setListening(false);
+    recognition.onend = () => { setListening(false); const transcript = voiceTranscriptRef.current.trim(); voiceTranscriptRef.current = ""; if (transcript) void askPrompt(transcript); };
 
     recognitionRef.current = recognition;
     recognition.start();
@@ -108,14 +117,11 @@ export default function SAIBackgroundLayer() {
     };
   }, []);
 
-  async function ask(event?: FormEvent) {
-    event?.preventDefault();
-    const prompt = text.trim();
+  async function askPrompt(prompt: string) {
     if (!prompt || busy) return;
 
     const userMessage: Message = { id: crypto.randomUUID(), role: "user", text: prompt };
     setMessages((current) => [...current, userMessage]);
-    setText("");
     setBusy(true);
 
     try {
