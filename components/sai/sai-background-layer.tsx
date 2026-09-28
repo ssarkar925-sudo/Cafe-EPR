@@ -39,7 +39,43 @@ export default function SAIBackgroundLayer() {
     };
   }, []);
 
-  function toggleVoice() {
+  function getSpeechLocale(): string {
+    const language = String(navigator.language || "").toLowerCase();
+    if (language.startsWith("bn")) return "bn-IN";
+    if (language.startsWith("hi")) return "hi-IN";
+    if (language.startsWith("en")) return "en-IN";
+    return navigator.language || "en-IN";
+  }
+
+  async function ensureMicrophoneReady(): Promise<boolean> {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setVoiceError("Microphone access is not available in this browser.");
+      return false;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((track) => track.stop());
+      setVoiceError("");
+      return true;
+    } catch (error) {
+      const name = error instanceof DOMException ? error.name : "";
+      if (name === "NotAllowedError") {
+        setVoiceError("Microphone access is blocked. Check the site microphone permission.");
+      } else if (name === "NotFoundError") {
+        setVoiceError("No microphone device was found.");
+      } else if (name === "NotReadableError") {
+        setVoiceError("Microphone is busy or unavailable. Close another app using it and try again.");
+      } else if (name === "SecurityError") {
+        setVoiceError("Microphone access is blocked by the browser security policy.");
+      } else {
+        setVoiceError("Unable to access the microphone.");
+      }
+      return false;
+    }
+  }
+
+  async function toggleVoice() {
     if (listening) {
       recognitionRef.current?.stop?.();
       setListening(false);
@@ -54,11 +90,15 @@ export default function SAIBackgroundLayer() {
       return;
     }
 
+    setVoiceError("");
+    const micReady = await ensureMicrophoneReady();
+    if (!micReady) return;
+
     const recognition = new Recognition();
     recognition.continuous = false;
     recognition.interimResults = true;
     recognition.maxAlternatives = 1;
-    recognition.lang = ""; // Let the browser/OS use its speech-language detection when supported.
+    recognition.lang = getSpeechLocale();
 
     recognition.onstart = () => {
       setVoiceError("");
@@ -69,22 +109,40 @@ export default function SAIBackgroundLayer() {
         .map((result: any) => result[0]?.transcript || "")
         .join("")
         .trim();
-      if (transcript) { voiceTranscriptRef.current = transcript; setText(transcript); }
+      if (transcript) {
+        voiceTranscriptRef.current = transcript;
+        setText(transcript);
+      }
     };
     recognition.onerror = (event: any) => {
       setListening(false);
-      if (event?.error !== "aborted") {
-        setVoiceError(
-          event?.error === "not-allowed"
-            ? "Microphone permission is required."
-            : "I could not hear that. Please try again.",
-        );
-      }
+      if (event?.error === "aborted") return;
+
+      const errorCode = String(event?.error || "");
+      setVoiceError(
+        errorCode === "not-allowed"
+          ? "Speech recognition is blocked or unavailable. Your microphone permission is already granted."
+          : errorCode === "no-speech"
+            ? "I could not hear speech. Please speak again."
+            : errorCode === "audio-capture"
+              ? "The microphone could not be opened. Check the selected input device."
+              : "I could not hear that. Please try again.",
+      );
     };
-    recognition.onend = () => { setListening(false); const transcript = voiceTranscriptRef.current.trim(); voiceTranscriptRef.current = ""; if (transcript) void askPrompt(transcript); };
+    recognition.onend = () => {
+      setListening(false);
+      const transcript = voiceTranscriptRef.current.trim();
+      voiceTranscriptRef.current = "";
+      if (transcript) void askPrompt(transcript);
+    };
 
     recognitionRef.current = recognition;
-    recognition.start();
+    try {
+      recognition.start();
+    } catch {
+      setListening(false);
+      setVoiceError("Voice recognition could not start. Please try again.");
+    }
   }
 
   useEffect(() => {
