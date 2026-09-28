@@ -7,3 +7,7 @@ export * from "./policy";
 export * from "./command";
 export * from "./world-state";
 export * from "./verification";
+
+export * from "./diagnosis";
+export * from "./recovery-policy";
+export * from "./recovery";
