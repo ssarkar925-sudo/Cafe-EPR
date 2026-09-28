@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import type { SaiActor, SaiAutonomyDecision, SaiAutonomyPolicy, SaiCapability, SaiCommand, SaiExecutionMode, SaiRiskLevel } from "./types";
 
-const APPROVAL_RISKS = new Set<SaiRiskLevel>(["high", "critical"]);
+const APPROVAL_RISKS = new Set(["high", "critical"]);
 const RISK_ORDER: SaiRiskLevel[] = ["read", "low", "medium", "high", "critical"];
 const DEFAULT_TIMEZONE = "Asia/Kolkata";
 
