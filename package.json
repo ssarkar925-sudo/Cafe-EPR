@@ -48,7 +48,8 @@
     "ai:portal:learn": "node scripts/ai-portal-worker.mjs learn",
     "ai:portal:collect": "node scripts/ai-portal-worker.mjs collect",
     "postinstall": "node scripts/patch-lucide-building-complex.mjs",
-    "test:v1-returns-refunds": "node scripts/test-v1-returns-refunds.mjs"
+    "test:v1-returns-refunds": "node scripts/test-v1-returns-refunds.mjs",
+    "test:sai-recovery": "node scripts/test-sai-recovery.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.1",
