@@ -23,7 +23,7 @@ function deepEqual(a: unknown, b: unknown): boolean {
   return stable(a) === stable(b);
 }
 
-function isConsequential(step: SaiPlanStep, capability: SaiCapability): boolean {
+function isConsequential(step: SaiPlanStep, capability: SaiCapability & { mutates?: boolean }): boolean {
   return capability.risk !== "read" || step.risk !== "read" || Boolean(capability.mutates);
 }
 
