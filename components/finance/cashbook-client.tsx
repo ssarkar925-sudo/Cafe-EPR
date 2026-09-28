@@ -147,7 +147,7 @@ export default function CashbookClient({
   return (
     <div data-phase3-module="cashbook" className="erp-phase3-page space-y-5">
       {/* Header & Accounting Sub-navigation */}
-      <header className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
+      <header className="erp-phase3-header rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="flex items-center gap-2">
