@@ -312,7 +312,7 @@ export default function Sidebar({
     window.location.href = "/logout";
   }
 
-  // 10 DOMAINS ARCHITECTURE (With Restored Catalog & Inventory below Domain 6)
+  // 10 DOMAINS ARCHITECTURE + dedicated SAI intelligence module
   const sections: NavSection[] = useMemo(
     () => [
       // DOMAIN 2: SALES & COUNTER POS
@@ -416,6 +416,20 @@ export default function Sidebar({
           { label: "Suppliers Directory", href: "/suppliers", icon: "suppliers" },
         ],
       },
+      // DOMAIN 9: AI & SAI INTELLIGENCE
+      {
+        id: "ai",
+        title: "AI & SAI Intelligence",
+        icon: "ai",
+        items: [
+          {
+            label: "SAI Control Room",
+            href: "/ai-agent",
+            icon: "ai",
+            badge: { text: "Live", tone: "purple" },
+          },
+        ],
+      },
       // DOMAIN 10: ADMINISTRATION, SECURITY & SYSTEM
       {
         id: "admin",
@@ -451,6 +465,7 @@ export default function Sidebar({
       reports: false,
       catalog: true,
       inventory: true,
+      ai: true,
       admin: false,
     };
   });

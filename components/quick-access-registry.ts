@@ -72,6 +72,9 @@ export const QUICK_ACCESS_CATALOG: QuickAccessItem[] = [
   { id: "tax-prep", label: "Tax Preparation / ITR", href: "/reports/tax-preparation", icon: "tax-prep" },
   { id: "audit-log", label: "Security Audit Log", href: "/audit", icon: "audit-log" },
 
+  // AI / SAI
+  { id: "sai-control-room", label: "SAI Control Room", href: "/ai-agent", icon: "ai" },
+
   // Tools / Administration
   { id: "staff", label: "Staff Accounts", href: "/staff", icon: "staff" },
   { id: "security", label: "Security & 2FA", href: "/security", icon: "security" },
