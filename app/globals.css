@@ -1378,3 +1378,21 @@ html.dark[data-design-style="premium-hybrid"] {
     overflow-x: auto;
   }
 }
+
+
+/* CafeERP Phase 3 — mobile finance grid normalization */
+@media (max-width: 767px) {
+  .erp-phase3-page .grid.grid-cols-5,
+  .erp-phase3-page .grid.grid-cols-4,
+  .erp-phase3-page .grid.grid-cols-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  .erp-phase3-page .flex.flex-col.sm\:flex-row,
+  .erp-phase3-page .flex.flex-col.lg\:flex-row {
+    min-width: 0;
+  }
+  .erp-phase3-page .overflow-hidden.rounded-3xl,
+  .erp-phase3-page .overflow-hidden.rounded-2xl {
+    min-width: 0;
+  }
+}
