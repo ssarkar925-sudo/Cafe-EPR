@@ -72,6 +72,10 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => null);
     const message = typeof body?.message === "string" ? body.message.trim() : "";
     if (!message) return NextResponse.json({ error: "Message is required" }, { status: 400 });
+    const surface = body?.surface === "sai" ? "sai" : "legacy";
+    const fallbackMessage = surface === "sai"
+      ? "SAI is ready, Sir. I’m your CafeERP business assistant. Ask me about this screen, your shop, customers, transactions, or what needs attention."
+      : undefined;
     if (message.length > MAX_MESSAGE_LENGTH) return NextResponse.json({ error: "Message is too long" }, { status: 413 });
 
     const supabase = await createClient();
@@ -156,7 +160,7 @@ export async function POST(request: Request) {
 
     const { language, instruction: languageInstruction } = buildSaiLanguageContext(message);
 
-    const systemInstruction = `${CAFE_AI_SYSTEM_INSTRUCTIONS}\n\n${SAI_RESPONSE_RULES}\n\n${languageInstruction}\n\nOwner learned memory:\n${memoryContext}\n\nLearned shop workflows:\n${workflowContext}\n\nCurrent application permission profile:\n${JSON.stringify(DEFAULT_AGENT_PERMISSIONS)}\n\nCritical operational rules:\n1. ALWAYS use your tools before answering questions about sales, profit, stock, customers, or money. Never answer these from your own knowledge.\n2. When the user teaches a rule, preference, price, or fact, ALWAYS call save_memory immediately.\n3. For sales or billing requests, prepare the sale with prepare_sale and submit for owner approval.\n4. Never claim a financial record was created or modified unless confirmed by a tool.\n5. You have cross-session memory — refer to past conversations naturally when relevant.`;
+    const systemInstruction = `${CAFE_AI_SYSTEM_INSTRUCTIONS}\n\n${SAI_RESPONSE_RULES}\n\n${languageInstruction}\n\nSurface: ${surface}. On the SAI surface, never use legacy “Cafe AI Agent” wording or imply that the user is talking to a separate legacy assistant.\n\nOwner learned memory:\n${memoryContext}\n\nLearned shop workflows:\n${workflowContext}\n\nCurrent application permission profile:\n${JSON.stringify(DEFAULT_AGENT_PERMISSIONS)}\n\nCritical operational rules:\n1. ALWAYS use your tools before answering questions about sales, profit, stock, customers, or money. Never answer these from your own knowledge.\n2. When the user teaches a rule, preference, price, or fact, ALWAYS call save_memory immediately.\n3. For sales or billing requests, prepare the sale with prepare_sale and submit for owner approval.\n4. Never claim a financial record was created or modified unless confirmed by a tool.\n5. You have cross-session memory — refer to past conversations naturally when relevant.`;
 
     const result = await runIntelligentAgent({
       apiKey,
@@ -169,6 +173,7 @@ export async function POST(request: Request) {
       supabase,
       userId: auth.user.id,
       language,
+      fallbackMessage,
     });
 
     // Save this turn to DB for future cross-session recall (fire-and-forget, don't block response)
