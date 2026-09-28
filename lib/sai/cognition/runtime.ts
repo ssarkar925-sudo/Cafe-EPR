@@ -3,7 +3,7 @@ import { startSaiPosWorker } from "@/lib/sai/capabilities/pos-worker";
 import { buildSaiCommand, executeSaiCommand } from "@/lib/sai/core/command";
 import { persistSaiCommandStep, updateSaiCommand } from "@/lib/sai/core/persistence";
 import { verifySaiCommand } from "@/lib/sai/core/verification";
-import { getSaiWorldState } from "@/lib/sai/core/world-state";
+import { loadSaiWorldState } from "@/lib/sai/core/world-state";
 import type { SaiActor, SaiCapabilityResult, SaiEvent } from "@/lib/sai/core/types";
 import { planSaiInstruction } from "./planner";
 
@@ -14,7 +14,7 @@ export async function runSaiInstruction(input: {
   actor: SaiActor;
   route?: string;
 }): Promise<{ plan: ReturnType<typeof planSaiInstruction>; results: SaiCapabilityResult[] }> {
-  const world = getSaiWorldState(input.route);
+  const world = await loadSaiWorldState(input.actor, input.route);
   const plan = planSaiInstruction({ instruction: input.instruction, world });
   const results: SaiCapabilityResult[] = [];
 

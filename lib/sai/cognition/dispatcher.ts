@@ -1,5 +1,5 @@
 import { persistSaiEvent } from "@/lib/sai/core/persistence";
-import { recordSaiEvent } from "@/lib/sai/core/world-state";
+import { projectSaiEventToWorldState, recordSaiEvent } from "@/lib/sai/core/world-state";
 import type { SaiEvent } from "@/lib/sai/core/types";
 
 type EventHandler = (event: SaiEvent) => Promise<void>;
@@ -16,7 +16,19 @@ export function subscribeSaiEvent(type: string, handler: EventHandler): () => vo
 export async function dispatchSaiEvent(event: SaiEvent): Promise<void> {
   const persisted = await persistSaiEvent(event);
   recordSaiEvent(event);
+
   if (!persisted.inserted) return;
+
+  // The durable event ledger is authoritative. World-state projection is a recoverable
+  // read model, so a projection outage must not block downstream SAI handlers.
+  try {
+    await projectSaiEventToWorldState(event);
+  } catch (error) {
+    console.error("SAI_WORLD_STATE_PROJECTION_FAILED", {
+      eventId: event.eventId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 
   const matching = [...(handlers.get(event.type) ?? []), ...(handlers.get("*") ?? [])];
   await Promise.allSettled(matching.map((handler) => handler(event)));
