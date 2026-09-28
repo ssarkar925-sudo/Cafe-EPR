@@ -2,6 +2,7 @@ import "@/lib/sai/capabilities/business-observe";
 import "@/lib/sai/capabilities/pos-observe";
 import { NextResponse } from "next/server";
 import { getUserRole, hasRole } from "@/lib/authz";
+import { createClient } from "@/lib/supabase/server";
 import { getSaiEvidenceTrace } from "@/lib/sai/core/evidence";
 import type { SaiEvidenceSubjectType } from "@/lib/sai/core/types";
 
@@ -25,7 +26,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "subjectType and subjectId are required" }, { status: 400 });
   }
 
-  const { data: auth } = await (await import("@/lib/supabase/server")).createClient().then((supabase) => supabase.auth.getUser());
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
