@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
 import { getSaiAutonomyPolicy, saveSaiAutonomyPolicy } from "@/lib/sai/core/policy";
+import type { SaiRiskLevel } from "@/lib/sai/core/types";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
   try {
     const policy = await saveSaiAutonomyPolicy(actor, {
       autonomyEnabled: typeof body.autonomyEnabled === "boolean" ? body.autonomyEnabled : undefined,
-      maxAutoRisk: typeof body.maxAutoRisk === "string" ? body.maxAutoRisk : undefined,
+      maxAutoRisk: typeof body.maxAutoRisk === "string" && ["read","low","medium","high","critical"].includes(body.maxAutoRisk) ? body.maxAutoRisk as SaiRiskLevel : undefined,
       dailyActionBudget: Number.isInteger(body.dailyActionBudget) ? body.dailyActionBudget : undefined,
       quietHoursEnabled: typeof body.quietHoursEnabled === "boolean" ? body.quietHoursEnabled : undefined,
       quietHoursStart: typeof body.quietHoursStart === "string" ? body.quietHoursStart : undefined,

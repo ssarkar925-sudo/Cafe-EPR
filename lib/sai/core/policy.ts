@@ -102,7 +102,7 @@ function isQuietHours(policy: SaiAutonomyPolicy, now = new Date()): boolean {
 
 export async function evaluateSaiAutonomy(input: {
   actor: SaiActor;
-  capability: SaiCapability;
+  capability: SaiCapability & { mutates?: boolean };
   risk: SaiRiskLevel;
   mode: SaiExecutionMode;
   now?: Date;
