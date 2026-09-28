@@ -37,7 +37,7 @@ export default async function AccountingTransactionsPage() {
   const totalCredit = posted.reduce((s, r) => s + Number(r.total_credit || 0), 0);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
+    <div data-phase3-module="transactions" className="erp-phase3-page space-y-5">
       <header className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
