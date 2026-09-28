@@ -1,9 +1,9 @@
-import type { SaiCommand } from "./types";
+import type { SaiCapability, SaiCommand } from "./types";
 
 const APPROVAL_RISKS = new Set(["high", "critical"]);
 
-export function saiCommandRequiresApproval(command: SaiCommand): boolean {
-  return APPROVAL_RISKS.has(command.risk) || Boolean(command.approvalId);
+export function saiCommandRequiresApproval(command: SaiCommand, capability?: SaiCapability): boolean {
+  return APPROVAL_RISKS.has(command.risk) || Boolean(capability?.requiresApproval);
 }
 
 export function validateSaiCommand(command: SaiCommand): void {
