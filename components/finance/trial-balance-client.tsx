@@ -59,7 +59,7 @@ export default function TrialBalanceClient({ accounts, journalLines }: { account
   const accountTypes = useMemo(() => Array.from(new Set(accounts.map((a) => a.account_type))), [accounts]);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
+    <div data-phase3-module="trial-balance" className="erp-phase3-page space-y-5">
       <header className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
