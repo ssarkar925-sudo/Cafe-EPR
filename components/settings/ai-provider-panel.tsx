@@ -93,7 +93,13 @@ export default function AIProviderPanel({ active }: { active: boolean }) {
           endpointUrl,
         }),
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        throw new Error(text || `Server returned invalid response (HTTP ${res.status})`);
+      }
       setTestResult(data);
       if (data.success) {
         setNotice({
@@ -107,8 +113,9 @@ export default function AIProviderPanel({ active }: { active: boolean }) {
         });
       }
     } catch (err: any) {
-      setTestResult({ success: false, error: err?.message || "Connection test failed" });
-      setNotice({ type: "error", text: err?.message || "Connection test failed" });
+      const msg = err?.message || "Connection test failed";
+      setTestResult({ success: false, error: msg });
+      setNotice({ type: "error", text: msg });
     } finally {
       setTesting(false);
     }
@@ -130,7 +137,13 @@ export default function AIProviderPanel({ active }: { active: boolean }) {
           fallbackEnabled,
         }),
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        throw new Error(text || `Server returned invalid response (HTTP ${res.status})`);
+      }
       if (!res.ok) throw new Error(data.error || "Failed to save configuration");
 
       if (data.maskedKeys) {
@@ -263,18 +276,23 @@ export default function AIProviderPanel({ active }: { active: boolean }) {
         {/* Quick select pills */}
         <div className="flex flex-wrap items-center gap-1.5 pt-1">
           <span className="text-[10px] font-bold text-slate-400 mr-1">Quick Select:</span>
-          {selectedProviderMeta.models.slice(0, 3).map((m) => (
+          {selectedProviderMeta.models.map((m) => (
             <button
               key={m.id}
               type="button"
               onClick={() => setModel(m.id)}
-              className={`rounded-lg px-2 py-0.5 text-[10px] font-bold transition ${
+              className={`rounded-lg px-2.5 py-1 text-[10px] font-bold transition flex items-center gap-1 active:scale-95 ${
                 model === m.id
                   ? "bg-indigo-600 text-white shadow-xs"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
               }`}
             >
-              {m.name}
+              <span>{m.name}</span>
+              {m.tag && (
+                <span className={`text-[8px] uppercase tracking-wider px-1 py-0.2 rounded ${model === m.id ? "bg-white/20 text-white" : "bg-slate-200/80 text-slate-600 dark:bg-slate-700 dark:text-slate-300"}`}>
+                  {m.tag}
+                </span>
+              )}
             </button>
           ))}
         </div>
