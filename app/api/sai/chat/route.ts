@@ -4,9 +4,9 @@ import { detectSaiLanguage } from "@/lib/sai/cognition/language";
 export const dynamic = "force-dynamic";
 
 /**
- * Canonical SAI chat compatibility adapter.
- * The legacy runtime is temporarily underneath the SAI surface while the
- * cognition/command engine migration proceeds. Language is detected internally
+ * Canonical SAI chat adapter.
+ * The existing model/tool runtime is reused underneath the SAI surface, but
+ * SAI has its own surface identity and fallback behavior. Language is detected internally
  * on every turn; the user never supplies a language flag.
  */
 export async function POST(request: Request) {
@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   if (!message) return legacyAgentPost(request);
 
   const language = detectSaiLanguage(message);
-  const nextBody = { ...(cloned || {}), language };
+  const nextBody = { ...(cloned || {}), language, surface: "sai" };
   const headers = new Headers(request.headers);
   headers.set("content-type", "application/json");
 
