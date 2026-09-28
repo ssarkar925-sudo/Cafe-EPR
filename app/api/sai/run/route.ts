@@ -23,6 +23,7 @@ export async function POST(request: Request) {
     instruction,
     actor: { userId: auth.user.id, businessId: String(body?.businessId || auth.user.id), role: role as string },
     route: typeof body?.route === "string" ? body.route : undefined,
+    approvalId: typeof body?.approvalId === "string" ? body.approvalId.trim() || undefined : undefined,
   });
 
   return NextResponse.json(result);
