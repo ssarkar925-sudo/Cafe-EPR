@@ -38,7 +38,7 @@ export default async function AccountingTransactionsPage() {
 
   return (
     <div data-phase3-module="transactions" className="erp-phase3-page space-y-5">
-      <header className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
+      <header className="erp-phase3-header rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-600">Finance / Accounting</p>
