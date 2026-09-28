@@ -22,9 +22,9 @@ import {
 
 export default function AIProviderPanel({ active }: { active: boolean }) {
   const [provider, setProvider] = useState<AIProviderId>("gemini");
-  const [model, setModel] = useState("gemini-2.5-flash");
+  const [model, setModel] = useState("gemini-2.5-pro");
   const [apiKey, setApiKey] = useState("");
-  const [maskedKey, setMaskedKey] = useState("");
+  const [maskedKeys, setMaskedKeys] = useState<Record<string, string>>({});
   const [endpointUrl, setEndpointUrl] = useState("");
   const [fallbackEnabled, setFallbackEnabled] = useState(true);
   const [showKey, setShowKey] = useState(false);
@@ -48,9 +48,10 @@ export default function AIProviderPanel({ active }: { active: boolean }) {
         const res = await fetch("/api/ai/provider-config", { cache: "no-store" });
         const data = await res.json();
         if (res.ok) {
-          setProvider(data.provider || "gemini");
-          setModel(data.model || "gemini-2.5-flash");
-          setMaskedKey(data.maskedKey || "");
+          const loadedProvider = data.provider || "gemini";
+          setProvider(loadedProvider);
+          setModel(data.model || PROVIDER_CATALOG[loadedProvider as AIProviderId]?.defaultModel || "gemini-2.5-pro");
+          setMaskedKeys(data.maskedKeys || (data.maskedKey ? { [loadedProvider]: data.maskedKey } : {}));
           setEndpointUrl(data.endpointUrl || "");
           setFallbackEnabled(data.fallbackEnabled !== false);
         }
@@ -64,12 +65,14 @@ export default function AIProviderPanel({ active }: { active: boolean }) {
   }, [active]);
 
   const selectedProviderMeta = PROVIDER_CATALOG[provider] || PROVIDER_CATALOG.gemini;
+  const currentMaskedKey = maskedKeys[provider] || "";
+  const hasLinkedKey = Boolean(currentMaskedKey && currentMaskedKey.length > 5);
 
   // Handle provider switch
   function handleSelectProvider(newProvider: AIProviderId) {
     setProvider(newProvider);
     setModel(PROVIDER_CATALOG[newProvider]?.defaultModel || "");
-    setApiKey(""); // clear fresh input so maskedKey or new key can be entered
+    setApiKey(""); // clear fresh input so new key can be entered if desired
     setTestResult(null);
     setNotice(null);
   }
@@ -86,14 +89,26 @@ export default function AIProviderPanel({ active }: { active: boolean }) {
         body: JSON.stringify({
           provider,
           model,
-          apiKey,
+          apiKey: apiKey || undefined,
           endpointUrl,
         }),
       });
       const data = await res.json();
       setTestResult(data);
+      if (data.success) {
+        setNotice({
+          type: "success",
+          text: `Success: Connection to ${selectedProviderMeta.name} (${model}) verified in ${data.latencyMs}ms!`,
+        });
+      } else {
+        setNotice({
+          type: "error",
+          text: `Test failed: ${data.error || "Unable to reach provider"}`,
+        });
+      }
     } catch (err: any) {
       setTestResult({ success: false, error: err?.message || "Connection test failed" });
+      setNotice({ type: "error", text: err?.message || "Connection test failed" });
     } finally {
       setTesting(false);
     }
@@ -118,11 +133,20 @@ export default function AIProviderPanel({ active }: { active: boolean }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to save configuration");
 
-      setNotice({ type: "success", text: `Active model updated to ${model} (${selectedProviderMeta.name}).` });
-      if (apiKey) {
-        setMaskedKey(`${apiKey.slice(0, 4)}••••••••${apiKey.slice(-4)}`);
-        setApiKey("");
+      if (data.maskedKeys) {
+        setMaskedKeys(data.maskedKeys);
+      } else if (apiKey) {
+        setMaskedKeys((prev) => ({
+          ...prev,
+          [provider]: `${apiKey.slice(0, 4)}••••••••${apiKey.slice(-4)}`,
+        }));
       }
+
+      setNotice({
+        type: "success",
+        text: `Configuration Saved & Activated! Active Provider: ${selectedProviderMeta.name} | Model: ${model} | API Key Linked ✓`,
+      });
+      setApiKey("");
     } catch (err: any) {
       setNotice({ type: "error", text: err?.message || "Failed to save configuration" });
     } finally {
@@ -208,9 +232,14 @@ export default function AIProviderPanel({ active }: { active: boolean }) {
 
       {/* Model Selection Dropdown */}
       <div className="space-y-2">
-        <label className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
-          2. Model Selection ({selectedProviderMeta.name})
-        </label>
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            2. Model Selection ({selectedProviderMeta.name})
+          </label>
+          <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400">
+            High-Intelligence & Speed Options Available
+          </span>
+        </div>
         <div className="flex flex-col sm:flex-row gap-2">
           <select
             value={model}
@@ -219,7 +248,7 @@ export default function AIProviderPanel({ active }: { active: boolean }) {
           >
             {selectedProviderMeta.models.map((m) => (
               <option key={m.id} value={m.id}>
-                {m.name} {m.tag ? `(${m.tag})` : ""}
+                {m.name} {m.tag ? `★ [${m.tag}]` : ""}
               </option>
             ))}
           </select>
@@ -231,6 +260,24 @@ export default function AIProviderPanel({ active }: { active: boolean }) {
             className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-mono font-bold text-slate-900 outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-slate-950 dark:text-white"
           />
         </div>
+        {/* Quick select pills */}
+        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+          <span className="text-[10px] font-bold text-slate-400 mr-1">Quick Select:</span>
+          {selectedProviderMeta.models.slice(0, 3).map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => setModel(m.id)}
+              className={`rounded-lg px-2 py-0.5 text-[10px] font-bold transition ${
+                model === m.id
+                  ? "bg-indigo-600 text-white shadow-xs"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+              }`}
+            >
+              {m.name}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* API Key Management */}
@@ -239,13 +286,25 @@ export default function AIProviderPanel({ active }: { active: boolean }) {
           <label className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
             3. {selectedProviderMeta.name} API Key
           </label>
-          {maskedKey && !apiKey && (
-            <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+          {hasLinkedKey && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-bold text-emerald-600 border border-emerald-500/20 dark:bg-emerald-500/20 dark:text-emerald-400">
               <ShieldCheck className="h-3.5 w-3.5" />
-              <span>Configured ({maskedKey})</span>
+              <span>Linked & Active ✓ ({currentMaskedKey})</span>
             </span>
           )}
         </div>
+
+        {/* Informative Key Status Pill */}
+        {hasLinkedKey && !apiKey && (
+          <div className="flex items-center justify-between rounded-xl bg-slate-100/80 px-3.5 py-2 text-xs border border-slate-200/80 dark:bg-slate-900/60 dark:border-white/5">
+            <span className="text-slate-600 dark:text-slate-300 font-medium">
+              Saved Secret Key: <code className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{currentMaskedKey}</code>
+            </span>
+            <span className="text-[10px] font-bold text-slate-400">
+              Ready to execute
+            </span>
+          </div>
+        )}
 
         <div className="relative flex items-center">
           <input
@@ -253,9 +312,9 @@ export default function AIProviderPanel({ active }: { active: boolean }) {
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
             placeholder={
-              maskedKey
-                ? `Current: ${maskedKey} (Leave blank to keep, or enter new key)`
-                : `Enter your ${selectedProviderMeta.name} API Key...`
+              hasLinkedKey
+                ? `Key linked (${currentMaskedKey}). Enter new key only to replace.`
+                : `Enter your ${selectedProviderMeta.name} API Key (e.g. ${provider === "gemini" ? "AIzaSy..." : "sk-..."})`
             }
             className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 pr-20 text-xs font-mono font-bold text-slate-900 outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-slate-900 dark:text-white"
           />
@@ -343,7 +402,7 @@ export default function AIProviderPanel({ active }: { active: boolean }) {
         <button
           type="button"
           onClick={testConnection}
-          disabled={testing || (!apiKey && !maskedKey)}
+          disabled={testing || (!apiKey && !hasLinkedKey)}
           className="flex-1 flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-xs font-black text-slate-800 hover:bg-slate-50 transition active:scale-95 disabled:opacity-50 dark:border-white/10 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800"
         >
           <Zap className="h-4 w-4 text-amber-500" />

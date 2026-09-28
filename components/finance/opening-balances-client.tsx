@@ -185,7 +185,7 @@ export default function OpeningBalancesClient({
   }, [seeds, draftSnapshot]);
 
   return (
-    <div data-phase3-module="opening-balances" className="erp-phase3-page space-y-5">
+    <div data-phase3-module="opening-balances" className="erp-phase3-page space-y-5 pt-4">
       {/* ========================================================================= */}
       {/* 1. PRIMARY: OPENING FINANCIAL POSITION WORKSPACE HERO */}
       {/* ========================================================================= */}

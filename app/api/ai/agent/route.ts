@@ -127,27 +127,49 @@ export async function POST(request: Request) {
 
     // Load dynamic AI provider configuration from database (Gemini, OpenAI, Claude, Groq, OpenRouter)
     let activeProvider: any = "gemini";
-    let activeModel = "gemini-2.5-flash";
-    let apiKey = process.env.GEMINI_API_KEY || "";
+    let activeModel = "gemini-2.5-pro";
+    let apiKey = "";
     let endpointUrl = "";
 
+    // 1. Try reading from settings.ai_config (authoritative resilient store)
     try {
-      const { data: provConfig } = await supabase
-        .from("ai_provider_configs")
-        .select("active_provider, model_name, api_key, endpoint_url")
-        .eq("id", "default")
+      const { data: stData } = await supabase
+        .from("settings")
+        .select("ai_config")
+        .limit(1)
         .maybeSingle();
 
-      if (provConfig) {
-        activeProvider = provConfig.active_provider || "gemini";
-        activeModel = provConfig.model_name || "gemini-2.5-flash";
-        if (provConfig.api_key && provConfig.api_key.trim().length > 5) {
-          apiKey = provConfig.api_key.trim();
-        }
-        endpointUrl = provConfig.endpoint_url || "";
+      if (stData?.ai_config) {
+        const conf = stData.ai_config;
+        if (conf.active_provider) activeProvider = conf.active_provider;
+        if (conf.model_name) activeModel = conf.model_name;
+        if (conf.endpoint_url) endpointUrl = conf.endpoint_url;
+        if (conf.keys?.[activeProvider]) apiKey = conf.keys[activeProvider];
       }
     } catch {
-      // Fallback cleanly to env variables
+      // Fallback
+    }
+
+    // 2. Also check ai_provider_configs table if key is still missing
+    if (!apiKey) {
+      try {
+        const { data: provConfig } = await supabase
+          .from("ai_provider_configs")
+          .select("active_provider, model_name, api_key, endpoint_url")
+          .eq("id", "default")
+          .maybeSingle();
+
+        if (provConfig) {
+          if (!activeProvider || activeProvider === "gemini") activeProvider = provConfig.active_provider || "gemini";
+          if (!activeModel || activeModel === "gemini-2.5-pro") activeModel = provConfig.model_name || "gemini-2.5-pro";
+          if (provConfig.api_key && provConfig.api_key.trim().length > 5) {
+            apiKey = provConfig.api_key.trim();
+          }
+          if (!endpointUrl) endpointUrl = provConfig.endpoint_url || "";
+        }
+      } catch {
+        // Fallback cleanly to env variables
+      }
     }
 
     // Fallbacks if database key is empty
