@@ -20,8 +20,7 @@ check(files.sim.includes("detectSaiContradictions"),"Contradiction detector exis
 check(files.sim.includes("unsupported_simulation"),"Missing simulation contracts are blocking");
 check(files.sim.includes("patch_conflict"),"Conflicting predicted patches are detected");
 check(files.sim.includes("baseline_mismatch"),"Baseline mismatches are detected");
-check(files.sim.includes("never call"),"")===false?true:true;
-check(files.sim.includes("capability.execute"),"Simulator does not invoke capability execute functions");
+check(!files.sim.includes("capability.execute("), "Simulator never invokes capability execute functions");
 check(files.sim.includes("sai_simulations"),"Simulation results persist durably");
 check(files.sim.includes("sai_contradictions"),"Contradictions persist durably");
 check(files.exec.includes("simulateSaiPlan"),"Executor invokes simulation before consequential execution");
