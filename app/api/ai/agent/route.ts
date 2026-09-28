@@ -73,9 +73,6 @@ export async function POST(request: Request) {
     const message = typeof body?.message === "string" ? body.message.trim() : "";
     if (!message) return NextResponse.json({ error: "Message is required" }, { status: 400 });
     const surface = body?.surface === "sai" ? "sai" : "legacy";
-    const fallbackMessage = surface === "sai"
-      ? "SAI is ready, Sir. I’m your CafeERP business assistant. Ask me about this screen, your shop, customers, transactions, or what needs attention."
-      : undefined;
     if (message.length > MAX_MESSAGE_LENGTH) return NextResponse.json({ error: "Message is too long" }, { status: 413 });
 
     const supabase = await createClient();
@@ -159,6 +156,13 @@ export async function POST(request: Request) {
     const mergedHistory = inTabHistory.length >= 4 ? inTabHistory : [...dbTurns.slice(-8), ...inTabHistory].slice(-MAX_HISTORY_ITEMS);
 
     const { language, instruction: languageInstruction } = buildSaiLanguageContext(message);
+    const fallbackMessage = surface !== "sai"
+      ? undefined
+      : language === "bn"
+        ? "SAI প্রস্তুত, স্যার। আমি আপনার CafeERP ব্যবসায়িক সহকারী। এই স্ক্রিন, আপনার দোকান, গ্রাহক, লেনদেন বা এখন কী নজরে রাখা দরকার—যেকোনো কিছু জিজ্ঞাসা করুন।"
+        : language === "hi"
+          ? "SAI तैयार है, Sir। मैं आपकी CafeERP बिज़नेस असिस्टेंट हूँ। इस स्क्रीन, आपकी दुकान, ग्राहकों, लेन-देन या अभी किस चीज़ पर ध्यान देना है—कुछ भी पूछिए।"
+          : "SAI is ready, Sir. I’m your CafeERP business assistant. Ask me about this screen, your shop, customers, transactions, or what needs attention.";
 
     const systemInstruction = `${CAFE_AI_SYSTEM_INSTRUCTIONS}\n\n${SAI_RESPONSE_RULES}\n\n${languageInstruction}\n\nSurface: ${surface}. On the SAI surface, never use legacy “Cafe AI Agent” wording or imply that the user is talking to a separate legacy assistant.\n\nOwner learned memory:\n${memoryContext}\n\nLearned shop workflows:\n${workflowContext}\n\nCurrent application permission profile:\n${JSON.stringify(DEFAULT_AGENT_PERMISSIONS)}\n\nCritical operational rules:\n1. ALWAYS use your tools before answering questions about sales, profit, stock, customers, or money. Never answer these from your own knowledge.\n2. When the user teaches a rule, preference, price, or fact, ALWAYS call save_memory immediately.\n3. For sales or billing requests, prepare the sale with prepare_sale and submit for owner approval.\n4. Never claim a financial record was created or modified unless confirmed by a tool.\n5. You have cross-session memory — refer to past conversations naturally when relevant.`;
 
