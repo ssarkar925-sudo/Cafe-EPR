@@ -312,7 +312,7 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
   return (
     <div data-phase3-module="ledger" className="erp-phase3-page space-y-5">
       {/* Elevated Header */}
-      <header className="bento-surface card-glow-rose relative overflow-hidden rounded-3xl border p-6">
+      <header className="erp-phase3-header bento-surface card-glow-rose relative overflow-hidden rounded-3xl border p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
             <div className="icon-box-3d flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-rose-500 via-pink-600 to-indigo-700 text-white shadow-lg shadow-rose-500/25">
