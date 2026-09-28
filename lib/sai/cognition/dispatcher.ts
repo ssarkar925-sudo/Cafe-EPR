@@ -1,3 +1,4 @@
+import { persistSaiEvent } from "@/lib/sai/core/persistence";
 import { recordSaiEvent } from "@/lib/sai/core/world-state";
 import type { SaiEvent } from "@/lib/sai/core/types";
 
@@ -13,7 +14,10 @@ export function subscribeSaiEvent(type: string, handler: EventHandler): () => vo
 }
 
 export async function dispatchSaiEvent(event: SaiEvent): Promise<void> {
+  const persisted = await persistSaiEvent(event);
   recordSaiEvent(event);
+  if (!persisted.inserted) return;
+
   const matching = [...(handlers.get(event.type) ?? []), ...(handlers.get("*") ?? [])];
   await Promise.allSettled(matching.map((handler) => handler(event)));
 }
