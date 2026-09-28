@@ -1,9 +1,8 @@
-import { createHash } from "node:crypto";
 import { requireSaiCapability } from "./capabilities";
 import { saiCommandRequiresApproval, validateSaiCommand } from "./policy";
 import type { SaiActor, SaiCommand, SaiRiskLevel, SaiCapabilityResult } from "./types";
 
-export function buildSaiCommand(input: {
+export async function buildSaiCommand(input: {
   actor: SaiActor;
   capability: string;
   payload: Record<string, unknown>;
@@ -11,9 +10,9 @@ export function buildSaiCommand(input: {
   idempotencyKey?: string;
 }): SaiCommand {
   const now = new Date().toISOString();
-  const idempotencyKey = input.idempotencyKey ?? createHash("sha256")
-    .update(JSON.stringify({ actor: input.actor, capability: input.capability, payload: input.payload }))
-    .digest("hex");
+  const canonical = JSON.stringify({ actor: input.actor, capability: input.capability, payload: input.payload });
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
+  const idempotencyKey = input.idempotencyKey ?? Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
   const command: SaiCommand = {
     commandId: crypto.randomUUID(),
     idempotencyKey,
