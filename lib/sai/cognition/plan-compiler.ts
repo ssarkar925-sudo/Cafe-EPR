@@ -1,5 +1,6 @@
+import { createClient } from "@/lib/supabase/server";
 import { getSaiCapability } from "@/lib/sai/core/capabilities";
-import type { SaiPlan, SaiPlanStep, SaiRiskLevel } from "@/lib/sai/core/types";
+import type { SaiActor, SaiPlan, SaiPlanStep, SaiRiskLevel } from "@/lib/sai/core/types";
 
 const RISK_ORDER: SaiRiskLevel[] = ["read", "low", "medium", "high", "critical"];
 const MAX_PLAN_STEPS = 20;
@@ -65,6 +66,78 @@ export function compileSaiPlan(input: {
     requiresApproval,
     validation: "validated",
   };
+}
+
+export async function compileSaiMissionPlan(actor: SaiActor, missionId: string): Promise<SaiPlan> {
+  const supabase = await createClient();
+
+  const { data: mission, error: missionError } = await supabase
+    .from("sai_missions")
+    .select("mission_id,goal_id,status,plan,business_id,actor_user_id")
+    .eq("mission_id", missionId)
+    .eq("business_id", actor.businessId)
+    .eq("actor_user_id", actor.userId)
+    .maybeSingle();
+
+  if (missionError) throw new Error(`SAI_MISSION_READ_FAILED: ${missionError.message}`);
+  if (!mission) throw new Error("SAI_MISSION_NOT_FOUND");
+  if (mission.status === "completed" || mission.status === "cancelled") {
+    throw new Error("SAI_MISSION_NOT_EDITABLE");
+  }
+
+  const { data: goal, error: goalError } = await supabase
+    .from("sai_goals")
+    .select("goal_id,status,objective")
+    .eq("goal_id", mission.goal_id)
+    .eq("business_id", actor.businessId)
+    .eq("actor_user_id", actor.userId)
+    .maybeSingle();
+
+  if (goalError) throw new Error(`SAI_GOAL_READ_FAILED: ${goalError.message}`);
+  if (!goal) throw new Error("SAI_GOAL_NOT_FOUND");
+  if (goal.status !== "active") throw new Error("SAI_GOAL_NOT_ACTIVE");
+
+  const existingPlan = isRecord(mission.plan) ? mission.plan : {};
+  const rawSteps = Array.isArray(existingPlan.steps) ? existingPlan.steps : [];
+
+  const steps: RawStep[] = rawSteps.map((step, index) => {
+    if (!isRecord(step)) throw new Error(`SAI_PLAN_STEP_INVALID:${index}`);
+
+    const dependsOn = Array.isArray(step.dependsOn)
+      ? step.dependsOn.filter((value): value is string => typeof value === "string")
+      : [];
+
+    return {
+      stepId: typeof step.stepId === "string" ? step.stepId : undefined,
+      capability: typeof step.capability === "string" ? step.capability : "",
+      input: isRecord(step.input) ? step.input : {},
+      risk: typeof step.risk === "string" ? step.risk as SaiRiskLevel : "read",
+      dependsOn,
+    };
+  });
+
+  const goalText =
+    typeof existingPlan.goal === "string" && existingPlan.goal.trim()
+      ? existingPlan.goal
+      : String(goal.objective ?? missionId);
+
+  const compiled = compileSaiPlan({
+    source: "mission",
+    goal: goalText,
+    steps,
+    requiresApproval: existingPlan.requiresApproval === true,
+  });
+
+  const { error: updateError } = await supabase
+    .from("sai_missions")
+    .update({ plan: compiled })
+    .eq("mission_id", missionId)
+    .eq("business_id", actor.businessId)
+    .eq("actor_user_id", actor.userId);
+
+  if (updateError) throw new Error(`SAI_MISSION_PLAN_WRITE_FAILED: ${updateError.message}`);
+
+  return compiled;
 }
 
 export function planRisk(plan: SaiPlan): SaiRiskLevel {
