@@ -21,7 +21,7 @@ export async function POST(request: Request) {
 
   const result = await runSaiInstruction({
     instruction,
-    actor: { userId: auth.user.id, businessId: String(body?.businessId || auth.user.id), role },
+    actor: { userId: auth.user.id, businessId: String(body?.businessId || auth.user.id), role: role as string },
     route: typeof body?.route === "string" ? body.route : undefined,
   });
 
