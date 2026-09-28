@@ -24,7 +24,7 @@ function check(condition, message) {
 console.log("SAI durable world-state regression tests");
 check(world.includes("loadSaiWorldState"), "World state loads from durable storage");
 check(world.includes("projectSaiEventToWorldState"), "World state has an event projection path");
-check(world.includes("MAX_DURABLE_EVENT_IDS = 50"), "Durable event history is bounded");
+check(/MAX_DURABLE_EVENT_IDS\s*=\s*50/.test(world), "Durable event history is bounded");
 check(world.includes('from("sai_world_state")'), "Only the SAI world-state table is used for durable snapshots");
 check(world.includes('from("sai_attention")'), "Attention is merged from the canonical attention table");
 check(world.includes('"sale.created"'), "Sale events populate transaction context");
