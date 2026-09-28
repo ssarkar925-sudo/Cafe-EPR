@@ -147,6 +147,39 @@ export async function executeSaiPlan(
         })
       : null;
     const result = recovery?.result ?? initialResult;
+
+    if (recovery) {
+      await recordSaiTrace({
+        traceId,
+        actor,
+        parentSpanId: decisionTrace.spanId,
+        sequenceNo: 102 + stepIndex * 10,
+        phase: "EXECUTE",
+        eventType: "command.recovery",
+        status: recovery.recovered ? "completed" : recovery.decision.action === "approval" ? "blocked" : "failed",
+        operation: "execute_plan",
+        planId: plan.planId,
+        commandId: command.commandId,
+        stepId: step.stepId,
+        message: recovery.recovered
+          ? "Command recovered after a bounded recovery attempt"
+          : "Command recovery decision recorded",
+        data: {
+          initialError: initialResult.error ?? null,
+          category: recovery.decision.category,
+          action: recovery.decision.action,
+          attemptNumber: recovery.decision.attemptNumber,
+          maxAttempts: recovery.decision.maxAttempts,
+          safe: recovery.decision.safe,
+          recovered: recovery.recovered,
+          approvalId: input.approvalId ?? null,
+          mode,
+          reason: recovery.decision.reason,
+        },
+        evidenceIds: result.evidenceIds ?? [],
+      });
+    }
+
     const resultTrace = await recordSaiTrace({
       traceId, actor, parentSpanId: decisionTrace.spanId, sequenceNo: 102 + stepIndex * 10,
       phase: "EXECUTE", eventType: "command.result", status: result.ok ? "completed" : "failed", operation: "execute_plan",
