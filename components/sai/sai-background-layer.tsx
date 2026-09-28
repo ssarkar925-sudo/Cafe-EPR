@@ -262,9 +262,12 @@ export default function SAIBackgroundLayer() {
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-[80]" role="dialog" aria-modal="true" aria-label="SAI">
-          <button aria-label="Close SAI" onClick={() => setOpen(false)} className="absolute inset-0 bg-slate-950/10 backdrop-blur-[1px] dark:bg-black/30" />
-          <div className="absolute bottom-20 right-4 w-[min(430px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-slate-200/90 bg-white/98 shadow-[0_24px_80px_rgba(15,23,42,0.20)] dark:border-white/10 dark:bg-slate-950/98 sm:bottom-20 sm:right-6">
+        <div
+          className="fixed bottom-20 right-4 z-[80] w-[min(430px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-slate-200/90 bg-white/98 shadow-[0_24px_80px_rgba(15,23,42,0.20)] dark:border-white/10 dark:bg-slate-950/98 sm:bottom-20 sm:right-6"
+          role="dialog"
+          aria-modal="false"
+          aria-label="SAI"
+        >
             <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-white/10">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-white dark:bg-white dark:text-slate-900">
@@ -329,7 +332,6 @@ export default function SAIBackgroundLayer() {
               </div>
             </form>
           </div>
-        </div>
       )}
     </>
   );
