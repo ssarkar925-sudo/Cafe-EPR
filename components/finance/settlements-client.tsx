@@ -337,7 +337,7 @@ export default function SettlementsClient({
   const upiAccounts = useMemo(() => paymentInstruments.filter((i) => i.type === "upi" && i.is_active), [paymentInstruments]);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8 space-y-8">
+    <div data-phase3-module="settlements" className="erp-phase3-page space-y-5">
       {/* SECTION 1: LIVE TREASURY POSITIONS & CHANNEL FLOATS */}
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
