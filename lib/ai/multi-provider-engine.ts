@@ -73,6 +73,7 @@ export const PROVIDER_CATALOG: Record<
       { id: "gpt-4o", name: "GPT-4o (Omni)", tag: "Premier Flagship" },
       { id: "o1", name: "o1 (High Reasoning)", tag: "Deep Problem Solving" },
       { id: "o3-mini", name: "o3-mini", tag: "Next-Gen STEM & Math" },
+      { id: "gpt-5-luna", name: "GPT-5.6 / Luna", tag: "Next-Gen Frontier" },
       { id: "gpt-4o-mini", name: "GPT-4o Mini", tag: "Fast & Economical" },
       { id: "gpt-4-turbo", name: "GPT-4 Turbo", tag: "Legacy Enterprise" },
     ],
@@ -81,9 +82,10 @@ export const PROVIDER_CATALOG: Record<
   },
   anthropic: {
     name: "Anthropic Claude",
-    description: "Nuanced enterprise instruction-following, superior coding, and business logic analysis.",
-    defaultModel: "claude-3-5-sonnet-latest",
+    description: "Nuanced enterprise instruction-following, superior coding, hybrid reasoning, and business analysis.",
+    defaultModel: "claude-3-7-sonnet-20250219",
     models: [
+      { id: "claude-3-7-sonnet-20250219", name: "Claude 3.7 Sonnet", tag: "Hybrid Reasoning (Latest)" },
       { id: "claude-3-5-sonnet-latest", name: "Claude 3.5 Sonnet", tag: "Best Intelligence" },
       { id: "claude-3-opus-latest", name: "Claude 3 Opus", tag: "Complex Analysis" },
       { id: "claude-3-5-haiku-latest", name: "Claude 3.5 Haiku", tag: "High Speed" },
@@ -108,12 +110,14 @@ export const PROVIDER_CATALOG: Record<
   openrouter: {
     name: "OpenRouter",
     description: "Universal unified gateway to the world's most powerful frontier, open-source, and specialized models.",
-    defaultModel: "deepseek/deepseek-r1",
+    defaultModel: "anthropic/claude-3.7-sonnet",
     models: [
+      { id: "anthropic/claude-3.7-sonnet", name: "Claude 3.7 Sonnet (Hybrid Reasoning)", tag: "Latest Frontier" },
+      { id: "anthropic/claude-3.5-sonnet", name: "Claude 3.5 Sonnet", tag: "Top Intelligence" },
+      { id: "openai/gpt-4o", name: "GPT-4o (OpenRouter)", tag: "Premier OpenAI" },
+      { id: "openai/gpt-5-luna", name: "GPT-5.6 Luna / 5.4", tag: "Next-Gen Luna Series" },
       { id: "deepseek/deepseek-r1", name: "DeepSeek R1 (Full 671B)", tag: "Open Frontier Reasoning" },
       { id: "deepseek/deepseek-chat", name: "DeepSeek V3", tag: "Top-Tier Value" },
-      { id: "anthropic/claude-3.5-sonnet", name: "Claude 3.5 Sonnet (OpenRouter)", tag: "Top Intelligence" },
-      { id: "openai/gpt-4o", name: "GPT-4o (OpenRouter)", tag: "Premier OpenAI" },
       { id: "meta-llama/llama-3.3-70b-instruct", name: "Llama 3.3 70B Instruct", tag: "Open Weights" },
       { id: "google/gemini-2.0-flash-001", name: "Gemini 2.0 Flash (OpenRouter)", tag: "High Throughput" },
     ],
