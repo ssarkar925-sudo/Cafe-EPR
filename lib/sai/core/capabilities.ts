@@ -66,6 +66,9 @@ export function registerSaiCapability(capability: SaiCapabilityDefinition): void
   if (mutates && !verificationRequired) {
     throw new Error(`SAI mutating capability requires verification: ${capability.id}`);
   }
+  if (mutates && !capability.simulate) {
+    throw new Error(`SAI mutating capability requires simulation: ${capability.id}`);
+  }
 
   registry.set(capability.id, {
     ...capability,
@@ -88,7 +91,7 @@ export function listSaiCapabilities(): RegisteredSaiCapability[] {
 }
 
 export function listSaiCapabilityDescriptors(): SaiCapabilityDescriptor[] {
-  return listSaiCapabilities().map(({ execute: _execute, ...descriptor }) => descriptor);
+  return listSaiCapabilities().map(({ execute: _execute, simulate: _simulate, ...descriptor }) => descriptor);
 }
 
 export function requireSaiCapability(id: string): RegisteredSaiCapability {
@@ -115,6 +118,9 @@ export function validateSaiCapabilityRegistry(): void {
     }
     if (capability.mutates && !capability.verificationRequired) {
       throw new Error(`SAI mutating capability requires verification: ${capability.id}`);
+    }
+    if (capability.mutates && !capability.simulate) {
+      throw new Error(`SAI mutating capability requires simulation: ${capability.id}`);
     }
   }
 }

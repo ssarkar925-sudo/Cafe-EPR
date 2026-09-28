@@ -19,7 +19,29 @@ export type SaiMission = { missionId: string; goalId: string; actor: SaiActor; t
 export type SaiWorldState = { observedAt: string; route?: string; activeModule?: string; customer?: Record<string, unknown> | null; transaction?: Record<string, unknown> | null; attention: SaiAttentionItem[]; facts: Record<string, unknown> };
 export type SaiAttentionItem = { id: string; type: string; severity: "info" | "warning" | "critical"; title: string; detail?: string; evidenceIds: string[] };
 export type SaiEvent = { eventId: string; type: string; occurredAt: string; actor?: SaiActor; entityId?: string; payload: Record<string, unknown>; evidenceIds?: string[] };
-export type SaiCapability = { id: string; description: string; risk: SaiRiskLevel; requiresApproval: boolean; execute: (input: Record<string, unknown>, ctx: SaiExecutionContext) => Promise<SaiCapabilityResult> };
+export type SaiSimulationEffect = {
+  entityKey?: string;
+  patch?: Record<string, unknown>;
+  expected?: Record<string, unknown>;
+  predictedOutput?: Record<string, unknown>;
+  confidence?: number;
+};
+export type SaiSimulationContext = {
+  plan: SaiPlan;
+  step: SaiPlanStep;
+  actor: SaiActor;
+  mode: SaiExecutionMode;
+  now: string;
+  baseline: SaiWorldState;
+};
+export type SaiCapability = {
+  id: string;
+  description: string;
+  risk: SaiRiskLevel;
+  requiresApproval: boolean;
+  execute: (input: Record<string, unknown>, ctx: SaiExecutionContext) => Promise<SaiCapabilityResult>;
+  simulate?: (input: Record<string, unknown>, ctx: SaiSimulationContext) => Promise<SaiSimulationEffect>;
+};
 export type SaiCommand = { commandId: string; idempotencyKey: string; actor: SaiActor; capability: string; payload: Record<string, unknown>; risk: SaiRiskLevel; approvalId?: string; status: SaiCommandStatus; verification: SaiVerificationStatus; createdAt: string; updatedAt: string };
 export type SaiCapabilityResult = { ok: boolean; output?: Record<string, unknown>; evidenceIds?: string[]; error?: string };
 export type SaiExecutionContext = { command: SaiCommand; now: string };
@@ -41,6 +63,33 @@ export type SaiAutonomyPolicy = {
   requireApprovalForMutations: boolean;
   createdAt: string;
   updatedAt: string;
+};
+export type SaiContradiction = {
+  contradictionId: string;
+  simulationId?: string;
+  planId: string;
+  stepId?: string;
+  contradictionType: "patch_conflict" | "baseline_mismatch" | "dependency_conflict" | "stale_state" | "unsupported_simulation";
+  severity: "warning" | "blocking" | "critical";
+  entityKey?: string;
+  expected: Record<string, unknown>;
+  observed: Record<string, unknown>;
+  detail: string;
+  evidenceIds: string[];
+  status: "open" | "acknowledged" | "resolved";
+  createdAt: string;
+};
+export type SaiSimulationResult = {
+  simulationId: string;
+  planId: string;
+  mode: SaiExecutionMode;
+  status: "safe" | "blocked" | "contradiction";
+  baselineHash: string;
+  predictedState: Record<string, unknown>;
+  contradictions: SaiContradiction[];
+  stepCount: number;
+  evidenceIds: string[];
+  createdAt: string;
 };
 export type SaiAutonomyDecision = {
   allowed: boolean;

@@ -56,7 +56,8 @@
     "test:sai-evidence": "node scripts/test-sai-evidence.mjs",
     "test:sai-tracing": "node scripts/test-sai-tracing.mjs",
     "test:sai-autonomy": "node scripts/test-sai-autonomy.mjs",
-    "test:sai-missions-runner": "node scripts/test-sai-missions-runner.mjs"
+    "test:sai-missions-runner": "node scripts/test-sai-missions-runner.mjs",
+    "test:sai-simulation": "node scripts/test-sai-simulation.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.1",

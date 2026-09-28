@@ -3,6 +3,7 @@ import { createSaiEvidence, captureSaiPlanEvidence } from "./evidence";
 import { persistSaiCommandStep, updateSaiCommand } from "./persistence";
 import { verifySaiCommand } from "./verification";
 import { createSaiTraceId, recordSaiTrace } from "./trace";
+import { simulateSaiPlan } from "./simulation";
 import type { SaiActor, SaiCapabilityResult, SaiPlan, SaiPlanStep, SaiExecutionMode } from "./types";
 
 export type SaiPlanExecutionResult = { results: SaiCapabilityResult[]; blockedSteps: string[]; traceId: string };
@@ -21,6 +22,65 @@ export async function executeSaiPlan(
     data: { stepCount: plan.steps.length, requiresApproval: plan.requiresApproval, mode },
   });
   const planEvidence = await captureSaiPlanEvidence(plan, actor);
+  const requiresSimulation = mode === "background" || plan.steps.some(step => {
+    const { getSaiCapability } = await import("./capabilities");
+    const capability = getSaiCapability(step.capability);
+    return step.risk !== "read" || Boolean(capability?.mutates);
+  });
+  if (requiresSimulation) {
+    const simulation = await simulateSaiPlan({ actor, plan, mode });
+    await recordSaiTrace({
+      traceId,
+      actor,
+      parentSpanId: planTrace.spanId,
+      sequenceNo: 20,
+      phase: "REASON",
+      eventType: "plan.simulation",
+      status: simulation.status === "safe" ? "completed" : "blocked",
+      operation: "execute_plan",
+      planId: plan.planId,
+      message: simulation.status === "safe"
+        ? "Digital Twin simulation found no blocking contradiction"
+        : "Digital Twin simulation blocked execution due to contradiction",
+      data: {
+        simulationId: simulation.simulationId,
+        status: simulation.status,
+        baselineHash: simulation.baselineHash,
+        contradictionCount: simulation.contradictions.length,
+      },
+      evidenceIds: simulation.evidenceIds,
+    });
+    if (simulation.status !== "safe") {
+      const results = simulation.contradictions.map(item => ({
+        ok: false,
+        error: "SAI_CONTRADICTION_DETECTED",
+        output: {
+          contradictionId: item.contradictionId,
+          contradictionType: item.contradictionType,
+          severity: item.severity,
+          detail: item.detail,
+          entityKey: item.entityKey ?? null,
+        },
+        evidenceIds: item.evidenceIds,
+      }));
+      const blockedSteps = [...new Set(simulation.contradictions.map(item => item.stepId).filter((id): id is string => Boolean(id)))];
+      await recordSaiTrace({
+        traceId,
+        actor,
+        parentSpanId: planTrace.spanId,
+        sequenceNo: 999,
+        phase: "VERIFY",
+        eventType: "plan.execution.summary",
+        status: "blocked",
+        operation: "execute_plan",
+        planId: plan.planId,
+        message: "Execution stopped before command execution because simulation detected a contradiction",
+        data: { resultCount: results.length, blockedSteps, simulationId: simulation.simulationId },
+        evidenceIds: simulation.evidenceIds,
+      });
+      return { traceId, results, blockedSteps };
+    }
+  }
   const results: SaiCapabilityResult[] = [];
   const blockedSteps: string[] = [];
   const completedSteps = new Set<string>();

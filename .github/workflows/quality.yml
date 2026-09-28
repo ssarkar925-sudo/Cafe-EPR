@@ -66,6 +66,9 @@ jobs:
       - name: SAI mission runner
         run: npm run test:sai-missions-runner
 
+      - name: SAI simulation and contradiction detection
+        run: npm run test:sai-simulation
+
       - name: TypeScript check
         run: npx tsc --noEmit
       - name: Production build
