@@ -1,6 +1,7 @@
 import "@/lib/sai/capabilities/business-observe";
 import { startSaiPosWorker } from "@/lib/sai/capabilities/pos-worker";
 import { executeSaiPlan } from "@/lib/sai/core/executor";
+import { createSaiTraceId, recordSaiTrace } from "@/lib/sai/core/trace";
 import { loadSaiWorldState } from "@/lib/sai/core/world-state";
 import type { SaiActor, SaiCapabilityResult, SaiEvent } from "@/lib/sai/core/types";
 import { planSaiInstruction } from "./planner";

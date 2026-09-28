@@ -71,6 +71,9 @@ jobs:
       - name: SAI evidence provenance
         run: npm run test:sai-evidence
 
+      - name: SAI execution tracing
+        run: npm run test:sai-tracing
+
       - name: TypeScript check
         run: npx tsc --noEmit
 

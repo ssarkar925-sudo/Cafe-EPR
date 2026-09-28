@@ -11,5 +11,7 @@ export * from "./recovery-policy";
 export * from "./recovery";
 export * from "./executor";
 export * from "./evidence";
+export * from "./trace";
+export * from "./explanation";
 export * from "./goals";
 export * from "../cognition/plan-compiler";

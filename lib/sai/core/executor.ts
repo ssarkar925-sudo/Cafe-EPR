@@ -2,20 +2,22 @@ import { buildSaiCommand, executeSaiCommand } from "./command";
 import { createSaiEvidence, captureSaiPlanEvidence } from "./evidence";
 import { persistSaiCommandStep, updateSaiCommand } from "./persistence";
 import { verifySaiCommand } from "./verification";
+import { createSaiTraceId, recordSaiTrace } from "./trace";
 import type { SaiActor, SaiCapabilityResult, SaiPlan, SaiPlanStep } from "./types";
 
 export type SaiPlanExecutionResult = {
   results: SaiCapabilityResult[];
   blockedSteps: string[];
+  traceId: string;
 };
 
-export async function executeSaiPlan(
-  plan: SaiPlan,
-  actor: SaiActor,
-  approvalId?: string,
-): Promise<SaiPlanExecutionResult> {
+export async function executeSaiPlan(plan: SaiPlan, actor: SaiActor, approvalId?: string, traceId = createSaiTraceId("plan")): Promise<SaiPlanExecutionResult> {
   if (!plan.validation || plan.version !== 1) throw new Error("SAI_PLAN_NOT_VALIDATED");
-
+  const planTrace = await recordSaiTrace({
+    traceId, actor, sequenceNo: 10, phase: "PLAN", eventType: "plan.execution.started", status: "started",
+    operation: "execute_plan", planId: plan.planId, message: "Plan execution started",
+    data: { stepCount: plan.steps.length, requiresApproval: plan.requiresApproval },
+  });
   const planEvidence = await captureSaiPlanEvidence(plan, actor);
   const results: SaiCapabilityResult[] = [];
   const blockedSteps: string[] = [];
@@ -23,160 +25,125 @@ export async function executeSaiPlan(
 
   for (const [stepIndex, step] of plan.steps.entries()) {
     const decisionEvidence = await createSaiEvidence({
-      evidenceId: `decision:${plan.planId}:${step.stepId}`,
-      actor,
-      sourceType: "sai.execution.decision",
-      sourceRef: plan.planId,
-      subject: { type: "command_step", id: `${plan.planId}:${step.stepId}`, relation: "explains" },
+      evidenceId: "decision:" + plan.planId + ":" + step.stepId, actor,
+      sourceType: "sai.execution.decision", sourceRef: plan.planId,
+      subject: { type: "command_step", id: plan.planId + ":" + step.stepId, relation: "explains" },
       parentEvidenceIds: [planEvidence.evidenceId],
-      data: {
-        planId: plan.planId,
-        stepId: step.stepId,
-        capability: step.capability,
-        risk: step.risk,
-        dependsOn: step.dependsOn,
-      },
+      data: { planId: plan.planId, stepId: step.stepId, capability: step.capability, risk: step.risk, dependsOn: step.dependsOn },
+    });
+    const dependencyBlocked = step.dependsOn.some(d => !completedSteps.has(d));
+    const decisionTrace = await recordSaiTrace({
+      traceId, actor, parentSpanId: planTrace.spanId, sequenceNo: 100 + stepIndex * 10,
+      phase: "DECIDE", eventType: "step.decision", status: dependencyBlocked ? "blocked" : "completed",
+      operation: "execute_plan", planId: plan.planId, stepId: step.stepId,
+      message: dependencyBlocked ? "Step blocked by an unmet dependency" : "Step selected for execution",
+      data: { capability: step.capability, risk: step.risk, dependsOn: step.dependsOn }, evidenceIds: [decisionEvidence.evidenceId],
     });
 
-    const dependencyBlocked = step.dependsOn.some((dependency) => !completedSteps.has(dependency));
     if (dependencyBlocked) {
-      const result = {
-        ok: false,
-        error: "SAI_PLAN_DEPENDENCY_BLOCKED",
-        output: { stepId: step.stepId, dependsOn: step.dependsOn },
-      };
-      results.push(result);
-      blockedSteps.push(step.stepId);
+      const result = { ok: false, error: "SAI_PLAN_DEPENDENCY_BLOCKED", output: { stepId: step.stepId, dependsOn: step.dependsOn } };
+      results.push(result); blockedSteps.push(step.stepId);
+      await recordSaiTrace({
+        traceId, actor, parentSpanId: decisionTrace.spanId, sequenceNo: 104 + stepIndex * 10,
+        phase: "EXECUTE", eventType: "step.blocked", status: "blocked", operation: "execute_plan",
+        planId: plan.planId, stepId: step.stepId, message: "Step execution blocked by dependency",
+        data: { dependsOn: step.dependsOn }, evidenceIds: [decisionEvidence.evidenceId],
+      });
       await createSaiEvidence({
-        evidenceId: `result:${plan.planId}:${step.stepId}:blocked`,
-        actor,
-        sourceType: "sai.execution.blocked",
-        sourceRef: `${plan.planId}:${step.stepId}`,
-        subject: { type: "command_step", id: `${plan.planId}:${step.stepId}`, relation: "caused_by" },
-        parentEvidenceIds: [decisionEvidence.evidenceId],
-        data: result.output ?? {},
+        evidenceId: "result:" + plan.planId + ":" + step.stepId + ":blocked", actor,
+        sourceType: "sai.execution.blocked", sourceRef: plan.planId + ":" + step.stepId,
+        subject: { type: "command_step", id: plan.planId + ":" + step.stepId, relation: "caused_by" },
+        parentEvidenceIds: [decisionEvidence.evidenceId], data: result.output ?? {},
       });
       continue;
     }
 
-    const command = await buildSaiCommand({
-      actor,
-      capability: step.capability,
-      payload: step.input,
-      risk: step.risk,
+    const command = await buildSaiCommand({ actor, capability: step.capability, payload: step.input, risk: step.risk });
+    await recordSaiTrace({
+      traceId, actor, parentSpanId: decisionTrace.spanId, sequenceNo: 101 + stepIndex * 10,
+      phase: "EXECUTE", eventType: "command.planned", status: "started", operation: "execute_plan",
+      planId: plan.planId, commandId: command.commandId, stepId: step.stepId,
+      message: "Authorized command prepared", data: { capability: command.capability, risk: command.risk },
     });
-
     await createSaiEvidence({
-      evidenceId: `command:${command.commandId}`,
-      actor,
-      sourceType: "sai.command.planned",
-      sourceRef: command.commandId,
-      subject: { type: "command", id: command.commandId, relation: "supports" },
-      parentEvidenceIds: [decisionEvidence.evidenceId],
-      data: {
-        commandId: command.commandId,
-        capability: command.capability,
-        risk: command.risk,
-        idempotencyKey: command.idempotencyKey,
-      },
+      evidenceId: "command:" + command.commandId, actor, sourceType: "sai.command.planned", sourceRef: command.commandId,
+      subject: { type: "command", id: command.commandId, relation: "supports" }, parentEvidenceIds: [decisionEvidence.evidenceId],
+      data: { commandId: command.commandId, capability: command.capability, risk: command.risk, idempotencyKey: command.idempotencyKey },
     });
-
-    await persistSaiCommandStep({
-      commandId: command.commandId,
-      stepIndex,
-      capability: step.capability,
-      input: step.input,
-      status: "planned",
-    });
+    await persistSaiCommandStep({ commandId: command.commandId, stepIndex, capability: step.capability, input: step.input, status: "planned" });
 
     const result = await executeSaiCommand(command, approvalId);
     results.push(result);
-
+    const resultTrace = await recordSaiTrace({
+      traceId, actor, parentSpanId: decisionTrace.spanId, sequenceNo: 102 + stepIndex * 10,
+      phase: "EXECUTE", eventType: "command.result", status: result.ok ? "completed" : "failed", operation: "execute_plan",
+      planId: plan.planId, commandId: command.commandId, stepId: step.stepId,
+      message: result.ok ? "Command completed" : (result.error || "Command failed"),
+      data: { ok: result.ok, error: result.error ?? null }, evidenceIds: result.evidenceIds ?? [],
+    });
     const resultEvidence = await createSaiEvidence({
-      evidenceId: `command-result:${command.commandId}:${stepIndex}`,
-      actor,
-      sourceType: "sai.command.result",
-      sourceRef: command.commandId,
-      subject: { type: "command_result", id: `${command.commandId}:${stepIndex}`, relation: "supports" },
-      parentEvidenceIds: [
-        `command:${command.commandId}`,
-        decisionEvidence.evidenceId,
-        ...(result.evidenceIds ?? []),
-      ],
-      data: {
-        commandId: command.commandId,
-        stepIndex,
-        ok: result.ok,
-        output: result.output ?? {},
-        error: result.error ?? null,
-        evidenceIds: result.evidenceIds ?? [],
-      },
+      evidenceId: "command-result:" + command.commandId + ":" + stepIndex, actor, sourceType: "sai.command.result", sourceRef: command.commandId,
+      subject: { type: "command_result", id: command.commandId + ":" + stepIndex, relation: "supports" },
+      parentEvidenceIds: ["command:" + command.commandId, decisionEvidence.evidenceId, ...(result.evidenceIds ?? [])],
+      data: { commandId: command.commandId, stepIndex, ok: result.ok, output: result.output ?? {}, error: result.error ?? null, evidenceIds: result.evidenceIds ?? [] },
       confidence: result.ok ? 1 : 0,
     });
 
     if (result.error === "OWNER_APPROVAL_REQUIRED") {
       blockedSteps.push(step.stepId);
+      await recordSaiTrace({
+        traceId, actor, parentSpanId: resultTrace.spanId, sequenceNo: 103 + stepIndex * 10, phase: "VERIFY",
+        eventType: "approval.gate", status: "blocked", operation: "execute_plan",
+        planId: plan.planId, commandId: command.commandId, stepId: step.stepId,
+        message: "Owner approval is required before execution can continue",
+        data: { approvalRequired: true, status: "pending_approval" }, evidenceIds: [resultEvidence.evidenceId],
+      });
       await createSaiEvidence({
-        evidenceId: `verification:${command.commandId}:${stepIndex}:approval`,
-        actor,
-        sourceType: "sai.verification.approval_gate",
-        sourceRef: command.commandId,
-        subject: { type: "verification", id: `${command.commandId}:${stepIndex}:approval`, relation: "verifies" },
-        parentEvidenceIds: [resultEvidence.evidenceId],
-        data: { status: "pending_approval", approvalRequired: true },
+        evidenceId: "verification:" + command.commandId + ":" + stepIndex + ":approval", actor,
+        sourceType: "sai.verification.approval_gate", sourceRef: command.commandId,
+        subject: { type: "verification", id: command.commandId + ":" + stepIndex + ":approval", relation: "verifies" },
+        parentEvidenceIds: [resultEvidence.evidenceId], data: { status: "pending_approval", approvalRequired: true },
       });
       continue;
     }
 
     const verification = await verifySaiCommand(command, result);
+    await recordSaiTrace({
+      traceId, actor, parentSpanId: resultTrace.spanId, sequenceNo: 103 + stepIndex * 10, phase: "VERIFY",
+      eventType: "command.verification", status: verification.status === "failed" ? "failed" : "completed",
+      operation: "execute_plan", planId: plan.planId, commandId: command.commandId, stepId: step.stepId,
+      message: verification.reason || "Command verification completed",
+      data: { status: verification.status, reason: verification.reason ?? null }, evidenceIds: verification.evidenceIds ?? [],
+    });
     const verified = verification.status === "verified" || verification.status === "not_applicable";
-
-    const verificationEvidence = await createSaiEvidence({
-      evidenceId: `verification:${command.commandId}:${stepIndex}`,
-      actor,
-      sourceType: "sai.verification",
-      sourceRef: command.commandId,
-      subject: { type: "verification", id: `${command.commandId}:${stepIndex}`, relation: "verifies" },
+    await createSaiEvidence({
+      evidenceId: "verification:" + command.commandId + ":" + stepIndex, actor, sourceType: "sai.verification", sourceRef: command.commandId,
+      subject: { type: "verification", id: command.commandId + ":" + stepIndex, relation: "verifies" },
       parentEvidenceIds: [resultEvidence.evidenceId, ...(verification.evidenceIds ?? [])],
-      data: {
-        commandId: command.commandId,
-        stepIndex,
-        status: verification.status,
-        reason: verification.reason ?? null,
-        resultOk: result.ok,
-        evidenceIds: verification.evidenceIds ?? [],
-      },
+      data: { commandId: command.commandId, stepIndex, status: verification.status, reason: verification.reason ?? null, resultOk: result.ok, evidenceIds: verification.evidenceIds ?? [] },
       confidence: verified ? 1 : 0,
     });
-
     await updateSaiCommand(command.commandId, {
-      status: verified ? "verified" : "failed",
-      verification: verification.status,
+      status: verified ? "verified" : "failed", verification: verification.status,
       error: verification.reason ?? (verification.status === "failed" ? result.error : null),
     });
-
     await persistSaiCommandStep({
-      commandId: command.commandId,
-      stepIndex,
-      capability: step.capability,
-      input: step.input,
-      status: verified ? "verified" : "failed",
-      completedAt: new Date().toISOString(),
-      error: verification.reason ?? null,
+      commandId: command.commandId, stepIndex, capability: step.capability, input: step.input,
+      status: verified ? "verified" : "failed", completedAt: new Date().toISOString(), error: verification.reason ?? null,
     });
-
-    if (verified) {
-      completedSteps.add(step.stepId);
-    } else {
-      blockedSteps.push(step.stepId);
-    }
-
-    void verificationEvidence;
+    if (verified) completedSteps.add(step.stepId); else blockedSteps.push(step.stepId);
   }
 
-  return { results, blockedSteps };
+  await recordSaiTrace({
+    traceId, actor, parentSpanId: planTrace.spanId, sequenceNo: 999, phase: "VERIFY",
+    eventType: "plan.execution.summary", status: blockedSteps.length ? "blocked" : "completed",
+    operation: "execute_plan", planId: plan.planId,
+    message: blockedSteps.length ? "Plan execution completed with blocked steps" : "Plan execution completed",
+    data: { resultCount: results.length, blockedSteps }, evidenceIds: results.flatMap(r => r.evidenceIds ?? []),
+  });
+  return { traceId, results, blockedSteps };
 }
 
 export function canRunPlanStep(step: SaiPlanStep, completedStepIds: ReadonlySet<string>): boolean {
-  return step.dependsOn.every((dependency) => completedStepIds.has(dependency));
+  return step.dependsOn.every(dependency => completedStepIds.has(dependency));
 }

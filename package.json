@@ -53,7 +53,8 @@
     "test:sai-world-state": "node scripts/test-sai-world-state.mjs",
     "test:sai-goals-missions": "node scripts/test-sai-goals-missions.mjs",
     "test:sai-planner": "node scripts/test-sai-planner.mjs",
-    "test:sai-evidence": "node scripts/test-sai-evidence.mjs"
+    "test:sai-evidence": "node scripts/test-sai-evidence.mjs",
+    "test:sai-tracing": "node scripts/test-sai-tracing.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.1",
