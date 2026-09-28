@@ -1,4 +1,4 @@
-import { requireSaiCapability } from "./capabilities";
+import { authorizeSaiCapability, requireSaiCapability } from "./capabilities";
 import { saiCommandRequiresApproval, validateSaiCommand } from "./policy";
 import { getSaiCommandResult, persistSaiCommand, persistSaiCommandResult, updateSaiCommand } from "./persistence";
 import type { SaiActor, SaiCommand, SaiRiskLevel, SaiCapabilityResult } from "./types";
@@ -21,6 +21,7 @@ export async function buildSaiCommand(input: {
 export async function executeSaiCommand(command: SaiCommand, approvalId?: string): Promise<SaiCapabilityResult> {
   validateSaiCommand(command);
   const capability = requireSaiCapability(command.capability);
+  authorizeSaiCapability(capability, command.actor);
 
   if (command.status === "executed" || command.status === "verified") {
     const previous = await getSaiCommandResult(command.commandId);
