@@ -49,6 +49,9 @@ jobs:
         run: npm run test:ai-browser
       - name: AI learning control
         run: npm run test:ai-learning
+      - name: SAI microphone input
+        run: npm run test:sai-microphone
+
       - name: SAI safe recovery
         run: npm run test:sai-recovery
       - name: SAI durable world state
