@@ -22,7 +22,7 @@ export async function executeSaiCommand(command: SaiCommand, approvalId?: string
   validateSaiCommand(command);
   const capability = requireSaiCapability(command.capability);
 
-  if (command.status === "executed" || command.status === "verified" || command.status === "failed") {
+  if (command.status === "executed" || command.status === "verified") {
     const previous = await getSaiCommandResult(command.commandId);
     if (previous) return previous;
   }
@@ -30,7 +30,7 @@ export async function executeSaiCommand(command: SaiCommand, approvalId?: string
   if (saiCommandRequiresApproval(command, capability) && !approvalId && !command.approvalId) {
     const result = { ok: false, error: "OWNER_APPROVAL_REQUIRED" };
     await persistSaiCommandResult(command, result);
-    await updateSaiCommand(command.commandId, { status: "failed", error: result.error });
+    await updateSaiCommand(command.commandId, { status: "planned", error: result.error });
     return result;
   }
 
