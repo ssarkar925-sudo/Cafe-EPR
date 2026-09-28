@@ -1,31 +1,11 @@
 import { redirect } from "next/navigation";
 import { getUserRole, hasRole } from "@/lib/authz";
-import CafeAIAgent from "@/components/ai/cafe-ai-agent";
-import AIMemoryPanel from "@/components/ai/ai-memory-panel";
-import AIBusinessWatcher from "@/components/ai/ai-business-watcher";
-import AIWhatsAppBridge from "@/components/ai/ai-whatsapp-bridge";
-import AISelfHealingBridge from "@/components/ai/ai-self-healing-bridge";
-import AICommandCenter from "@/components/ai/ai-command-center";
-import AICodeRepairGuardian from "@/components/ai/ai-code-repair-guardian";
-import AIIngestionPanel from "@/components/ai/ai-ingestion-panel";
-import PhoneCollectorPanel from "@/components/ai/phone-collector-panel";
+import AIMissionControlStudio from "@/components/ai/ai-mission-control-studio";
 
 export const dynamic = "force-dynamic";
 
 export default async function CafeAIAgentPage() {
   const role = await getUserRole();
   if (!hasRole(role, ["admin", "staff"])) redirect("/dashboard");
-  return (
-    <div className="space-y-6">
-      <AIWhatsAppBridge />
-      <AIIngestionPanel />
-      <PhoneCollectorPanel />
-      <AICommandCenter />
-      <AICodeRepairGuardian />
-      <AISelfHealingBridge />
-      <CafeAIAgent />
-      <AIBusinessWatcher />
-      <AIMemoryPanel />
-    </div>
-  );
+  return <AIMissionControlStudio />;
 }
