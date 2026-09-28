@@ -339,7 +339,7 @@ function getPoolForMethod(method?: string | null): string | null {
   const totalPosition = roundMoney((balances?.cash?.current ?? 0) + (balances?.bank?.current ?? 0) + (balances?.wallet?.current ?? 0) + (balances?.dmt?.current ?? 0) + (balances?.aeps?.current ?? 0) + (balances?.upi_qr?.current ?? 0));
 
   return (
-    <div className="space-y-8 pt-6 sm:pt-8 md:pt-10">
+    <div data-phase3-module="reconciliation" className="erp-phase3-page space-y-5">
       {/* ========================================================================= */}
       {/* 1. MASTER WORKSPACE HERO: FINANCIAL RECONCILIATION */}
       {/* ========================================================================= */}
