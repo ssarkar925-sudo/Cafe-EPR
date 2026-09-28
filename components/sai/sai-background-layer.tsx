@@ -47,69 +47,6 @@ export default function SAIBackgroundLayer() {
     return navigator.language || "en-IN";
   }
 
-  async function getMicrophonePermissionState(): Promise<"granted" | "prompt" | "denied" | "unknown"> {
-    try {
-      const permissions = (navigator as any).permissions;
-      if (!permissions?.query) return "unknown";
-      const status = await permissions.query({ name: "microphone" });
-      return status?.state === "granted" || status?.state === "prompt" || status?.state === "denied"
-        ? status.state
-        : "unknown";
-    } catch {
-      return "unknown";
-    }
-  }
-
-  async function requestMicrophoneWhenNeeded(): Promise<boolean> {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setVoiceError("Microphone access is not available in this browser.");
-      return false;
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach((track) => track.stop());
-      setVoiceError("");
-      return true;
-    } catch (error) {
-      const name = error instanceof DOMException ? error.name : "";
-      if (name === "NotAllowedError") {
-        setVoiceError("Chrome has not granted live microphone capture to SAI. Recheck the site microphone setting.");
-      } else if (name === "NotFoundError") {
-        setVoiceError("No microphone device was found.");
-      } else if (name === "NotReadableError") {
-        setVoiceError("Microphone is busy or unavailable. Close another app using it and try again.");
-      } else if (name === "SecurityError") {
-        setVoiceError("Microphone access is blocked by the browser security policy.");
-      } else {
-        setVoiceError("Unable to access the microphone.");
-      }
-      return false;
-    }
-  }
-
-  async function prepareVoiceInput(): Promise<boolean> {
-    const permission = await getMicrophonePermissionState();
-
-    // When Chrome already reports "granted", do not run a second getUserMedia
-    // preflight. SpeechRecognition can own the microphone capture itself, and
-    // some Chromium/OS combinations reject the parallel media request even
-    // though the site permission is already granted.
-    if (permission === "granted") {
-      setVoiceError("");
-      return true;
-    }
-
-    if (permission === "denied") {
-      setVoiceError("Microphone permission is blocked for this site in Chrome.");
-      return false;
-    }
-
-    // "prompt" or an unavailable Permissions API: request the microphone once
-    // from the user gesture, then let SpeechRecognition take over.
-    return requestMicrophoneWhenNeeded();
-  }
-
   async function toggleVoice() {
     if (listening) {
       recognitionRef.current?.stop?.();
@@ -126,9 +63,6 @@ export default function SAIBackgroundLayer() {
     }
 
     setVoiceError("");
-    const micReady = await prepareVoiceInput();
-    if (!micReady) return;
-
     const recognition = new Recognition();
     recognition.continuous = false;
     recognition.interimResults = true;
@@ -156,7 +90,7 @@ export default function SAIBackgroundLayer() {
       const errorCode = String(event?.error || "");
       setVoiceError(
         errorCode === "not-allowed"
-          ? "Chrome reports the microphone is allowed, but speech recognition is unavailable. Try again after closing other voice apps."
+          ? "Chrome allowed the microphone, but speech recognition was rejected. Check Chrome voice recognition/network access and try again."
           : errorCode === "no-speech"
             ? "I could not hear speech. Please speak again."
             : errorCode === "audio-capture"
