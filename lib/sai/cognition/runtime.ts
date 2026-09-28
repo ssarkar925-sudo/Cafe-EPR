@@ -1,3 +1,4 @@
+import "@/lib/sai/capabilities/business-observe";
 import { buildSaiCommand } from "@/lib/sai/core/command";
 import { getSaiWorldState } from "@/lib/sai/core/world-state";
 import type { SaiActor, SaiCapabilityResult, SaiEvent } from "@/lib/sai/core/types";
