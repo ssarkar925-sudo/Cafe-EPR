@@ -19,7 +19,64 @@ export default function SAIBackgroundLayer() {
   const [online, setOnline] = useState<boolean | null>(null);
   const [position, setPosition] = useState(getSafePosition);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [listening, setListening] = useState(false);
+  const [voiceError, setVoiceError] = useState("");
+  const recognitionRef = useRef<any>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.abort?.();
+    };
+  }, []);
+
+  function toggleVoice() {
+    if (listening) {
+      recognitionRef.current?.stop?.();
+      setListening(false);
+      return;
+    }
+
+    const Recognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!Recognition) {
+      setVoiceError("Voice input is not supported in this browser.");
+      return;
+    }
+
+    const recognition = new Recognition();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+    recognition.lang = ""; // Let the browser/OS use its speech-language detection when supported.
+
+    recognition.onstart = () => {
+      setVoiceError("");
+      setListening(true);
+    };
+    recognition.onresult = (event: any) => {
+      const transcript = Array.from(event.results)
+        .map((result: any) => result[0]?.transcript || "")
+        .join("")
+        .trim();
+      if (transcript) setText(transcript);
+    };
+    recognition.onerror = (event: any) => {
+      setListening(false);
+      if (event?.error !== "aborted") {
+        setVoiceError(
+          event?.error === "not-allowed"
+            ? "Microphone permission is required."
+            : "I could not hear that. Please try again.",
+        );
+      }
+    };
+    recognition.onend = () => setListening(false);
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  }
 
   useEffect(() => {
     const onResize = () => setPosition(getSafePosition());
@@ -160,7 +217,7 @@ export default function SAIBackgroundLayer() {
                   disabled={busy}
                   className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 dark:text-white"
                 />
-                <button type="button" aria-label="Voice input" title="Voice input" className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white">
+                <button type="button" onClick={toggleVoice} aria-label={listening ? "Stop voice input" : "Voice input"} title={listening ? "Stop listening" : "Speak to SAI"} className={`rounded-lg p-1.5 transition hover:bg-white dark:hover:bg-white/10 ${listening ? "text-rose-500" : "text-slate-400 hover:text-slate-700 dark:hover:text-white"}`}>
                   <Mic className="h-4 w-4" />
                 </button>
                 <button type="submit" aria-label="Send" disabled={!text.trim() || busy} className="rounded-lg bg-slate-900 p-1.5 text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-30 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200">
@@ -168,7 +225,7 @@ export default function SAIBackgroundLayer() {
                 </button>
               </div>
               <div className="mt-2 flex items-center justify-between px-1 text-[9px] text-slate-400">
-                <span>SAI works in the background.</span>
+                <span>{voiceError || (listening ? "Listening… speak naturally." : "SAI works in the background.")}</span>
                 {online === true && <span className="inline-flex items-center gap-1"><Check className="h-3 w-3" /> connected</span>}
               </div>
             </form>
