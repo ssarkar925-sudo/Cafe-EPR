@@ -1286,7 +1286,7 @@ html.dark[data-design-style="premium-hybrid"] {
   margin-inline: auto;
   padding: 18px 20px 48px;
 }
-.erp-phase3-page > header.erp-phase3-header,
+.erp-phase3-page > header,
 .erp-phase3-page > .erp-phase3-header,
 .erp-phase3-page > section.erp-phase3-header {
   border-radius: var(--phase3-radius);
@@ -1296,6 +1296,14 @@ html.dark[data-design-style="premium-hybrid"] {
 }
 .erp-phase3-page .erp-phase3-header {
   box-shadow: var(--shadow);
+}
+.erp-phase3-page > section:has(> .overflow-x-auto),
+.erp-phase3-page > div:has(> .overflow-x-auto) {
+  border-radius: var(--phase3-radius);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  overflow: hidden;
 }
 .erp-phase3-page .erp-phase3-data-card {
   overflow: hidden;
@@ -1342,7 +1350,7 @@ html.dark[data-design-style="premium-hybrid"] {
     max-width: none;
     padding: 10px 12px 34px;
   }
-  .erp-phase3-page > header.erp-phase3-header,
+  .erp-phase3-page > header,
   .erp-phase3-page > .erp-phase3-header,
   .erp-phase3-page > section.erp-phase3-header {
     border-radius: 16px;
