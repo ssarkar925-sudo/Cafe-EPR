@@ -73,7 +73,7 @@ export const QUICK_ACCESS_CATALOG: QuickAccessItem[] = [
   { id: "audit-log", label: "Security Audit Log", href: "/audit", icon: "audit-log" },
 
   // AI / SAI
-  { id: "sai-control-room", label: "SAI Control Room", href: "/ai-agent", icon: "sai" },
+  { id: "sai-control-room", label: "SAI Control Room", href: "/ai-agent", icon: "ai" },
 
   // Tools / Administration
   { id: "staff", label: "Staff Accounts", href: "/staff", icon: "staff" },
