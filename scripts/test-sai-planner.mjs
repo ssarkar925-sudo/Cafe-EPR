@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 const root=process.cwd(),read=f=>fs.readFileSync(path.join(root,f),"utf8");
-const types=read("lib/sai/core/types.ts"),compiler=read("lib/sai/cognition/plan-compiler.ts"),planner=read("lib/sai/cognition/planner.ts"),api=read("app/api/sai/plan/route.ts"),missionApi=read("app/api/sai/missions/compile/route.ts"),runtime=read("lib/sai/cognition/runtime.ts"),policy=read("lib/sai/core/policy.ts"),capabilities=read("lib/sai/core/capabilities.ts"),capabilitiesApi=read("app/api/sai/capabilities/route.ts");
+const types=read("lib/sai/core/types.ts"),compiler=read("lib/sai/cognition/plan-compiler.ts"),planner=read("lib/sai/cognition/planner.ts"),api=read("app/api/sai/plan/route.ts"),missionApi=read("app/api/sai/missions/compile/route.ts"),runtime=read("lib/sai/cognition/runtime.ts"),executor=read("lib/sai/core/executor.ts"),command=read("lib/sai/core/command.ts"),policy=read("lib/sai/core/policy.ts"),capabilities=read("lib/sai/core/capabilities.ts"),capabilitiesApi=read("app/api/sai/capabilities/route.ts"),runApi=read("app/api/sai/run/route.ts");
 let passed=0,failed=0;const check=(c,m)=>c?(passed++,console.log(`  PASS: ${m}`)):(failed++,console.error(`  FAIL: ${m}`));
 // Validate planner/compiler/registry contracts at the CI boundary.
 console.log("SAI planner, plan-compiler, and capability-registry regression tests");
@@ -32,4 +32,11 @@ check(capabilitiesApi.includes("validateSaiCapabilityRegistry"),"Capability API 
 check(capabilitiesApi.includes('hasRole(role, ["admin", "manager", "staff"])'),"Capability API is authenticated and role-gated");
 check(missionApi.includes("compileSaiMissionPlan"),"Mission compile API uses mission compiler");
 check(missionApi.includes("missionId"),"Mission compile API requires a mission id");
+check(executor.includes("executeSaiPlan"),"Runtime has a single plan execution boundary");
+check(executor.includes("verifySaiCommand"),"Executor verifies every executed step");
+check(executor.includes("dependsOn.some"),"Executor enforces plan dependencies");
+check(executor.includes("OWNER_APPROVAL_REQUIRED"),"Executor stops approval-gated steps");
+check(command.includes("authorizeSaiCapability"),"Command execution enforces capability authorization");
+check(command.includes("SAI_COMMAND_RISK_UNDERRATED"),"Command execution enforces the registered capability risk floor");
+check(runApi.includes("approvalId"),"Run API accepts an explicit approval id");
 console.log(`\n${passed} passed / ${failed} failed`);process.exitCode=failed?1:0;
