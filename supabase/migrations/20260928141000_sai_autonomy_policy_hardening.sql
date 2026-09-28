@@ -9,3 +9,5 @@ create policy sai_autonomy_policies_management_update on public.sai_autonomy_pol
   actor_user_id=(select auth.uid()) and exists(select 1 from public.profiles p where p.id=(select auth.uid()) and p.is_active and p.role in ('admin','manager'))
 );
 revoke delete, truncate, references, trigger on table public.sai_autonomy_policies from authenticated;
+revoke execute on function public.sai_consume_autonomy_budget(uuid,uuid) from public, anon;
+grant execute on function public.sai_consume_autonomy_budget(uuid,uuid) to authenticated;
