@@ -1,5 +1,8 @@
 import "@/lib/sai/capabilities/business-observe";
 import "@/lib/sai/capabilities/pos-observe";
+import "@/lib/sai/capabilities/customer-intelligence";
+import "@/lib/sai/capabilities/aeps-intelligence";
+import "@/lib/sai/capabilities/portal-watcher-observe";
 export * from "./types";
 export * from "./capabilities";
 export * from "./policy";
