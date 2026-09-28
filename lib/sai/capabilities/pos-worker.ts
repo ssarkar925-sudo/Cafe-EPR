@@ -4,11 +4,12 @@ import { handlePosSaleCreated } from "./pos-observe";
 import { persistSaiEvidence } from "@/lib/sai/core/persistence";
 import { createSaiAttention } from "@/lib/sai/core/attention";
 import { diagnosePosVerificationFailure } from "@/lib/sai/core/diagnosis";
+import { recoverSaiAttention } from "@/lib/sai/core/recovery";
 import type { SaiEvent } from "@/lib/sai/core/types";
 
 let started = false;
 
-async function verifySale(event: SaiEvent) {
+export async function verifyPosSale(event: SaiEvent) {
   const saleId = String(event.payload.saleId || event.entityId || "");
   if (!saleId) return { ok: false, reason: "Missing saleId" };
 
@@ -55,7 +56,7 @@ export function startSaiPosWorker(): void {
     const observed = await handlePosSaleCreated(event);
     if (!observed.ok) return;
 
-    const verification = await verifySale(event);
+    const verification = await verifyPosSale(event);
     const evidenceId = `pos-verification:${event.eventId}`;
     await persistSaiEvidence({
       evidenceId,
@@ -77,7 +78,7 @@ export function startSaiPosWorker(): void {
         sourceType: "pos.sale",
         sourceRef: event.entityId ?? event.eventId,
       });
-      await diagnosePosVerificationFailure({
+      const diagnosis = await diagnosePosVerificationFailure({
         actor: event.actor,
         attentionId: attention.id,
         sourceRef: event.entityId ?? event.eventId,
@@ -86,6 +87,16 @@ export function startSaiPosWorker(): void {
         checks: verification.checks,
         evidence: verification.evidence,
       });
+
+      if (diagnosis.nextAction === "retry_verification") {
+        await recoverSaiAttention({
+          actor: event.actor,
+          attentionId: attention.id,
+          sourceRef: event.entityId ?? event.eventId,
+          strategy: "retry_verification",
+          verify: () => verifyPosSale(event),
+        });
+      }
       return;
     }
   });
