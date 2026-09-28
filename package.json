@@ -59,7 +59,8 @@
     "test:sai-missions-runner": "node scripts/test-sai-missions-runner.mjs",
     "test:sai-simulation": "node scripts/test-sai-simulation.mjs",
     "test:sai-recovery-manager": "node scripts/test-sai-recovery-manager.mjs",
-    "test:sai-microphone": "node scripts/test-sai-microphone.mjs"
+    "test:sai-microphone": "node scripts/test-sai-microphone.mjs",
+    "test:sai-floating-popup": "node scripts/test-sai-floating-popup.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.1",
