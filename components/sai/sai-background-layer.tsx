@@ -25,8 +25,7 @@ export default function SAIBackgroundLayer() {
   const voiceTranscriptRef = useRef("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    async function ask(event?: FormEvent) {
+  async function ask(event?: FormEvent) {
     event?.preventDefault();
     const prompt = text.trim();
     if (!prompt || busy) return;
@@ -34,7 +33,8 @@ export default function SAIBackgroundLayer() {
     await askPrompt(prompt);
   }
 
-  return () => {
+  useEffect(() => {
+    return () => {
       recognitionRef.current?.abort?.();
     };
   }, []);
