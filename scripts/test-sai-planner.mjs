@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 const root=process.cwd(),read=f=>fs.readFileSync(path.join(root,f),"utf8");
 const types=read("lib/sai/core/types.ts"),compiler=read("lib/sai/cognition/plan-compiler.ts"),planner=read("lib/sai/cognition/planner.ts"),api=read("app/api/sai/plan/route.ts"),missionApi=read("app/api/sai/missions/compile/route.ts"),runtime=read("lib/sai/cognition/runtime.ts"),executor=read("lib/sai/core/executor.ts"),command=read("lib/sai/core/command.ts"),policy=read("lib/sai/core/policy.ts"),capabilities=read("lib/sai/core/capabilities.ts"),capabilitiesApi=read("app/api/sai/capabilities/route.ts"),runApi=read("app/api/sai/run/route.ts");
+const customerCaps=read("lib/sai/capabilities/customer-intelligence.ts"),aepsCaps=read("lib/sai/capabilities/aeps-intelligence.ts"),watcherCaps=read("lib/sai/capabilities/portal-watcher-observe.ts");
 let passed=0,failed=0;const check=(c,m)=>c?(passed++,console.log(`  PASS: ${m}`)):(failed++,console.error(`  FAIL: ${m}`));
 // Validate planner/compiler/registry contracts at the CI boundary.
 console.log("SAI planner, plan-compiler, and capability-registry regression tests");
@@ -39,4 +40,16 @@ check(executor.includes("OWNER_APPROVAL_REQUIRED"),"Executor stops approval-gate
 check(command.includes("authorizeSaiCapability"),"Command execution enforces capability authorization");
 check(command.includes("SAI_COMMAND_RISK_UNDERRATED"),"Command execution enforces the registered capability risk floor");
 check(runApi.includes("approvalId"),"Run API accepts an explicit approval id");
+check(customerCaps.includes('id: "customer.search"'),"Phase 2A registers customer.search");
+check(customerCaps.includes('id: "customer.ledger"'),"Phase 2A registers customer.ledger");
+check(customerCaps.includes("aadhaar_last4"),"Customer capability supports Aadhaar last-4 lookup");
+check(aepsCaps.includes('id: "aeps.observe_transactions"'),"Phase 2A registers AEPS transaction observation");
+check(aepsCaps.includes('id: "aeps.observe_import_queue"'),"Phase 2A registers AEPS import-review observation");
+check(aepsCaps.includes('id: "aeps.observe_context"'),"Phase 2A registers AEPS configuration observation");
+check(watcherCaps.includes('id: "aeps.observe_watcher"'),"Phase 2A registers Portal Watcher observation");
+check(aepsCaps.includes("aeps_portal_sources"),"AEPS capability reads persisted watcher sources");
+check(watcherCaps.includes("aeps_portal_collection_observations"),"Watcher capability reads per-source observations");
+check(planner.includes("customer.search") && planner.includes("customer.ledger"),"Planner routes customer intents to Phase 2A");
+check(planner.includes("aeps.observe_transactions") && planner.includes("aeps.observe_import_queue") && planner.includes("aeps.observe_context"),"Planner routes AEPS intents to Phase 2A");
+check(planner.includes("aeps.observe_watcher"),"Planner routes watcher intents to Phase 2A");
 console.log(`\n${passed} passed / ${failed} failed`);process.exitCode=failed?1:0;
