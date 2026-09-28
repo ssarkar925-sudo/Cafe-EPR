@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { subscribeSaiEvent } from "@/lib/sai/cognition/dispatcher";
 import { handlePosSaleCreated } from "./pos-observe";
 import { persistSaiEvidence } from "@/lib/sai/core/persistence";
+import { createSaiAttention } from "@/lib/sai/core/attention";
 import type { SaiEvent } from "@/lib/sai/core/types";
 
 let started = false;
@@ -64,6 +65,18 @@ export function startSaiPosWorker(): void {
       data: { eventId: event.eventId, ok: verification.ok, reason: verification.ok ? null : verification.reason, checks: verification.checks ?? null, evidence: verification.evidence ?? null },
       confidence: verification.ok ? 1 : 0,
     });
-    if (!verification.ok) return;
+    if (!verification.ok) {
+      await createSaiAttention({
+        actor: event.actor ?? { userId: "system", businessId: "" },
+        type: "pos.verification_failed",
+        severity: "critical",
+        title: "POS sale verification failed",
+        detail: verification.reason ?? JSON.stringify(verification.checks ?? {}),
+        evidenceIds: [evidenceId],
+        sourceType: "pos.sale",
+        sourceRef: event.entityId ?? event.eventId,
+      });
+      return;
+    }
   });
 }
