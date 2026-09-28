@@ -1,5 +1,4 @@
 import { getSaiCapability } from "@/lib/sai/core/capabilities";
-import { saiCommandRequiresApproval } from "@/lib/sai/core/policy";
 import type { SaiPlan, SaiPlanStep, SaiRiskLevel } from "@/lib/sai/core/types";
 
 const RISK_ORDER: SaiRiskLevel[] = ["read", "low", "medium", "high", "critical"];
