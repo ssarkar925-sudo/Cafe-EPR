@@ -1,3 +1,5 @@
+import "@/lib/sai/capabilities/business-observe";
+
 export * from "./types";
 export * from "./capabilities";
 export * from "./policy";
