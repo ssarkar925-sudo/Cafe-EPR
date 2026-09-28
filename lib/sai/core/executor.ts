@@ -6,6 +6,7 @@ import { createSaiTraceId, recordSaiTrace } from "./trace";
 import { getSaiCapability } from "./capabilities";
 import { simulateSaiPlan } from "./simulation";
 import type { SaiActor, SaiCapabilityResult, SaiPlan, SaiPlanStep, SaiExecutionMode } from "./types";
+import { recoverSaiCommandFailure } from "./recovery-manager";
 
 export type SaiPlanExecutionResult = { results: SaiCapabilityResult[]; blockedSteps: string[]; traceId: string };
 
@@ -134,14 +135,43 @@ export async function executeSaiPlan(
     });
     await persistSaiCommandStep({ commandId: command.commandId, stepIndex, capability: step.capability, input: step.input, status: "planned" });
 
-    const result = await executeSaiCommand(command, approvalId, mode);
-    results.push(result);
+    const initialResult = await executeSaiCommand(command, approvalId, mode);
+    const recovery = !initialResult.ok
+      ? await recoverSaiCommandFailure({
+          actor,
+          command,
+          result: initialResult,
+          mode,
+          approvalId,
+          attemptNumber: 1,
+        })
+      : null;
+    const result = recovery?.result ?? initialResult;
     const resultTrace = await recordSaiTrace({
       traceId, actor, parentSpanId: decisionTrace.spanId, sequenceNo: 102 + stepIndex * 10,
       phase: "EXECUTE", eventType: "command.result", status: result.ok ? "completed" : "failed", operation: "execute_plan",
       planId: plan.planId, commandId: command.commandId, stepId: step.stepId,
-      message: result.ok ? "Command completed" : (result.error || "Command failed"),
-      data: { ok: result.ok, error: result.error ?? null, mode, output: result.output ?? {} }, evidenceIds: result.evidenceIds ?? [],
+      message: result.ok
+        ? (recovery ? "Command recovered successfully" : "Command completed")
+        : (result.error || "Command failed"),
+      data: {
+        ok: result.ok,
+        initialOk: initialResult.ok,
+        error: result.error ?? null,
+        mode,
+        output: result.output ?? {},
+        recovery: recovery
+          ? {
+              category: recovery.decision.category,
+              action: recovery.decision.action,
+              attemptNumber: recovery.decision.attemptNumber,
+              maxAttempts: recovery.decision.maxAttempts,
+              safe: recovery.decision.safe,
+              recovered: recovery.recovered,
+              reason: recovery.decision.reason,
+            }
+          : null,
+      }, evidenceIds: result.evidenceIds ?? [],
     });
     const resultEvidence = await createSaiEvidence({
       evidenceId: "command-result:" + command.commandId + ":" + stepIndex, actor, sourceType: "sai.command.result", sourceRef: command.commandId,

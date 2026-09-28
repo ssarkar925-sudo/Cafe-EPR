@@ -43,7 +43,6 @@ async function loadMission(actor: SaiActor, missionId: string): Promise<SaiMissi
 
 async function claimMission(actor: SaiActor, mission: SaiMission): Promise<SaiMission | null> {
   if (!["queued", "waiting_approval"].includes(mission.status)) return null;
-  if (mission.status === "waiting_approval" && !mission.result.pendingApprovalId) return null;
 
   const supabase = await createClient();
   const { data, error } = await supabase.from("sai_missions").update({

@@ -79,6 +79,23 @@ export type SaiContradiction = {
   status: "open" | "acknowledged" | "resolved";
   createdAt: string;
 };
+export type SaiRecoveryCategory =
+  | "transient"
+  | "approval_required"
+  | "policy_blocked"
+  | "contradiction_blocked"
+  | "authority_mismatch"
+  | "validation_failure"
+  | "unknown";
+export type SaiRecoveryAction = "retry" | "approval" | "manual" | "blocked";
+export type SaiRecoveryDecision = {
+  category: SaiRecoveryCategory;
+  action: SaiRecoveryAction;
+  safe: boolean;
+  attemptNumber: number;
+  maxAttempts: number;
+  reason: string;
+};
 export type SaiSimulationResult = {
   simulationId: string;
   planId: string;

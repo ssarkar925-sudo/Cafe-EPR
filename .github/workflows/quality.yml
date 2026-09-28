@@ -69,6 +69,9 @@ jobs:
       - name: SAI simulation and contradiction detection
         run: npm run test:sai-simulation
 
+      - name: SAI Recovery Manager 2.0
+        run: npm run test:sai-recovery-manager
+
       - name: TypeScript check
         run: npx tsc --noEmit
       - name: Production build
