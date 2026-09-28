@@ -21,6 +21,7 @@ function check(condition, message) {
   }
 }
 
+// Keep this regression suite tolerant of formatting-only source changes while guarding behavior.
 console.log("SAI durable world-state regression tests");
 check(world.includes("loadSaiWorldState"), "World state loads from durable storage");
 check(world.includes("projectSaiEventToWorldState"), "World state has an event projection path");
