@@ -3,6 +3,7 @@ import { subscribeSaiEvent } from "@/lib/sai/cognition/dispatcher";
 import { handlePosSaleCreated } from "./pos-observe";
 import { persistSaiEvidence } from "@/lib/sai/core/persistence";
 import { createSaiAttention } from "@/lib/sai/core/attention";
+import { diagnosePosVerificationFailure } from "@/lib/sai/core/diagnosis";
 import type { SaiEvent } from "@/lib/sai/core/types";
 
 let started = false;
@@ -75,6 +76,15 @@ export function startSaiPosWorker(): void {
         evidenceIds: [evidenceId],
         sourceType: "pos.sale",
         sourceRef: event.entityId ?? event.eventId,
+      });
+      await diagnosePosVerificationFailure({
+        actor: event.actor,
+        attentionId: undefined,
+        sourceRef: event.entityId ?? event.eventId,
+        evidenceIds: [evidenceId],
+        reason: verification.reason,
+        checks: verification.checks,
+        evidence: verification.evidence,
       });
       return;
     }
