@@ -1,4 +1,7 @@
 import "@/lib/sai/capabilities/business-observe";
+import { startSaiPosWorker } from "@/lib/sai/capabilities/pos-worker";
+
+startSaiPosWorker();
 import { buildSaiCommand } from "@/lib/sai/core/command";
 import { getSaiWorldState } from "@/lib/sai/core/world-state";
 import type { SaiActor, SaiCapabilityResult, SaiEvent } from "@/lib/sai/core/types";
