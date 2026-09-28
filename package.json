@@ -50,7 +50,8 @@
     "postinstall": "node scripts/patch-lucide-building-complex.mjs",
     "test:v1-returns-refunds": "node scripts/test-v1-returns-refunds.mjs",
     "test:sai-recovery": "node scripts/test-sai-recovery.mjs",
-    "test:sai-world-state": "node scripts/test-sai-world-state.mjs"
+    "test:sai-world-state": "node scripts/test-sai-world-state.mjs",
+    "test:sai-goals-missions": "node scripts/test-sai-goals-missions.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.1",

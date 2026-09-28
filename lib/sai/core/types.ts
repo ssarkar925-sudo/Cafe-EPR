@@ -2,74 +2,17 @@ export type SaiLanguage = "en" | "hi" | "bn";
 export type SaiRiskLevel = "read" | "low" | "medium" | "high" | "critical";
 export type SaiCommandStatus = "planned" | "validated" | "authorized" | "executing" | "executed" | "verified" | "failed" | "cancelled";
 export type SaiVerificationStatus = "pending" | "verified" | "failed" | "not_applicable";
-
 export type SaiActor = { userId: string; businessId: string; role?: string };
-
-export type SaiWorldState = {
-  observedAt: string;
-  route?: string;
-  activeModule?: string;
-  customer?: Record<string, unknown> | null;
-  transaction?: Record<string, unknown> | null;
-  attention: SaiAttentionItem[];
-  facts: Record<string, unknown>;
-};
-
-export type SaiAttentionItem = {
-  id: string;
-  type: string;
-  severity: "info" | "warning" | "critical";
-  title: string;
-  detail?: string;
-  evidenceIds: string[];
-};
-
-export type SaiEvent = {
-  eventId: string;
-  type: string;
-  occurredAt: string;
-  actor?: SaiActor;
-  entityId?: string;
-  payload: Record<string, unknown>;
-  evidenceIds?: string[];
-};
-
-export type SaiCapability = {
-  id: string;
-  description: string;
-  risk: SaiRiskLevel;
-  requiresApproval: boolean;
-  execute: (input: Record<string, unknown>, ctx: SaiExecutionContext) => Promise<SaiCapabilityResult>;
-};
-
-export type SaiCommand = {
-  commandId: string;
-  idempotencyKey: string;
-  actor: SaiActor;
-  capability: string;
-  payload: Record<string, unknown>;
-  risk: SaiRiskLevel;
-  approvalId?: string;
-  status: SaiCommandStatus;
-  verification: SaiVerificationStatus;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type SaiCapabilityResult = {
-  ok: boolean;
-  output?: Record<string, unknown>;
-  evidenceIds?: string[];
-  error?: string;
-};
-
-export type SaiExecutionContext = {
-  command: SaiCommand;
-  now: string;
-};
-
-export type SaiPlan = {
-  goal: string;
-  steps: Array<{ capability: string; input: Record<string, unknown>; risk: SaiRiskLevel }>;
-  requiresApproval: boolean;
-};
+export type SaiGoalStatus = "active" | "paused" | "completed" | "cancelled" | "failed";
+export type SaiGoalPriority = "low" | "normal" | "high" | "critical";
+export type SaiMissionStatus = "queued" | "running" | "waiting_approval" | "blocked" | "completed" | "failed" | "cancelled";
+export type SaiGoal = { goalId: string; actor: SaiActor; title: string; objective: string; status: SaiGoalStatus; priority: SaiGoalPriority; target: Record<string, unknown>; successCriteria: unknown[]; context: Record<string, unknown>; nextAction?: string; dueAt?: string; createdAt: string; updatedAt: string; completedAt?: string };
+export type SaiMission = { missionId: string; goalId: string; actor: SaiActor; title: string; status: SaiMissionStatus; plan: Record<string, unknown>; currentStep: number; attemptCount: number; blockedReason?: string; result: Record<string, unknown>; createdAt: string; updatedAt: string; completedAt?: string };
+export type SaiWorldState = { observedAt: string; route?: string; activeModule?: string; customer?: Record<string, unknown> | null; transaction?: Record<string, unknown> | null; attention: SaiAttentionItem[]; facts: Record<string, unknown> };
+export type SaiAttentionItem = { id: string; type: string; severity: "info" | "warning" | "critical"; title: string; detail?: string; evidenceIds: string[] };
+export type SaiEvent = { eventId: string; type: string; occurredAt: string; actor?: SaiActor; entityId?: string; payload: Record<string, unknown>; evidenceIds?: string[] };
+export type SaiCapability = { id: string; description: string; risk: SaiRiskLevel; requiresApproval: boolean; execute: (input: Record<string, unknown>, ctx: SaiExecutionContext) => Promise<SaiCapabilityResult> };
+export type SaiCommand = { commandId: string; idempotencyKey: string; actor: SaiActor; capability: string; payload: Record<string, unknown>; risk: SaiRiskLevel; approvalId?: string; status: SaiCommandStatus; verification: SaiVerificationStatus; createdAt: string; updatedAt: string };
+export type SaiCapabilityResult = { ok: boolean; output?: Record<string, unknown>; evidenceIds?: string[]; error?: string };
+export type SaiExecutionContext = { command: SaiCommand; now: string };
+export type SaiPlan = { goal: string; steps: Array<{ capability: string; input: Record<string, unknown>; risk: SaiRiskLevel }>; requiresApproval: boolean };

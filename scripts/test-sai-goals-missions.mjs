@@ -1,0 +1,16 @@
+import fs from "node:fs";import path from "node:path";
+const root=process.cwd(),read=f=>fs.readFileSync(path.join(root,f),"utf8");
+const types=read("lib/sai/core/types.ts"),goals=read("lib/sai/core/goals.ts"),goalRoute=read("app/api/sai/goals/route.ts"),missionRoute=read("app/api/sai/missions/route.ts"),migration=read("supabase/migrations/20260928123417_sai_goals_missions.sql"),world=read("lib/sai/core/world-state.ts"),status=read("app/api/sai/status/route.ts");
+let passed=0,failed=0;const check=(c,m)=>c?(passed++,console.log(`  PASS: ${m}`)):(failed++,console.error(`  FAIL: ${m}`));
+console.log("SAI goals and missions regression tests");
+check(types.includes("SaiGoalStatus"),"Goal lifecycle types exist");check(types.includes("SaiMissionStatus"),"Mission lifecycle types exist");
+check(goals.includes("GOAL_TRANSITIONS"),"Goal transitions are explicit");check(goals.includes("MISSION_TRANSITIONS"),"Mission transitions are explicit");
+check(goals.includes("SAI_GOAL_NOT_ACTIVE"),"Missions require an active goal");check(goals.includes("SAI_MISSION_INVALID_TRANSITION"),"Invalid mission transitions are rejected");
+check(!/from\(["'](?:invoices|payments|transactions|customer_ledger|journal_entries|journal_lines)["']\)/.test(goals),"Goals layer does not query financial authority tables");
+check(!/update\(["'](?:invoices|payments|transactions|customer_ledger|journal_entries|journal_lines)["']\)/.test(goals),"Goals layer does not mutate financial authority tables");
+check(goalRoute.includes("createSaiGoal")&&goalRoute.includes("updateSaiGoal"),"Goal API supports create/update");
+check(missionRoute.includes("createSaiMission")&&missionRoute.includes("updateSaiMission"),"Mission API supports create/update");
+check(world.includes("getSaiGoalSnapshot"),"World state includes goal context");check(status.includes('from("sai_missions")'),"Status exposes real active mission count");
+check(migration.includes("alter table public.sai_goals enable row level security"),"Goal RLS enabled");check(migration.includes("alter table public.sai_missions enable row level security"),"Mission RLS enabled");
+check(migration.includes("sai_goals_staff_read"),"Goal read policy exists");check(migration.includes("sai_missions_staff_read"),"Mission read policy exists");check(!migration.includes("auth.role()"),"Goal/mission policies avoid deprecated auth.role()");
+console.log(`\n${passed} passed / ${failed} failed`);process.exitCode=failed?1:0;
