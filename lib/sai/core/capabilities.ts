@@ -18,6 +18,7 @@ export type SaiCapabilityDefinition = SaiCapability & {
   kind?: SaiCapabilityKind;
   mutates?: boolean;
   verificationRequired?: boolean;
+  allowedRoles?: string[];
   version?: 1;
 };
 
@@ -30,6 +31,7 @@ export type SaiCapabilityDescriptor = {
   requiresApproval: boolean;
   mutates: boolean;
   verificationRequired: boolean;
+  allowedRoles: string[];
   version: 1;
 };
 
@@ -38,6 +40,7 @@ type RegisteredSaiCapability = SaiCapability & {
   kind: SaiCapabilityKind;
   mutates: boolean;
   verificationRequired: boolean;
+  allowedRoles: string[];
   version: 1;
 };
 
@@ -51,6 +54,8 @@ export function registerSaiCapability(capability: SaiCapabilityDefinition): void
   const kind = capability.kind ?? (capability.risk === "read" ? "observe" : "execute");
   const mutates = capability.mutates ?? kind === "execute";
   const verificationRequired = capability.verificationRequired ?? (mutates || capability.risk !== "read");
+  const allowedRoles = [...new Set((capability.allowedRoles ?? ["admin", "manager", "staff"]).map((role) => role.trim()).filter(Boolean))];
+  if (allowedRoles.length === 0) throw new Error(`SAI capability requires at least one allowed role: ${capability.id}`);
 
   if (capability.risk === "read" && mutates) {
     throw new Error(`SAI read capability cannot mutate: ${capability.id}`);
@@ -69,6 +74,7 @@ export function registerSaiCapability(capability: SaiCapabilityDefinition): void
     kind,
     mutates,
     verificationRequired,
+    allowedRoles,
     version: 1,
   });
 }
