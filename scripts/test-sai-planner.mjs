@@ -3,6 +3,7 @@ import path from "node:path";
 const root=process.cwd(),read=f=>fs.readFileSync(path.join(root,f),"utf8");
 const types=read("lib/sai/core/types.ts"),compiler=read("lib/sai/cognition/plan-compiler.ts"),planner=read("lib/sai/cognition/planner.ts"),api=read("app/api/sai/plan/route.ts"),missionApi=read("app/api/sai/missions/compile/route.ts"),runtime=read("lib/sai/cognition/runtime.ts"),policy=read("lib/sai/core/policy.ts");
 let passed=0,failed=0;const check=(c,m)=>c?(passed++,console.log(`  PASS: ${m}`)):(failed++,console.error(`  FAIL: ${m}`));
+// Validate planner/compiler contracts at the CI boundary.
 console.log("SAI planner and plan-compiler regression tests");
 check(types.includes("SaiPlanStep"),"Plan steps have typed identity and dependencies");
 check(types.includes('source: "instruction" | "goal" | "mission"'),"Plan source is typed");
