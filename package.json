@@ -54,7 +54,8 @@
     "test:sai-goals-missions": "node scripts/test-sai-goals-missions.mjs",
     "test:sai-planner": "node scripts/test-sai-planner.mjs",
     "test:sai-evidence": "node scripts/test-sai-evidence.mjs",
-    "test:sai-tracing": "node scripts/test-sai-tracing.mjs"
+    "test:sai-tracing": "node scripts/test-sai-tracing.mjs",
+    "test:sai-autonomy": "node scripts/test-sai-autonomy.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.1",
@@ -90,37 +91,9 @@
   "build": {
     "appId": "com.sarkarcommunication.cafeerp",
     "productName": "CafeERP",
-    "directories": {
-      "output": "dist-electron"
-    },
-    "files": [
-      "electron/**/*",
-      "public/**/*",
-      "package.json"
-    ],
-    "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "icon": "public/app-icon.png"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "CafeERP"
-    }
+    "directories": {"output": "dist-electron"},
+    "files": ["electron/**/*","public/**/*","package.json"],
+    "win": {"target":[{"target":"nsis","arch":["x64"]},{"target":"portable","arch":["x64"]}],"icon":"public/app-icon.png"},
+    "nsis": {"oneClick":false,"allowToChangeInstallationDirectory":true,"createDesktopShortcut":true,"createStartMenuShortcut":true,"shortcutName":"CafeERP"}
   }
 }

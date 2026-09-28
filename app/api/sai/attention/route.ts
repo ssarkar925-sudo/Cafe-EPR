@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
-import { resolveSaiAttention } from "@/lib/sai/core/attention";
+import { rankSaiAttention, resolveSaiAttention } from "@/lib/sai/core/attention";
 
 export const dynamic = "force-dynamic";
 
@@ -25,35 +25,38 @@ export async function GET() {
     .in("status", ["open", "acknowledged"])
     .order("created_at", { ascending: false })
     .limit(50);
-
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const ids = (attention ?? []).map((item) => item.attention_id);
+  const ids = (attention ?? []).map(item => item.attention_id);
   const { data: diagnoses, error: diagnosisError } = ids.length
     ? await auth.supabase.from("sai_diagnoses").select("diagnosis_id,attention_id,category,confidence,summary,findings,next_action,evidence_ids,status,created_at").in("attention_id", ids).order("created_at", { ascending: false })
     : { data: [], error: null };
-
   if (diagnosisError) return NextResponse.json({ error: diagnosisError.message }, { status: 500 });
 
-  return NextResponse.json({ attention: attention ?? [], diagnoses: diagnoses ?? [] });
+  const ranked = rankSaiAttention((attention ?? []).map(item => ({
+    id: item.attention_id,
+    type: item.type,
+    severity: item.severity,
+    title: item.title,
+    detail: item.detail ?? undefined,
+    evidenceIds: item.evidence_ids ?? [],
+    createdAt: item.created_at,
+    diagnosisStatus: item.diagnosis_status,
+  })));
+
+  return NextResponse.json({ attention: ranked, diagnoses: diagnoses ?? [] });
 }
 
 export async function POST(request: Request) {
   const auth = await authorize();
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   const body = await request.json().catch(() => null);
   const attentionId = typeof body?.attentionId === "string" ? body.attentionId : "";
   const action = body?.action === "acknowledge" || body?.action === "resolve" ? body.action : "";
   if (!attentionId || !action) return NextResponse.json({ error: "attentionId and action are required" }, { status: 400 });
 
-  const { data: item, error: lookupError } = await auth.supabase
-    .from("sai_attention")
-    .select("attention_id,status")
-    .eq("attention_id", attentionId)
-    .eq("actor_user_id", auth.userId)
-    .maybeSingle();
-
+  const { data: item, error: lookupError } = await auth.supabase.from("sai_attention").select("attention_id,status")
+    .eq("attention_id", attentionId).eq("actor_user_id", auth.userId).maybeSingle();
   if (lookupError) return NextResponse.json({ error: lookupError.message }, { status: 500 });
   if (!item) return NextResponse.json({ error: "Attention not found" }, { status: 404 });
 

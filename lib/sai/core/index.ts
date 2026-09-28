@@ -13,5 +13,6 @@ export * from "./executor";
 export * from "./evidence";
 export * from "./trace";
 export * from "./explanation";
+export * from "./attention";
 export * from "./goals";
 export * from "../cognition/plan-compiler";

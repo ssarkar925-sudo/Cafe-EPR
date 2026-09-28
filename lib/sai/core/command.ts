@@ -1,7 +1,7 @@
 import { authorizeSaiCapability, requireSaiCapability } from "./capabilities";
-import { saiCommandRequiresApproval, validateSaiCommand } from "./policy";
+import { evaluateSaiAutonomy, consumeSaiAutonomyBudget, saiCommandRequiresApproval, validateSaiCommand } from "./policy";
 import { getSaiCommandResult, persistSaiCommand, persistSaiCommandResult, updateSaiCommand } from "./persistence";
-import type { SaiActor, SaiCommand, SaiRiskLevel, SaiCapabilityResult } from "./types";
+import type { SaiActor, SaiCommand, SaiRiskLevel, SaiCapabilityResult, SaiExecutionMode } from "./types";
 
 const RISK_ORDER: SaiRiskLevel[] = ["read", "low", "medium", "high", "critical"];
 
@@ -20,7 +20,7 @@ export async function buildSaiCommand(input: {
   return (await persistSaiCommand(command)).command;
 }
 
-export async function executeSaiCommand(command: SaiCommand, approvalId?: string): Promise<SaiCapabilityResult> {
+export async function executeSaiCommand(command: SaiCommand, approvalId?: string, mode: SaiExecutionMode = "operator"): Promise<SaiCapabilityResult> {
   validateSaiCommand(command);
   const capability = requireSaiCapability(command.capability);
   authorizeSaiCapability(capability, command.actor);
@@ -31,6 +31,39 @@ export async function executeSaiCommand(command: SaiCommand, approvalId?: string
   if (command.status === "executed" || command.status === "verified") {
     const previous = await getSaiCommandResult(command.commandId);
     if (previous) return previous;
+  }
+
+  const autonomy = await evaluateSaiAutonomy({ actor: command.actor, capability, risk: command.risk, mode });
+  if (!autonomy.allowed) {
+    if (!autonomy.requiresApproval) {
+      const result = { ok: false, error: autonomy.reason, output: { mode, reason: autonomy.reason } };
+      await persistSaiCommandResult(command, result);
+      await updateSaiCommand(command.commandId, { status: "planned", error: result.error });
+      return result;
+    }
+    if (!approvalId && !command.approvalId) {
+      const result = { ok: false, error: "OWNER_APPROVAL_REQUIRED", output: { mode, reason: autonomy.reason } };
+      await persistSaiCommandResult(command, result);
+      await updateSaiCommand(command.commandId, { status: "planned", error: result.error });
+      return result;
+    }
+  }
+
+  if (mode === "background" && !approvalId && !command.approvalId && autonomy.requiresApproval) {
+    const result = { ok: false, error: "OWNER_APPROVAL_REQUIRED", output: { mode, reason: autonomy.reason } };
+    await persistSaiCommandResult(command, result);
+    await updateSaiCommand(command.commandId, { status: "planned", error: result.error });
+    return result;
+  }
+
+  if (mode === "background") {
+    const budgetOk = await consumeSaiAutonomyBudget(command.actor);
+    if (!budgetOk) {
+      const result = { ok: false, error: "AUTONOMY_BUDGET_EXHAUSTED", output: { mode, reason: "AUTONOMY_BUDGET_EXHAUSTED" } };
+      await persistSaiCommandResult(command, result);
+      await updateSaiCommand(command.commandId, { status: "planned", error: result.error });
+      return result;
+    }
   }
 
   if (saiCommandRequiresApproval(command, capability) && !approvalId && !command.approvalId) {
