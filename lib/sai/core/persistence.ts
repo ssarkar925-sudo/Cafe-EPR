@@ -33,7 +33,7 @@ export async function updateSaiCommand(commandId: string, patch: Partial<Pick<Sa
   const { error } = await supabase.from("sai_commands").update({
     ...(patch.status ? { status: patch.status } : {}), ...(patch.verification ? { verification: patch.verification } : {}),
     ...(patch.approvalId !== undefined ? { approval_id: patch.approvalId ?? null } : {}),
-    ...(patch.error !== undefined ? { error: patch.error }),
+    ...(patch.error !== undefined ? { error: patch.error } : {}),
   }).eq("command_id", commandId);
   if (error) throw new Error(`SAI_COMMAND_UPDATE_FAILED: ${error.message}`);
 }
