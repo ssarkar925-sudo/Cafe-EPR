@@ -56,6 +56,9 @@ jobs:
       - name: AI learning control
         run: npm run test:ai-learning
 
+      - name: SAI safe recovery
+        run: npm run test:sai-recovery
+
       - name: TypeScript check
         run: npx tsc --noEmit
 
