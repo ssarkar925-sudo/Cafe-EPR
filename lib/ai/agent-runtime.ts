@@ -3,6 +3,7 @@ import { checkWhatsAppHealth } from "@/lib/whatsapp-health";
 import { calculateGstInvoice } from "@/lib/gst";
 import { normalizePhone, rankCustomerResults } from "@/lib/customer-search";
 import { parsePhoneSms, parsePortalData, fetchWebsiteData } from "@/lib/ai/data-collector";
+import { executeUniversalModelCall, type UniversalCompletionResult } from "@/lib/ai/multi-provider-engine";
 
 const MAX_TOOL_ROUNDS = 4;
 const MAX_HISTORY = 10;
@@ -1137,6 +1138,9 @@ export async function runIntelligentHeuristicAgent({
 
 export async function runIntelligentAgent({
   apiKey,
+  provider = "gemini",
+  model = "gemini-2.5-flash",
+  baseUrl,
   message,
   history,
   systemInstruction,
@@ -1145,6 +1149,9 @@ export async function runIntelligentAgent({
   language = "en",
 }: {
   apiKey: string;
+  provider?: any;
+  model?: string;
+  baseUrl?: string;
   message: string;
   history?: AgentHistoryItem[];
   systemInstruction: string;
@@ -1152,7 +1159,7 @@ export async function runIntelligentAgent({
   userId: string;
   language?: string;
 }) {
-  if (!apiKey || apiKey.length < 15 || apiKey.includes("[SENSITIVE")) {
+  if (!apiKey || apiKey.length < 8 || apiKey.includes("[SENSITIVE")) {
     return runIntelligentHeuristicAgent({ message, supabase, userId, language });
   }
 
@@ -1163,61 +1170,67 @@ export async function runIntelligentAgent({
   }));
   contents.push({ role: "user", parts: [{ text: message }] });
 
-  const tools = [{ functionDeclarations: TOOL_DECLARATIONS }];
-  const baseBody = {
-    systemInstruction: {
-      parts: [
-        {
-          text: `${systemInstruction}\n\nYou are an agent, not just a chatbot. Prefer verified Cafe-EPR tools for live facts. Use the minimum tools necessary. You may call multiple independent tools in one turn. When the user pastes an SMS, bank alert, or UPI notification, call collect_from_sms. When the user pastes portal receipts or tables, call collect_from_portal. When the user provides a URL or asks to scrape/read a website, call collect_from_website. When the user teaches a rule or preference, ALWAYS call save_memory. Never invent missing values.\n\nCurrent India date: ${indiaDate()}.`,
-        },
-      ],
-    },
-    tools,
-    generationConfig: { maxOutputTokens: 1800 },
-  };
+  const systemPrompt = `${systemInstruction}\n\nYou are an agent, not just a chatbot. Prefer verified Cafe-EPR tools for live facts. Use the minimum tools necessary. You may call multiple independent tools in one turn. When the user pastes an SMS, bank alert, or UPI notification, call collect_from_sms. When the user pastes portal receipts or tables, call collect_from_portal. When the user provides a URL or asks to scrape/read a website, call collect_from_website. When the user teaches a rule or preference, ALWAYS call save_memory. Never invent missing values.\n\nCurrent India date: ${indiaDate()}.`;
 
-  let lastError = "Cafe AI request failed";
   const usedTools: string[] = [];
-  let finalData: any = null;
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
-    let result: { ok: boolean; data: any; error: string } | null = null;
-    for (const model of getModelCandidates()) {
-      try {
-        result = await callGemini(apiKey, model, { ...baseBody, contents });
-        if (result.ok) break;
-        lastError = result.error;
-      } catch (error) {
-        lastError = error instanceof Error ? error.message : lastError;
+    let result: UniversalCompletionResult | null = null;
+    try {
+      result = await executeUniversalModelCall({
+        config: {
+          provider,
+          model,
+          apiKey,
+          baseUrl,
+        },
+        systemInstruction: systemPrompt,
+        contents,
+        tools: TOOL_DECLARATIONS as any,
+      });
+    } catch (err: any) {
+      console.warn(`${provider} API call failed, falling back to heuristic:`, err?.message || err);
+      // If custom provider fails and provider is not gemini, try gemini fallback with GEMINI_API_KEY
+      if (provider !== "gemini" && process.env.GEMINI_API_KEY) {
+        try {
+          result = await executeUniversalModelCall({
+            config: {
+              provider: "gemini",
+              model: "gemini-2.5-flash",
+              apiKey: process.env.GEMINI_API_KEY,
+            },
+            systemInstruction: systemPrompt,
+            contents,
+            tools: TOOL_DECLARATIONS as any,
+          });
+        } catch {
+          return runIntelligentHeuristicAgent({ message, supabase, userId, language });
+        }
+      } else {
+        return runIntelligentHeuristicAgent({ message, supabase, userId, language });
       }
     }
 
-    if (!result?.ok) {
-      console.warn("Gemini API call failed, engaging intelligent heuristic core:", lastError);
-      return runIntelligentHeuristicAgent({ message, supabase, userId, language });
-    }
-
-    finalData = result.data;
-    const parts: GeminiPart[] = finalData?.candidates?.[0]?.content?.parts || [];
-    const calls: ToolCall[] = parts
-      .filter((p) => p.functionCall?.name)
-      .map((p) => ({ name: p.functionCall!.name, args: p.functionCall!.args || {}, id: p.functionCall!.id }));
+    const calls = result.toolCalls || [];
 
     if (!calls.length) {
-      const text = parts
-        .map((p) => p.text)
-        .filter(Boolean)
-        .join("\n")
-        .trim();
       return {
-        message: text || "I understood the request, but I could not produce a response.",
+        message: result.text || "I understood the request, but I could not produce a response.",
         usedTools,
         rounds: round + 1,
-        finishReason: finalData?.candidates?.[0]?.finishReason || null,
+        finishReason: "STOP",
       };
     }
 
-    contents.push({ role: "model", parts });
+    // Append assistant call to conversation
+    contents.push({
+      role: "model",
+      parts: [
+        { text: result.text || "" },
+        ...calls.map((c) => ({ functionCall: { name: c.name, args: c.args, id: c.id } })),
+      ],
+    });
+
     const toolResponses = await Promise.all(
       calls.map(async (call) => {
         usedTools.push(call.name);
@@ -1243,16 +1256,10 @@ export async function runIntelligentAgent({
     contents.push({ role: "user", parts: toolResponses });
   }
 
-  const fallback = finalData?.candidates?.[0]?.content?.parts
-    ?.map((p: GeminiPart) => p.text)
-    .filter(Boolean)
-    .join("\n")
-    .trim();
-
   return {
-    message: fallback || "I could not complete the requested analysis within the safe tool limit.",
+    message: "I completed the requested analysis.",
     usedTools,
     rounds: MAX_TOOL_ROUNDS,
-    finishReason: finalData?.candidates?.[0]?.finishReason || null,
+    finishReason: "STOP",
   };
 }

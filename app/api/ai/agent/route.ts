@@ -125,7 +125,39 @@ export async function POST(request: Request) {
       }
     }
 
-    const apiKey = process.env.GEMINI_API_KEY || "";
+    // Load dynamic AI provider configuration from database (Gemini, OpenAI, Claude, Groq, OpenRouter)
+    let activeProvider: any = "gemini";
+    let activeModel = "gemini-2.5-flash";
+    let apiKey = process.env.GEMINI_API_KEY || "";
+    let endpointUrl = "";
+
+    try {
+      const { data: provConfig } = await supabase
+        .from("ai_provider_configs")
+        .select("active_provider, model_name, api_key, endpoint_url")
+        .eq("id", "default")
+        .maybeSingle();
+
+      if (provConfig) {
+        activeProvider = provConfig.active_provider || "gemini";
+        activeModel = provConfig.model_name || "gemini-2.5-flash";
+        if (provConfig.api_key && provConfig.api_key.trim().length > 5) {
+          apiKey = provConfig.api_key.trim();
+        }
+        endpointUrl = provConfig.endpoint_url || "";
+      }
+    } catch {
+      // Fallback cleanly to env variables
+    }
+
+    // Fallbacks if database key is empty
+    if (!apiKey) {
+      if (activeProvider === "openai") apiKey = process.env.OPENAI_API_KEY || "";
+      else if (activeProvider === "anthropic") apiKey = process.env.ANTHROPIC_API_KEY || "";
+      else if (activeProvider === "groq") apiKey = process.env.GROQ_API_KEY || "";
+      else if (activeProvider === "openrouter") apiKey = process.env.OPENROUTER_API_KEY || "";
+      else apiKey = process.env.GEMINI_API_KEY || "";
+    }
 
     const [{ data: memories }, { data: workflows }] = await Promise.all([
       supabase.from("ai_memories").select("category,memory_key,memory_value,confidence").eq("user_id", auth.user.id).eq("active", true).order("updated_at", { ascending: false }).limit(100),
@@ -143,7 +175,18 @@ export async function POST(request: Request) {
 
     const systemInstruction = `${CAFE_AI_SYSTEM_INSTRUCTIONS}\n\nOwner learned memory:\n${memoryContext}\n\nLearned shop workflows:\n${workflowContext}\n\nCurrent application permission profile:\n${JSON.stringify(DEFAULT_AGENT_PERMISSIONS)}\n\n${languageInstruction}\n\nOperational rules:\n1. Prefer verified live tools for facts (catalog, customers, P&L, inventory, transactions).\n2. When the user teaches a rule, preference, or fact, ALWAYS call save_memory so it is permanently learned.\n3. For sales or billing requests, prepare the sale with prepare_sale and submit for owner approval.\n4. Never claim a financial record was created or modified unless confirmed by a tool.`;
 
-    const result = await runIntelligentAgent({ apiKey, message, history: normalizeHistory(body?.history), systemInstruction, supabase, userId: auth.user.id, language });
+    const result = await runIntelligentAgent({
+      apiKey,
+      provider: activeProvider,
+      model: activeModel,
+      baseUrl: endpointUrl || undefined,
+      message,
+      history: normalizeHistory(body?.history),
+      systemInstruction,
+      supabase,
+      userId: auth.user.id,
+      language,
+    });
     return NextResponse.json({
       message: result.message,
       mode: "agentic",

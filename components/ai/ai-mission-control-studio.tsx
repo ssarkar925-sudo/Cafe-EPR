@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Sparkles,
@@ -31,6 +31,25 @@ type TabId = "copilot" | "ingestion" | "brain" | "health";
 
 export default function AIMissionControlStudio() {
   const [activeTab, setActiveTab] = useState<TabId>("copilot");
+  const [modelLabel, setModelLabel] = useState("Gemini 2.5 Flash");
+  const [providerLabel, setProviderLabel] = useState("Google Gemini");
+
+  useEffect(() => {
+    async function loadModelInfo() {
+      try {
+        const res = await fetch("/api/ai/provider-config", { cache: "no-store" });
+        const data = await res.json();
+        if (res.ok && data.model) {
+          setModelLabel(data.model);
+          if (data.provider) {
+            const name = data.provider === "gemini" ? "Google Gemini" : data.provider === "openai" ? "OpenAI" : data.provider === "anthropic" ? "Anthropic Claude" : data.provider === "groq" ? "Groq" : "OpenRouter";
+            setProviderLabel(name);
+          }
+        }
+      } catch {}
+    }
+    loadModelInfo();
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -46,10 +65,19 @@ export default function AIMissionControlStudio() {
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 Autonomous Engine Online
               </span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-indigo-400/30 bg-indigo-500/10 px-2.5 py-0.5 text-[11px] font-bold text-indigo-300">
-                <Cpu className="h-3 w-3" />
-                Gemini 2.0 Flash
-              </span>
+
+              {/* Dynamic Model & Provider Badge linking to Settings */}
+              <Link
+                href="/settings?tab=automations&card=ai-model-provider"
+                title="Change AI Model & Provider in Settings"
+                className="inline-flex items-center gap-1.5 rounded-full border border-indigo-400/40 bg-indigo-500/20 px-2.5 py-0.5 text-[11px] font-black text-indigo-200 hover:bg-indigo-500/30 transition group"
+              >
+                <Cpu className="h-3 w-3 text-indigo-300" />
+                <span className="font-mono">{modelLabel}</span>
+                <span className="text-[10px] text-indigo-400 font-semibold">({providerLabel})</span>
+                <span className="text-[9px] underline opacity-70 group-hover:opacity-100">Change</span>
+              </Link>
+
               <span className="hidden sm:inline-flex items-center gap-1 rounded-full border border-purple-400/30 bg-purple-500/10 px-2.5 py-0.5 text-[11px] font-bold text-purple-300">
                 1-Click Owner Verification
               </span>
@@ -65,6 +93,15 @@ export default function AIMissionControlStudio() {
 
           <div className="flex flex-wrap items-center gap-2.5 shrink-0">
             <Link
+              href="/settings?tab=automations&card=ai-model-provider"
+              className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-indigo-400/40 bg-indigo-600/30 px-3.5 text-xs font-black text-indigo-200 hover:bg-indigo-600/50 active:scale-95 transition shadow-xs"
+            >
+              <Cpu className="h-3.5 w-3.5 text-indigo-300" />
+              <span>Model & API Key</span>
+              <ArrowUpRight className="h-3.5 w-3.5 text-indigo-400" />
+            </Link>
+
+            <Link
               href="/ai/self-audit"
               className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-3.5 text-xs font-black text-white hover:bg-white/10 active:scale-95 transition"
             >
@@ -75,11 +112,11 @@ export default function AIMissionControlStudio() {
 
             <Link
               href="/ai-agent/learning"
-              className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-indigo-400/30 bg-indigo-600/30 px-3.5 text-xs font-black text-indigo-200 hover:bg-indigo-600/50 active:scale-95 transition shadow-xs"
+              className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-3.5 text-xs font-black text-white hover:bg-white/10 active:scale-95 transition"
             >
-              <Workflow className="h-3.5 w-3.5 text-indigo-300" />
+              <Workflow className="h-3.5 w-3.5 text-purple-300" />
               <span>Workflow Engine</span>
-              <ArrowUpRight className="h-3.5 w-3.5 text-indigo-400" />
+              <ArrowUpRight className="h-3.5 w-3.5 text-slate-400" />
             </Link>
           </div>
         </div>

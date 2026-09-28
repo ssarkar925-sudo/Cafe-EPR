@@ -1,0 +1,368 @@
+/**
+ * Universal Multi-Provider AI Engine for CafeERP
+ * Supports: Google Gemini, OpenAI, Anthropic Claude, Groq, and OpenRouter.
+ */
+
+export type AIProviderId = "gemini" | "openai" | "anthropic" | "groq" | "openrouter";
+
+export interface AIProviderConfig {
+  provider: AIProviderId;
+  model: string;
+  apiKey: string;
+  baseUrl?: string;
+  temperature?: number;
+  maxTokens?: number;
+  fallbackEnabled?: boolean;
+}
+
+export interface UniversalToolDeclaration {
+  name: string;
+  description: string;
+  parameters: {
+    type: "object";
+    properties: Record<string, unknown>;
+    required?: string[];
+  };
+}
+
+export interface UniversalToolCall {
+  name: string;
+  args: Record<string, unknown>;
+  id?: string;
+}
+
+export interface UniversalCompletionResult {
+  text: string;
+  toolCalls: UniversalToolCall[];
+  raw?: unknown;
+  model: string;
+  provider: AIProviderId;
+}
+
+export const PROVIDER_CATALOG: Record<
+  AIProviderId,
+  {
+    name: string;
+    description: string;
+    defaultModel: string;
+    models: { id: string; name: string; tag?: string }[];
+    badge: string;
+    icon: string;
+  }
+> = {
+  gemini: {
+    name: "Google Gemini",
+    description: "High speed, high rate limits, and native multi-tool capability.",
+    defaultModel: "gemini-2.5-flash",
+    models: [
+      { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", tag: "Recommended" },
+      { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash" },
+      { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro", tag: "Deep Reasoning" },
+      { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash" },
+    ],
+    badge: "Google Cloud",
+    icon: "✨",
+  },
+  openai: {
+    name: "OpenAI",
+    description: "Reliable structured outputs, fast mini models, and broad compatibility.",
+    defaultModel: "gpt-4o-mini",
+    models: [
+      { id: "gpt-4o-mini", name: "GPT-4o Mini", tag: "Fast & Economical" },
+      { id: "gpt-4o", name: "GPT-4o", tag: "Flagship" },
+      { id: "o3-mini", name: "o3-mini", tag: "Reasoning" },
+    ],
+    badge: "OpenAI",
+    icon: "🧠",
+  },
+  anthropic: {
+    name: "Anthropic Claude",
+    description: "Nuanced instruction-following, superior coding, and business logic analysis.",
+    defaultModel: "claude-3-5-sonnet-latest",
+    models: [
+      { id: "claude-3-5-sonnet-latest", name: "Claude 3.5 Sonnet", tag: "Best Intelligence" },
+      { id: "claude-3-5-haiku-latest", name: "Claude 3.5 Haiku", tag: "High Speed" },
+    ],
+    badge: "Anthropic",
+    icon: "⚡",
+  },
+  groq: {
+    name: "Groq LPU",
+    description: "Ultra-low latency (<500ms) high-speed inference for instant counter billing.",
+    defaultModel: "llama-3.3-70b-versatile",
+    models: [
+      { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B Versatile", tag: "Ultra Fast" },
+      { id: "mixtral-8x7b-32768", name: "Mixtral 8x7B" },
+      { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B Instant" },
+    ],
+    badge: "Groq Cloud",
+    icon: "🚀",
+  },
+  openrouter: {
+    name: "OpenRouter",
+    description: "Universal unified gateway to hundreds of open-source and proprietary models.",
+    defaultModel: "deepseek/deepseek-chat",
+    models: [
+      { id: "deepseek/deepseek-chat", name: "DeepSeek V3", tag: "Value" },
+      { id: "meta-llama/llama-3.3-70b-instruct", name: "Llama 3.3 70B" },
+      { id: "google/gemini-2.0-flash-001", name: "Gemini 2.0 Flash (OpenRouter)" },
+    ],
+    badge: "OpenRouter",
+    icon: "🌐",
+  },
+};
+
+/**
+ * Executes a round of completion with tool-calling across any configured provider.
+ */
+export async function executeUniversalModelCall({
+  config,
+  systemInstruction,
+  contents,
+  tools,
+}: {
+  config: AIProviderConfig;
+  systemInstruction: string;
+  contents: { role: "user" | "model" | "assistant"; parts: any[] }[];
+  tools: UniversalToolDeclaration[];
+}): Promise<UniversalCompletionResult> {
+  const provider = config.provider || "gemini";
+  const model = config.model || PROVIDER_CATALOG[provider]?.defaultModel || "gemini-2.5-flash";
+
+  switch (provider) {
+    case "gemini":
+      return callGeminiProvider(config.apiKey, model, systemInstruction, contents, tools, config.baseUrl);
+    case "openai":
+    case "groq":
+    case "openrouter":
+      return callOpenAICompatibleProvider(provider, config.apiKey, model, systemInstruction, contents, tools, config.baseUrl);
+    case "anthropic":
+      return callAnthropicProvider(config.apiKey, model, systemInstruction, contents, tools, config.baseUrl);
+    default:
+      throw new Error(`Unsupported AI provider: ${provider}`);
+  }
+}
+
+/**
+ * 1. Google Gemini Native Implementation
+ */
+async function callGeminiProvider(
+  apiKey: string,
+  model: string,
+  systemInstruction: string,
+  contents: { role: string; parts: any[] }[],
+  tools: UniversalToolDeclaration[],
+  baseUrl?: string
+): Promise<UniversalCompletionResult> {
+  const url = baseUrl
+    ? `${baseUrl.replace(/\/$/, "")}/models/${encodeURIComponent(model)}:generateContent`
+    : `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+
+  const geminiContents = contents.map((c) => ({
+    role: c.role === "assistant" ? "model" : c.role,
+    parts: c.parts,
+  }));
+
+  const payload = {
+    systemInstruction: { parts: [{ text: systemInstruction }] },
+    contents: geminiContents,
+    tools: tools.length > 0 ? [{ functionDeclarations: tools }] : undefined,
+    generationConfig: { maxOutputTokens: 2048, temperature: 0.2 },
+  };
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(35000),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error?.message || `Gemini call failed (HTTP ${response.status})`);
+  }
+
+  const parts = data?.candidates?.[0]?.content?.parts || [];
+  const text = parts.map((p: any) => p.text).filter(Boolean).join("\n").trim();
+  const toolCalls: UniversalToolCall[] = parts
+    .filter((p: any) => p.functionCall?.name)
+    .map((p: any) => ({
+      name: p.functionCall.name,
+      args: p.functionCall.args || {},
+      id: p.functionCall.id,
+    }));
+
+  return { text, toolCalls, raw: data, model, provider: "gemini" };
+}
+
+/**
+ * 2. OpenAI / Groq / OpenRouter Implementation (OpenAI-compatible chat completions)
+ */
+async function callOpenAICompatibleProvider(
+  provider: "openai" | "groq" | "openrouter",
+  apiKey: string,
+  model: string,
+  systemInstruction: string,
+  contents: { role: string; parts: any[] }[],
+  tools: UniversalToolDeclaration[],
+  customBaseUrl?: string
+): Promise<UniversalCompletionResult> {
+  let endpoint = "https://api.openai.com/v1/chat/completions";
+  if (provider === "groq") endpoint = "https://api.groq.com/openai/v1/chat/completions";
+  if (provider === "openrouter") endpoint = "https://openrouter.ai/api/v1/chat/completions";
+  if (customBaseUrl) endpoint = `${customBaseUrl.replace(/\/$/, "")}/chat/completions`;
+
+  // Translate contents to OpenAI messages array
+  const messages: any[] = [{ role: "system", content: systemInstruction }];
+
+  for (const c of contents) {
+    const role = c.role === "model" ? "assistant" : c.role === "system" ? "system" : "user";
+    // Check if there are tool responses
+    const functionResponsePart = c.parts.find((p) => p.functionResponse);
+    if (functionResponsePart) {
+      messages.push({
+        role: "tool",
+        tool_call_id: functionResponsePart.functionResponse.id || functionResponsePart.functionResponse.name,
+        name: functionResponsePart.functionResponse.name,
+        content: JSON.stringify(functionResponsePart.functionResponse.response),
+      });
+      continue;
+    }
+
+    const textPart = c.parts.map((p) => p.text).filter(Boolean).join("\n");
+    const funcCallPart = c.parts.find((p) => p.functionCall);
+
+    if (funcCallPart) {
+      messages.push({
+        role: "assistant",
+        content: textPart || null,
+        tool_calls: [
+          {
+            id: funcCallPart.functionCall.id || funcCallPart.functionCall.name,
+            type: "function",
+            function: {
+              name: funcCallPart.functionCall.name,
+              arguments: JSON.stringify(funcCallPart.functionCall.args || {}),
+            },
+          },
+        ],
+      });
+    } else {
+      messages.push({ role, content: textPart || "" });
+    }
+  }
+
+  const openAiTools = tools.map((t) => ({
+    type: "function",
+    function: {
+      name: t.name,
+      description: t.description,
+      parameters: t.parameters,
+    },
+  }));
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${apiKey}`,
+  };
+  if (provider === "openrouter") {
+    headers["HTTP-Referer"] = "https://cafeerp.ssarkar925.workers.dev";
+    headers["X-Title"] = "CafeERP AI";
+  }
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      model,
+      messages,
+      tools: openAiTools.length > 0 ? openAiTools : undefined,
+      temperature: 0.2,
+      max_tokens: 2048,
+    }),
+    signal: AbortSignal.timeout(35000),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error?.message || `${provider} call failed (HTTP ${response.status})`);
+  }
+
+  const choice = data?.choices?.[0]?.message;
+  const text = choice?.content || "";
+  const toolCalls: UniversalToolCall[] = (choice?.tool_calls || []).map((tc: any) => {
+    let parsedArgs = {};
+    try {
+      parsedArgs = JSON.parse(tc.function?.arguments || "{}");
+    } catch {}
+    return {
+      name: tc.function?.name,
+      args: parsedArgs,
+      id: tc.id,
+    };
+  });
+
+  return { text, toolCalls, raw: data, model, provider };
+}
+
+/**
+ * 3. Anthropic Claude Implementation
+ */
+async function callAnthropicProvider(
+  apiKey: string,
+  model: string,
+  systemInstruction: string,
+  contents: { role: string; parts: any[] }[],
+  tools: UniversalToolDeclaration[],
+  customBaseUrl?: string
+): Promise<UniversalCompletionResult> {
+  const endpoint = customBaseUrl
+    ? `${customBaseUrl.replace(/\/$/, "")}/messages`
+    : "https://api.anthropic.com/v1/messages";
+
+  const anthropicMessages: any[] = [];
+  for (const c of contents) {
+    const role = c.role === "model" || c.role === "assistant" ? "assistant" : "user";
+    const textPart = c.parts.map((p) => p.text).filter(Boolean).join("\n");
+    if (textPart) anthropicMessages.push({ role, content: textPart });
+  }
+
+  const anthropicTools = tools.map((t) => ({
+    name: t.name,
+    description: t.description,
+    input_schema: t.parameters,
+  }));
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model,
+      system: systemInstruction,
+      messages: anthropicMessages,
+      tools: anthropicTools.length > 0 ? anthropicTools : undefined,
+      max_tokens: 2048,
+    }),
+    signal: AbortSignal.timeout(35000),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error?.message || `Anthropic call failed (HTTP ${response.status})`);
+  }
+
+  const textBlocks = (data?.content || []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("\n");
+  const toolCalls: UniversalToolCall[] = (data?.content || [])
+    .filter((b: any) => b.type === "tool_use")
+    .map((b: any) => ({
+      name: b.name,
+      args: b.input || {},
+      id: b.id,
+    }));
+
+  return { text: textBlocks, toolCalls, raw: data, model, provider: "anthropic" };
+}

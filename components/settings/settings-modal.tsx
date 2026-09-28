@@ -15,6 +15,7 @@ import AppearancePanel from "@/components/settings/appearance-panel";
 import SecurityPanel from "@/components/settings/security-panel";
 import BackupPanel from "@/components/settings/backup-panel";
 import NotificationsPanel from "@/components/settings/notifications-panel";
+import AIProviderPanel from "@/components/settings/ai-provider-panel";
 import PaymentAccountsPanel from "@/components/settings/payment-accounts-panel";
 import DefaultRoutingClient from "@/components/settings/default-routing-client";
 import MasterClient from "@/components/business/master-client";
@@ -362,8 +363,17 @@ export const CATEGORIES: CategoryGroup[] = [
     label: "Automations & AI",
     icon: "🤖",
     groupName: "Accounting & System",
-    desc: "WhatsApp background gateway, automated invariant self-audit, and snapshots",
+    desc: "AI model providers, WhatsApp background gateway, and automated self-audit",
     cards: [
+      {
+        id: "ai-model-provider",
+        title: "AI Model & Provider Config",
+        desc: "Select Gemini, OpenAI, Claude, Groq, or OpenRouter with custom API keys.",
+        icon: "🧠",
+        theme: "theme-indigo",
+        badge: "Multi-Model",
+        panelKey: "ai-provider",
+      },
       {
         id: "whatsapp-gw",
         title: "WhatsApp Gateway & Cloud API",
@@ -905,6 +915,11 @@ export default function SettingsModal({ open, onClose, initialCategory = "busine
                           })}
                         </div>
                       </div>
+                    </div>
+                  ) : targetCard.panelKey === "ai-provider" ? (
+                    /* AI MODEL & PROVIDER CONFIG */
+                    <div className="space-y-4">
+                      <AIProviderPanel active={true} />
                     </div>
                   ) : targetCard.panelKey === "appearance" ? (
                     /* 11. THEME & DISPLAY PREFERENCES */
