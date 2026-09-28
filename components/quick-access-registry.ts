@@ -73,8 +73,6 @@ export const QUICK_ACCESS_CATALOG: QuickAccessItem[] = [
   { id: "audit-log", label: "Security Audit Log", href: "/audit", icon: "audit-log" },
 
   // Tools / Administration
-  { id: "ai", label: "AI Advisor", href: "/ai", icon: "ai" },
-  { id: "self-audit", label: "Financial Self-Audit", href: "/ai/self-audit", icon: "self-audit" },
   { id: "staff", label: "Staff Accounts", href: "/staff", icon: "staff" },
   { id: "security", label: "Security & 2FA", href: "/security", icon: "security" },
   { id: "settings", label: "System Settings", href: "/settings", icon: "settings" },

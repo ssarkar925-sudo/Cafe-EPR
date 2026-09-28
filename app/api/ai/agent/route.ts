@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
 import { CAFE_AI_SYSTEM_INSTRUCTIONS, DEFAULT_AGENT_PERMISSIONS } from "@/lib/ai/agent-policy";
 import { runIntelligentAgent, type AgentHistoryItem } from "@/lib/ai/agent-runtime";
+import { buildSaiLanguageContext, SAI_RESPONSE_RULES } from "@/lib/sai/cognition/language";
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +71,6 @@ export async function POST(request: Request) {
 
     const body = await request.json().catch(() => null);
     const message = typeof body?.message === "string" ? body.message.trim() : "";
-    const language: string = typeof body?.language === "string" && ["hi", "bn", "en"].includes(body.language) ? body.language : "en";
     if (!message) return NextResponse.json({ error: "Message is required" }, { status: 400 });
     if (message.length > MAX_MESSAGE_LENGTH) return NextResponse.json({ error: "Message is too long" }, { status: 413 });
 
@@ -154,13 +154,9 @@ export async function POST(request: Request) {
     // Prefer in-tab history for recency; use DB turns only if in-tab is short (new session)
     const mergedHistory = inTabHistory.length >= 4 ? inTabHistory : [...dbTurns.slice(-8), ...inTabHistory].slice(-MAX_HISTORY_ITEMS);
 
-    const languageInstruction = language === "hi"
-      ? "LANGUAGE: Always respond in natural Hindi (Devanagari script). Use common business terms in Hindi but keep technical identifiers like UPI, PDF, GSTIN as-is."
-      : language === "bn"
-      ? "LANGUAGE: Always respond in natural Bengali (Bangla script). Use common business terms in Bengali but keep technical identifiers like UPI, PDF, GSTIN as-is."
-      : "LANGUAGE: Respond in English.";
+    const { language, instruction: languageInstruction } = buildSaiLanguageContext(message);
 
-    const systemInstruction = `${CAFE_AI_SYSTEM_INSTRUCTIONS}\n\nOwner learned memory:\n${memoryContext}\n\nLearned shop workflows:\n${workflowContext}\n\nCurrent application permission profile:\n${JSON.stringify(DEFAULT_AGENT_PERMISSIONS)}\n\n${languageInstruction}\n\nCritical operational rules:\n1. ALWAYS use your tools before answering questions about sales, profit, stock, customers, or money. Never answer these from your own knowledge.\n2. When the user teaches a rule, preference, price, or fact, ALWAYS call save_memory immediately.\n3. For sales or billing requests, prepare the sale with prepare_sale and submit for owner approval.\n4. Never claim a financial record was created or modified unless confirmed by a tool.\n5. You have cross-session memory — refer to past conversations naturally when relevant.`;
+    const systemInstruction = `${CAFE_AI_SYSTEM_INSTRUCTIONS}\n\n${SAI_RESPONSE_RULES}\n\n${languageInstruction}\n\nOwner learned memory:\n${memoryContext}\n\nLearned shop workflows:\n${workflowContext}\n\nCurrent application permission profile:\n${JSON.stringify(DEFAULT_AGENT_PERMISSIONS)}\n\nCritical operational rules:\n1. ALWAYS use your tools before answering questions about sales, profit, stock, customers, or money. Never answer these from your own knowledge.\n2. When the user teaches a rule, preference, price, or fact, ALWAYS call save_memory immediately.\n3. For sales or billing requests, prepare the sale with prepare_sale and submit for owner approval.\n4. Never claim a financial record was created or modified unless confirmed by a tool.\n5. You have cross-session memory — refer to past conversations naturally when relevant.`;
 
     const result = await runIntelligentAgent({
       apiKey,
