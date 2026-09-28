@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     type: typeof body.type === "string" ? body.type : "",
     occurredAt: typeof body.occurredAt === "string" ? body.occurredAt : new Date().toISOString(),
     entityId: typeof body.entityId === "string" ? body.entityId : undefined,
-    actor: { userId: auth.user.id, businessId: String(body.businessId || auth.user.id), role },
+    actor: { userId: auth.user.id, businessId: String(body.businessId || auth.user.id), role: role as string },
     payload: body.payload && typeof body.payload === "object" ? body.payload : {},
     evidenceIds: Array.isArray(body.evidenceIds) ? body.evidenceIds.filter((id: unknown): id is string => typeof id === "string") : [],
   };
