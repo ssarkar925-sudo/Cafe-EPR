@@ -46,7 +46,8 @@ export default function AIProviderPanel({ active }: { active: boolean }) {
       setLoading(true);
       try {
         const res = await fetch("/api/ai/provider-config", { cache: "no-store" });
-        const data = await res.json();
+        const raw = await res.text();
+        const data = raw ? JSON.parse(raw) : {};
         if (res.ok) {
           const loadedProvider = data.provider || "gemini";
           setProvider(loadedProvider);
