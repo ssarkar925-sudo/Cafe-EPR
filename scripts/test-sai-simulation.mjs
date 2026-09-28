@@ -12,7 +12,7 @@ console.log("SAI Digital Twin and contradiction detection regression tests");
 check(files.types.includes("SaiSimulationEffect"),"Simulation effect is typed");
 check(files.types.includes("SaiContradiction"),"Contradictions are typed");
 check(files.types.includes("SaiSimulationResult"),"Simulation results are typed");
-check(files.caps.includes("simulate?:"),"Capabilities can declare a simulation contract");
+check(files.types.includes("simulate?:"),"Capabilities can declare a simulation contract");
 check(files.caps.includes("requires simulation"),"Mutating capabilities require simulation");
 check(files.caps.includes("_simulate"),"Capability descriptors never expose simulation executors");
 check(files.sim.includes("simulateSaiPlan"),"Digital Twin simulator exists");
