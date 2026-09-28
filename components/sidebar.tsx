@@ -425,6 +425,7 @@ export default function Sidebar({
           { label: "Staff & Roles", href: "/staff", icon: "staff" },
           { label: "Security Center", href: "/security", icon: "security" },
           { label: "System Audit Logs", href: "/audit", icon: "audit" },
+          { label: "WhatsApp Desk", href: "/business/whatsapp", icon: "whatsapp" },
         ],
       },
     ],
