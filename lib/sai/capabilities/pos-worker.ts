@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { subscribeSaiEvent } from "@/lib/sai/cognition/dispatcher";
 import { handlePosSaleCreated } from "./pos-observe";
+import { persistSaiEvidence } from "@/lib/sai/core/persistence";
 import type { SaiEvent } from "@/lib/sai/core/types";
 
 let started = false;
@@ -53,9 +54,16 @@ export function startSaiPosWorker(): void {
     if (!observed.ok) return;
 
     const verification = await verifySale(event);
+    const evidenceId = `pos-verification:${event.eventId}`;
+    await persistSaiEvidence({
+      evidenceId,
+      actor: event.actor,
+      sourceType: "pos.authoritative_verification",
+      sourceRef: event.entityId ?? event.eventId,
+      observedAt: new Date().toISOString(),
+      data: { eventId: event.eventId, ok: verification.ok, reason: verification.ok ? null : verification.reason, checks: verification.checks ?? null, evidence: verification.evidence ?? null },
+      confidence: verification.ok ? 1 : 0,
+    });
     if (!verification.ok) return;
-
-    // Authoritative reread succeeded. Persistence of this verification trace
-    // is deliberately separate from accounting writes.
   });
 }
