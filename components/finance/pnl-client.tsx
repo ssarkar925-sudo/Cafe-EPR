@@ -203,7 +203,7 @@ export default function PnlClient({ initialPnl, defaultFrom, defaultTo }: {
 
   return (
     <div data-phase3-module="pnl" className="erp-phase3-page space-y-5">
-      <header className="bento-surface card-glow-indigo relative overflow-hidden rounded-3xl border p-6">
+      <header className="erp-phase3-header bento-surface card-glow-indigo relative overflow-hidden rounded-3xl border p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-2">
