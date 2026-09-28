@@ -49,3 +49,28 @@ create policy sai_evidence_staff_read on public.sai_evidence for select to authe
 create or replace function public.sai_touch_command_updated_at() returns trigger language plpgsql as $$ begin new.updated_at=now(); return new; end; $$;
 drop trigger if exists sai_commands_touch_updated_at on public.sai_commands;
 create trigger sai_commands_touch_updated_at before update on public.sai_commands for each row execute function public.sai_touch_command_updated_at();
+
+
+drop policy if exists sai_events_staff_insert on public.sai_events;
+create policy sai_events_staff_insert on public.sai_events for insert to authenticated
+with check (actor_user_id = auth.uid() and exists (select 1 from public.profiles p where p.id=auth.uid() and p.is_active and p.role in ('admin','manager','staff')));
+drop policy if exists sai_commands_staff_insert on public.sai_commands;
+create policy sai_commands_staff_insert on public.sai_commands for insert to authenticated
+with check (actor_user_id = auth.uid() and exists (select 1 from public.profiles p where p.id=auth.uid() and p.is_active and p.role in ('admin','manager','staff')));
+drop policy if exists sai_commands_staff_update on public.sai_commands;
+create policy sai_commands_staff_update on public.sai_commands for update to authenticated
+using (actor_user_id = auth.uid() and exists (select 1 from public.profiles p where p.id=auth.uid() and p.is_active and p.role in ('admin','manager','staff')))
+with check (actor_user_id = auth.uid());
+drop policy if exists sai_steps_staff_insert on public.sai_command_steps;
+create policy sai_steps_staff_insert on public.sai_command_steps for insert to authenticated
+with check (exists (select 1 from public.sai_commands c where c.command_id=sai_command_steps.command_id and c.actor_user_id=auth.uid()));
+drop policy if exists sai_steps_staff_update on public.sai_command_steps;
+create policy sai_steps_staff_update on public.sai_command_steps for update to authenticated
+using (exists (select 1 from public.sai_commands c where c.command_id=sai_command_steps.command_id and c.actor_user_id=auth.uid()))
+with check (exists (select 1 from public.sai_commands c where c.command_id=sai_command_steps.command_id and c.actor_user_id=auth.uid()));
+drop policy if exists sai_results_staff_insert on public.sai_command_results;
+create policy sai_results_staff_insert on public.sai_command_results for insert to authenticated
+with check (exists (select 1 from public.sai_commands c where c.command_id=sai_command_results.command_id and c.actor_user_id=auth.uid()));
+drop policy if exists sai_evidence_staff_insert on public.sai_evidence;
+create policy sai_evidence_staff_insert on public.sai_evidence for insert to authenticated
+with check (exists (select 1 from public.profiles p where p.id=auth.uid() and p.is_active and p.role in ('admin','manager','staff')));
