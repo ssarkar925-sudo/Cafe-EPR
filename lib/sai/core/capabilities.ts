@@ -97,6 +97,14 @@ export function requireSaiCapability(id: string): RegisteredSaiCapability {
   return capability;
 }
 
+export function authorizeSaiCapability(capability: RegisteredSaiCapability, actor: { userId: string; businessId: string; role?: string }): void {
+  if (!actor.userId || !actor.businessId) throw new Error("SAI_ACTOR_CONTEXT_REQUIRED");
+  const role = actor.role?.trim();
+  if (!role || !capability.allowedRoles.includes(role)) {
+    throw new Error(`SAI_CAPABILITY_ROLE_FORBIDDEN:${capability.id}`);
+  }
+}
+
 export function validateSaiCapabilityRegistry(): void {
   for (const capability of registry.values()) {
     if (capability.risk === "read" && capability.mutates) {
