@@ -20,10 +20,16 @@ export async function GET() {
     .eq("requested_by", auth.user.id)
     .eq("status", "pending");
 
+  const { count: openAttention } = await supabase
+    .from("sai_attention")
+    .select("attention_id", { count: "exact", head: true })
+    .eq("actor_user_id", auth.user.id)
+    .in("status", ["open", "acknowledged"]);
+
   return NextResponse.json({
     online: true,
     activeTasks: 0,
     pendingApprovals: pendingApprovals ?? 0,
-    attention: 0,
+    attention: openAttention ?? 0,
   });
 }
