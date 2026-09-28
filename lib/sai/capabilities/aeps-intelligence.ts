@@ -290,7 +290,7 @@ export function registerAepsIntelligenceCapabilities(): void {
         requiresApproval: false,
         mutates: false,
         verificationRequired: false,
-        execute: def.fn,
+        execute: async (input, ctx) => def.fn(ctx.command.actor, input),
       });
     } catch {
       // Idempotent module initialization.
