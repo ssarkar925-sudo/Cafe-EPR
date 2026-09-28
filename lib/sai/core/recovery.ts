@@ -63,7 +63,16 @@ export async function recoverSaiAttention(input: {
     .eq("recovery_id", recoveryId)
     .eq("actor_user_id", input.actor.userId);
 
-  const verified = await input.verify();
+  let verified: { ok: boolean; reason?: string; checks?: unknown; evidence?: unknown };
+  try {
+    verified = await input.verify();
+  } catch (error) {
+    verified = {
+      ok: false,
+      reason: error instanceof Error ? error.message : "Recovery verification threw an unknown error.",
+    };
+  }
+
   const evidenceId = `sai-recovery:${recoveryId}`;
   await persistSaiEvidence({
     evidenceId,
@@ -94,13 +103,14 @@ export async function recoverSaiAttention(input: {
   await persistSaiEvent(traceEvent);
 
   const finalStatus: SaiRecoveryStatus = verified.ok ? "succeeded" : "failed";
-  await supabase.from("sai_recovery_attempts").update({
+  const { error: updateError } = await supabase.from("sai_recovery_attempts").update({
     status: finalStatus,
     reason: verified.reason ?? null,
     result: { ok: verified.ok, checks: verified.checks ?? null, evidence: verified.evidence ?? null },
     evidence_ids: [evidenceId],
     completed_at: new Date().toISOString(),
   }).eq("recovery_id", recoveryId).eq("actor_user_id", input.actor.userId);
+  if (updateError) throw new Error(`SAI_RECOVERY_UPDATE_FAILED: ${updateError.message}`);
 
   if (verified.ok) {
     await resolveSaiAttention(input.attentionId, "SAI safely re-verified the authoritative state after the transient observation failure.");
