@@ -814,11 +814,13 @@ export async function runIntelligentHeuristicAgent({
   supabase,
   userId,
   language = "en",
+  fallbackMessage,
 }: {
   message: string;
   supabase: SupabaseClient<any, any, any>;
   userId: string;
   language?: string;
+  fallbackMessage?: string;
 }) {
   const text = message.trim();
   const lower = text.toLowerCase();
@@ -1147,6 +1149,7 @@ export async function runIntelligentAgent({
   supabase,
   userId,
   language = "en",
+  fallbackMessage?: string;
 }: {
   apiKey: string;
   provider?: any;
@@ -1160,7 +1163,7 @@ export async function runIntelligentAgent({
   language?: string;
 }) {
   if (!apiKey || apiKey.length < 8 || apiKey.includes("[SENSITIVE")) {
-    return runIntelligentHeuristicAgent({ message, supabase, userId, language });
+    return runIntelligentHeuristicAgent({ message, supabase, userId, language, fallbackMessage });
   }
 
   const safeHistory = normalizeHistory(history).filter((item) => item.content !== message.trim());
