@@ -5,7 +5,7 @@ import { normalizePhone, rankCustomerResults } from "@/lib/customer-search";
 import { parsePhoneSms, parsePortalData, fetchWebsiteData } from "@/lib/ai/data-collector";
 import { executeUniversalModelCall, type UniversalCompletionResult } from "@/lib/ai/multi-provider-engine";
 
-const MAX_TOOL_ROUNDS = 4;
+const MAX_TOOL_ROUNDS = 6;
 const MAX_HISTORY = 10;
 
 export type AgentHistoryItem = { role: "user" | "assistant"; content: string };

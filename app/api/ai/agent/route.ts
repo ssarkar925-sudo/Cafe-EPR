@@ -6,9 +6,6 @@ import { runIntelligentAgent, type AgentHistoryItem } from "@/lib/ai/agent-runti
 
 export const dynamic = "force-dynamic";
 
-const LIVE_REPORT_PATTERN = /(?:profit(?:\s*(?:and|&|\/)\s*loss)?|p&l|p\/l|net\s+profit|revenue|expenses?|business\s+report|monthly\s+report|this\s+month|current\s+month|net\s+margin|gross\s+margin|मुनाफा|लाभ|हानि|बिक्री\s+रिपोर्ट|मासिक\s+रिपोर्ट|আজকের\s+সেল|লাভ|ক্ষতি|বিক্রি\s+রিপোর্ট|মাসিক\s+রিপোর্ট|aaj\s+ka\s+munafa|is\s+mahine\s+ka\s+profit)/i;
-const STOCK_ALERT_PATTERN = /(?:low\s+stock|out\s+of\s+stock|reorder|inventory\s+alert|stock\s+level|स्टॉक\s+कम|माल\s+खत्म|स्टॉक\s+जाँचो|স্টক\s+কম|মাল\s+শেষ|স্টক\s+দেখো|stock\s+kitna|maal\s+kitna)/i;
-const DUES_PATTERN = /(?:customer\s+due|khata\s+due|who\s+owes|unpaid\s+balance|receivables|खाता\s+बाकी|उधारी|कितना\s+बकाया|খাতা\s+বাকি|বকেয়া|কার\s+কত\s+বাকি|khata\s+baki|udhari\s+kitni)/i;
 const MAX_MESSAGE_LENGTH = 16_000;
 const MAX_HISTORY_ITEMS = 10;
 
@@ -81,49 +78,9 @@ export async function POST(request: Request) {
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    if (STOCK_ALERT_PATTERN.test(message)) {
-      const { data: products, error } = await supabase.from("products").select("id,name,stock_qty,reorder_level,unit").eq("is_active", true);
-      if (!error) {
-        const lowStock = (products || []).filter((p: any) => Number(p.stock_qty || 0) <= Number(p.reorder_level || 0));
-        if (!lowStock.length) return NextResponse.json({ message: "✓ All active catalog products are above their reorder thresholds.", mode: "inventory-report", canExecute: false, approvalRequired: false });
-        const list = lowStock.slice(0, 25).map((p: any) => `- ${p.name}: ${p.stock_qty} ${p.unit || "units"} (reorder at ${p.reorder_level})`).join("\n");
-        return NextResponse.json({ message: `⚠️ ${lowStock.length} item(s) need attention:\n\n${list}`, mode: "inventory-report", canExecute: false, approvalRequired: false });
-      }
-    }
 
-    if (DUES_PATTERN.test(message)) {
-      const { data: customers, error } = await supabase.from("customers").select("id,name,phone,balance").gt("balance", 0).order("balance", { ascending: false }).limit(50);
-      if (!error) {
-        if (!customers?.length) return NextResponse.json({ message: "✓ No customer Khata receivables are currently outstanding.", mode: "dues-report", canExecute: false, approvalRequired: false });
-        const total = customers.reduce((sum: number, c: any) => sum + Number(c.balance || 0), 0);
-        const list = customers.slice(0, 10).map((c: any) => `- ${c.name} (${c.phone || "No phone"}): ${formatInr(Number(c.balance || 0))}`).join("\n");
-        return NextResponse.json({ message: `📋 Customer Khata Dues: ${formatInr(total)} across ${customers.length} account(s) returned.\n\n${list}`, mode: "dues-report", canExecute: false, approvalRequired: false });
-      }
-    }
-
-    if (LIVE_REPORT_PATTERN.test(message)) {
-      if (!hasRole(role, ["admin", "manager"])) return NextResponse.json({ error: "Live financial reports are restricted to Admin and Manager access." }, { status: 403 });
-      try {
-        const pnl = await buildCurrentMonthPnl(supabase);
-        const report = [
-          `Current-month Profit & Loss (${pnl.start} to ${pnl.end}, inclusive)`,
-          `Recognized POS / Invoice Sales Revenue: ${formatInr(pnl.sales)}`,
-          `Sales Returns & Refunds: -${formatInr(pnl.returns)}`,
-          `Service Fees & Commission Income: ${formatInr(pnl.serviceIncome)}`,
-          `Gross Operating Profit: ${formatInr(pnl.grossProfit)}`,
-          `Operating Expenses: -${formatInr(pnl.expenses)}`,
-          `NET OPERATING PROFIT: ${formatInr(pnl.net)}`,
-          `Net Margin: ${pnl.margin.toFixed(2)}%`,
-          pnl.warning ? `Warning: ${pnl.warning}` : "",
-          `Invoices counted: ${pnl.invoices}.`,
-          pnl.unverifiedCostCount > 0 ? `Unverified direct-cost records: ${pnl.unverifiedCostCount}.` : "COGS direct-cost snapshots are verified by the accounting function.",
-        ].filter(Boolean).join("\n");
-        return NextResponse.json({ message: report, mode: "live-business-report", canExecute: false, approvalRequired: false, data: pnl });
-      } catch (error) {
-        console.error("AI agent live financial report failed", error);
-        return NextResponse.json({ error: "Live financial data could not be read" }, { status: 502 });
-      }
-    }
+    // All queries go to the real LLM with tools — no regex shortcuts.
+    // The LLM calls get_business_snapshot, search_catalog, search_customer, etc. to reason over live data.
 
     // Load dynamic AI provider configuration from database (Gemini, OpenAI, Claude, Groq, OpenRouter)
     let activeProvider: any = "gemini";
@@ -181,13 +138,21 @@ export async function POST(request: Request) {
       else apiKey = process.env.GEMINI_API_KEY || "";
     }
 
-    const [{ data: memories }, { data: workflows }] = await Promise.all([
+    const [{ data: memories }, { data: workflows }, { data: dbHistory }] = await Promise.all([
       supabase.from("ai_memories").select("category,memory_key,memory_value,confidence").eq("user_id", auth.user.id).eq("active", true).order("updated_at", { ascending: false }).limit(100),
       supabase.from("ai_workflow_versions").select("workflow_key,name,instruction").eq("user_id", auth.user.id).eq("status", "active").limit(25),
+      // Cross-session memory: load last 12 conversation turns from DB
+      supabase.from("ai_conversations").select("role,content,created_at").eq("user_id", auth.user.id).order("created_at", { ascending: false }).limit(12).then(r => ({ data: (r.data || []).reverse() })),
     ]);
 
     const memoryContext = (memories || []).map((m: any) => `- [${m.category}] ${m.memory_key}: ${JSON.stringify(m.memory_value)}`).join("\n") || "No owner memory has been stored yet.";
     const workflowContext = (workflows || []).map((w: any) => `- [Workflow ${w.workflow_key}] ${w.name}: ${w.instruction}`).join("\n") || "No learned workflows active.";
+
+    // Merge DB history with in-tab history — DB provides cross-session context, in-tab is current session
+    const inTabHistory = normalizeHistory(body?.history);
+    const dbTurns: AgentHistoryItem[] = (dbHistory || []).map((r: any) => ({ role: r.role as "user" | "assistant", content: String(r.content) }));
+    // Prefer in-tab history for recency; use DB turns only if in-tab is short (new session)
+    const mergedHistory = inTabHistory.length >= 4 ? inTabHistory : [...dbTurns.slice(-8), ...inTabHistory].slice(-MAX_HISTORY_ITEMS);
 
     const languageInstruction = language === "hi"
       ? "LANGUAGE: Always respond in natural Hindi (Devanagari script). Use common business terms in Hindi but keep technical identifiers like UPI, PDF, GSTIN as-is."
@@ -195,7 +160,7 @@ export async function POST(request: Request) {
       ? "LANGUAGE: Always respond in natural Bengali (Bangla script). Use common business terms in Bengali but keep technical identifiers like UPI, PDF, GSTIN as-is."
       : "LANGUAGE: Respond in English.";
 
-    const systemInstruction = `${CAFE_AI_SYSTEM_INSTRUCTIONS}\n\nOwner learned memory:\n${memoryContext}\n\nLearned shop workflows:\n${workflowContext}\n\nCurrent application permission profile:\n${JSON.stringify(DEFAULT_AGENT_PERMISSIONS)}\n\n${languageInstruction}\n\nOperational rules:\n1. Prefer verified live tools for facts (catalog, customers, P&L, inventory, transactions).\n2. When the user teaches a rule, preference, or fact, ALWAYS call save_memory so it is permanently learned.\n3. For sales or billing requests, prepare the sale with prepare_sale and submit for owner approval.\n4. Never claim a financial record was created or modified unless confirmed by a tool.`;
+    const systemInstruction = `${CAFE_AI_SYSTEM_INSTRUCTIONS}\n\nOwner learned memory:\n${memoryContext}\n\nLearned shop workflows:\n${workflowContext}\n\nCurrent application permission profile:\n${JSON.stringify(DEFAULT_AGENT_PERMISSIONS)}\n\n${languageInstruction}\n\nCritical operational rules:\n1. ALWAYS use your tools before answering questions about sales, profit, stock, customers, or money. Never answer these from your own knowledge.\n2. When the user teaches a rule, preference, price, or fact, ALWAYS call save_memory immediately.\n3. For sales or billing requests, prepare the sale with prepare_sale and submit for owner approval.\n4. Never claim a financial record was created or modified unless confirmed by a tool.\n5. You have cross-session memory — refer to past conversations naturally when relevant.`;
 
     const result = await runIntelligentAgent({
       apiKey,
@@ -203,12 +168,19 @@ export async function POST(request: Request) {
       model: activeModel,
       baseUrl: endpointUrl || undefined,
       message,
-      history: normalizeHistory(body?.history),
+      history: mergedHistory,
       systemInstruction,
       supabase,
       userId: auth.user.id,
       language,
     });
+
+    // Save this turn to DB for future cross-session recall (fire-and-forget, don't block response)
+    Promise.all([
+      supabase.from("ai_conversations").insert({ user_id: auth.user.id, role: "user", content: message.slice(0, 4000) }),
+      supabase.from("ai_conversations").insert({ user_id: auth.user.id, role: "assistant", content: result.message.slice(0, 4000) }),
+    ]).catch(() => { /* Non-critical — don't fail the response */ });
+
     return NextResponse.json({
       message: result.message,
       mode: "agentic",
