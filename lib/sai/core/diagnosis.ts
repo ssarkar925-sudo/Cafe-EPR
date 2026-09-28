@@ -31,20 +31,36 @@ export async function diagnosePosVerificationFailure(input: {
   evidence?: unknown;
 }): Promise<SaiDiagnosis> {
   const findings: SaiDiagnosisFinding[] = [];
-  const checks = Array.isArray(input.checks) ? input.checks : [];
+  const checksRecord =
+    input.checks && typeof input.checks === "object" && !Array.isArray(input.checks)
+      ? (input.checks as Record<string, unknown>)
+      : null;
 
-  for (const raw of checks) {
-    if (!raw || typeof raw !== "object") continue;
-    const check = raw as Record<string, unknown>;
-    if (check.ok === true) continue;
-    findings.push({
-      code: String(check.code ?? "verification_mismatch"),
-      severity: "critical",
-      title: String(check.title ?? check.name ?? "Verification check failed"),
-      detail: String(check.reason ?? input.reason ?? "Authoritative verification did not match the observed POS event."),
-      expected: check.expected,
-      actual: check.actual,
-    });
+  if (checksRecord) {
+    for (const [name, value] of Object.entries(checksRecord)) {
+      if (value === true) continue;
+      findings.push({
+        code: name,
+        severity: "critical",
+        title: name.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase()),
+        detail: input.reason ?? "Authoritative verification check failed.",
+        actual: value,
+      });
+    }
+  } else if (Array.isArray(input.checks)) {
+    for (const raw of input.checks) {
+      if (!raw || typeof raw !== "object") continue;
+      const check = raw as Record<string, unknown>;
+      if (check.ok === true) continue;
+      findings.push({
+        code: String(check.code ?? "verification_mismatch"),
+        severity: "critical",
+        title: String(check.title ?? check.name ?? "Verification check failed"),
+        detail: String(check.reason ?? input.reason ?? "Authoritative verification did not match the observed POS event."),
+        expected: check.expected,
+        actual: check.actual,
+      });
+    }
   }
 
   if (findings.length === 0) {
@@ -79,6 +95,17 @@ export async function diagnosePosVerificationFailure(input: {
   };
 
   const supabase = await createClient();
+  if (input.attentionId) {
+    const { error: attentionError } = await supabase.from("sai_attention").update({
+      diagnosis_category: diagnosis.category,
+      diagnosis_explanation: diagnosis.summary,
+      recommended_action: diagnosis.nextAction,
+      auto_recovery_allowed: diagnosis.nextAction === "retry_verification",
+      diagnosis_status: diagnosis.nextAction === "retry_verification" ? "recovery_ready" : "diagnosed",
+    }).eq("attention_id", input.attentionId);
+    if (attentionError) throw new Error(`SAI_ATTENTION_DIAGNOSIS_UPDATE_FAILED: ${attentionError.message}`);
+  }
+
   const { error } = await supabase.from("sai_diagnoses").insert({
     diagnosis_id: diagnosis.diagnosisId,
     attention_id: input.attentionId ?? null,
