@@ -814,11 +814,13 @@ export async function runIntelligentHeuristicAgent({
   supabase,
   userId,
   language = "en",
+  fallbackMessage,
 }: {
   message: string;
   supabase: SupabaseClient<any, any, any>;
   userId: string;
   language?: string;
+  fallbackMessage?: string;
 }) {
   const text = message.trim();
   const lower = text.toLowerCase();
@@ -1129,7 +1131,7 @@ export async function runIntelligentHeuristicAgent({
 
   // Default Assistant Guidance Response
   return {
-    message: `🤖 **Cafe AI Agent Ready**\n\nI am your shop assistant. Here is what I can do for you right now:\n\n- 📱 **Collect from Phone SMS**: Paste any bank/UPI SMS (e.g. *"Rs. 1500 credited via UPI from Rahul"*) to auto-extract and update Customer Khata with 1 click.\n- 🧾 **Collect from Portals**: Paste receipts or tables from CSC DigiPay, Spice Money, or utility portals to stage them for reconciliation.\n- 🌐 **Collect from Websites**: Tell me *"Collect data from https://..."* to read web pages, bills, or price lists.\n- ⚡ **Quick Billing**: Say *"Sell 2 coffee and 1 sandwich UPI"* to prepare a 1-click GST invoice.\n- 🧠 **Self-Learning**: Say *"Remember that Xerox is 3 rupees per page"* to teach me rules.\n- 📊 **Financials & Khata**: Ask *"Profit and loss this month"* or *"Who owes money?"*.\n\nHow can I help your shop right now?`,
+    message: fallbackMessage || `🤖 **Cafe AI Agent Ready**\n\nI am your shop assistant. Here is what I can do for you right now:\n\n- 📱 **Collect from Phone SMS**: Paste any bank/UPI SMS (e.g. *"Rs. 1500 credited via UPI from Rahul"*) to auto-extract and update Customer Khata with 1 click.\n- 🧾 **Collect from Portals**: Paste receipts or tables from CSC DigiPay, Spice Money, or utility portals to stage them for reconciliation.\n- 🌐 **Collect from Websites**: Tell me *"Collect data from https://..."* to read web pages, bills, or price lists.\n- ⚡ **Quick Billing**: Say *"Sell 2 coffee and 1 sandwich UPI"* to prepare a 1-click GST invoice.\n- 🧠 **Self-Learning**: Say *"Remember that Xerox is 3 rupees per page"* to teach me rules.\n- 📊 **Financials & Khata**: Ask *"Profit and loss this month"* or *"Who owes money?"*.\n\nHow can I help your shop right now?`,
     usedTools: [],
     rounds: 1,
     finishReason: "STOP",
@@ -1147,6 +1149,7 @@ export async function runIntelligentAgent({
   supabase,
   userId,
   language = "en",
+  fallbackMessage,
 }: {
   apiKey: string;
   provider?: any;
@@ -1158,9 +1161,10 @@ export async function runIntelligentAgent({
   supabase: SupabaseClient<any, any, any>;
   userId: string;
   language?: string;
+  fallbackMessage?: string;
 }) {
   if (!apiKey || apiKey.length < 8 || apiKey.includes("[SENSITIVE")) {
-    return runIntelligentHeuristicAgent({ message, supabase, userId, language });
+    return runIntelligentHeuristicAgent({ message, supabase, userId, language, fallbackMessage });
   }
 
   const safeHistory = normalizeHistory(history).filter((item) => item.content !== message.trim());
@@ -1204,10 +1208,10 @@ export async function runIntelligentAgent({
             tools: TOOL_DECLARATIONS as any,
           });
         } catch {
-          return runIntelligentHeuristicAgent({ message, supabase, userId, language });
+          return runIntelligentHeuristicAgent({ message, supabase, userId, language, fallbackMessage });
         }
       } else {
-        return runIntelligentHeuristicAgent({ message, supabase, userId, language });
+        return runIntelligentHeuristicAgent({ message, supabase, userId, language, fallbackMessage });
       }
     }
 
