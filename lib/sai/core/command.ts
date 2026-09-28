@@ -32,7 +32,7 @@ export async function buildSaiCommand(input: {
 export async function executeSaiCommand(command: SaiCommand, approvalId?: string): Promise<SaiCapabilityResult> {
   validateSaiCommand(command);
   const capability = requireSaiCapability(command.capability);
-  if (saiCommandRequiresApproval(command) && !approvalId) {
+  if (saiCommandRequiresApproval(command, capability) && !approvalId) {
     return { ok: false, error: "OWNER_APPROVAL_REQUIRED" };
   }
   const authorized: SaiCommand = { ...command, approvalId, status: "authorized", updatedAt: new Date().toISOString() };
