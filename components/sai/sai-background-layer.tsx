@@ -110,14 +110,6 @@ export default function SAIBackgroundLayer() {
     return requestMicrophoneWhenNeeded();
   }
 
-  function getSpeechLocale(): string {
-    const language = String(navigator.language || "").toLowerCase();
-    if (language.startsWith("bn")) return "bn-IN";
-    if (language.startsWith("hi")) return "hi-IN";
-    if (language.startsWith("en")) return "en-IN";
-    return navigator.language || "en-IN";
-  }
-
   async function toggleVoice() {
     if (listening) {
       recognitionRef.current?.stop?.();
