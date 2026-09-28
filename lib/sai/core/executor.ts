@@ -3,6 +3,7 @@ import { createSaiEvidence, captureSaiPlanEvidence } from "./evidence";
 import { persistSaiCommandStep, updateSaiCommand } from "./persistence";
 import { verifySaiCommand } from "./verification";
 import { createSaiTraceId, recordSaiTrace } from "./trace";
+import { getSaiCapability } from "./capabilities";
 import { simulateSaiPlan } from "./simulation";
 import type { SaiActor, SaiCapabilityResult, SaiPlan, SaiPlanStep, SaiExecutionMode } from "./types";
 
@@ -23,7 +24,6 @@ export async function executeSaiPlan(
   });
   const planEvidence = await captureSaiPlanEvidence(plan, actor);
   const requiresSimulation = mode === "background" || plan.steps.some(step => {
-    const { getSaiCapability } = await import("./capabilities");
     const capability = getSaiCapability(step.capability);
     return step.risk !== "read" || Boolean(capability?.mutates);
   });
