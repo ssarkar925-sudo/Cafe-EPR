@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import type { SaiActor } from "./types";
+import { isTransientVerificationFailure } from "./recovery-policy";
 
 export type SaiDiagnosisFinding = {
   code: string;
@@ -77,7 +78,11 @@ export async function diagnosePosVerificationFailure(input: {
   const hasInvoice = findings.some((f) => /invoice|total/i.test(f.code + " " + f.title));
 
   const category = hasPayment ? "payment_mismatch" : hasInventory ? "inventory_mismatch" : hasInvoice ? "invoice_mismatch" : "verification_failure";
-  const nextAction = hasPayment || hasInventory || hasInvoice ? "reconcile" : "manual_check";
+  const nextAction = hasPayment || hasInventory || hasInvoice
+    ? "reconcile"
+    : isTransientVerificationFailure({ reason: input.reason, checks: input.checks })
+      ? "retry_verification"
+      : "manual_check";
   const confidence = findings.length === 1 && findings[0].code !== "verification_failed" ? 0.95 : 0.7;
   const summary = findings.length === 1
     ? findings[0].title + "."
