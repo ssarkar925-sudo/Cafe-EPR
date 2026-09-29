@@ -86,6 +86,9 @@ jobs:
       - name: SAI mission runner
         run: npm run test:sai-missions-runner
 
+      - name: SAI Phase 2C finance intelligence
+        run: npm run test:sai-finance-intelligence
+
       - name: SAI simulation and contradiction detection
         run: npm run test:sai-simulation
 

@@ -9,6 +9,7 @@ export type SaiCapabilityDomain =
   | "aeps"
   | "dmt"
   | "recharge"
+  | "finance"
   | "system";
 
 export type SaiCapabilityKind = "observe" | "query" | "execute";
@@ -127,7 +128,7 @@ export function validateSaiCapabilityRegistry(): void {
 
 function inferDomain(id: string): SaiCapabilityDomain {
   const prefix = id.split(".")[0] as SaiCapabilityDomain;
-  return ["business", "pos", "inventory", "customer", "payments", "aeps", "dmt", "recharge"].includes(prefix)
+  return ["business", "pos", "inventory", "customer", "payments", "aeps", "dmt", "recharge", "finance"].includes(prefix)
     ? prefix
     : "system";
 }

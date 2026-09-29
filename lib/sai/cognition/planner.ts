@@ -7,12 +7,14 @@ import "@/lib/sai/capabilities/customer-intelligence";
 import "@/lib/sai/capabilities/aeps-intelligence";
 import "@/lib/sai/capabilities/portal-watcher-observe";
 import "@/lib/sai/capabilities/service-intelligence";
+import "@/lib/sai/capabilities/finance-intelligence";
 
 const READ_PATTERNS = [
   /what is/i, /show/i, /check/i, /status/i, /how much/i, /who/i, /recent/i, /latest/i,
   /customer/i, /khata/i, /due/i, /balance/i, /ledger/i,
   /aeps/i, /aadhaar/i, /withdrawal/i, /payment collection/i, /commission/i, /fee/i,
   /portal/i, /watcher/i, /source/i, /collection run/i, /verification/i,
+  /cash/i, /bank/i, /float/i, /settlement/i, /reconcil/i, /mismatch/i, /accounting entr/i, /what needs my attention/i, /unsettled/i,
   /কত/, /দেখাও/, /কি আছে/, /কে/, /গ্রাহক/, /খাতা/, /বকেয়া/, /লেনদেন/, /পোর্টাল/, /ওয়াচার/,
   /क्या/, /बताओ/, /ग्राहक/, /खाता/, /बकाया/, /लेनदेन/, /पोर्टल/,
 ];
@@ -20,7 +22,27 @@ const READ_PATTERNS = [
 function resolveReadCapability(text: string): { id: string; input: Record<string, unknown> } {
   const lower = text.toLowerCase();
 
-  if (/(portal|watcher|source|collection run|verification|পোর্টাল|ওয়াচার|पोर्टल)/i.test(text)) {
+  if (/(what needs (my )?attention|needs attention|what should i focus on|business health|কী মনোযোগ|ध्यान देने योग्य)/i.test(text)) {
+    return { id: "finance.observe_attention", input: {} };
+  }
+
+  if (/(reconcil|mismatch|missing accounting|duplicate (journal|accounting)|unbalanced (entry|journal)|অমিল|मिलान में)/i.test(text)) {
+    return { id: "finance.reconcile", input: {} };
+  }
+
+  if (/(settlement|unsettled|settled|सेटलमेंट|নিষ্পত্তি)/i.test(text)) {
+    return { id: "finance.observe_settlements", input: {} };
+  }
+
+  if (/(cash|cash-in-hand|cash in hand|cash book|customer due|customer dues|receivable|ক্যাশ|নগদ|ग्राहक बकाया)/i.test(text)) {
+    return { id: "finance.observe_cash", input: {} };
+  }
+
+  if (/(bank balance|bank account|bank accounts|float|wallet balance|service balance|low bank|কম ব্যালেন্স)/i.test(text)) {
+    return { id: "finance.observe_float", input: {} };
+  }
+
+  if (/(portal|watcher|source|collection run|verification|পোর্টাল|ওয়াচার)/i.test(text)) {
     return { id: "aeps.observe_watcher", input: {} };
   }
 
