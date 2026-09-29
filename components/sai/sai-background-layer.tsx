@@ -218,7 +218,17 @@ export default function SAIBackgroundLayer() {
       const response = await fetch("/api/sai/chat", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ message: prompt, surface: "global", context: { path: window.location.pathname } }),
+        body: JSON.stringify({
+          message: prompt,
+          surface: "sai",
+          history: messages
+            .slice(-10)
+            .map((item) => ({
+              role: item.role === "sai" ? "assistant" : "user",
+              content: item.text,
+            })),
+          context: { path: window.location.pathname },
+        }),
       });
       const data = await response.json().catch(() => null);
       if (!response.ok) throw new Error(data?.error || "SAI service unavailable");
