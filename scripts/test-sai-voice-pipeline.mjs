@@ -2,6 +2,7 @@ import fs from "node:fs";
 
 const component = fs.readFileSync("components/sai/sai-background-layer.tsx", "utf8");
 const route = fs.readFileSync("app/api/sai/transcribe/route.ts", "utf8");
+const liveRoute = fs.readFileSync("app/api/sai/live-token/route.ts", "utf8");
 
 let passed = 0;
 let failed = 0;
@@ -28,9 +29,22 @@ check(component.includes("noiseSuppression"), "Microphone capture enables noise 
 check(component.includes("autoGainControl"), "Microphone capture enables automatic gain control");
 check(component.includes("MediaRecorder.isTypeSupported"), "Recorder selects a browser-supported audio format");
 check(component.includes("/api/sai/transcribe"), "Recorded audio is sent to the server transcription endpoint");
+check(component.includes("/api/sai/live-token"), "SAI obtains a short-lived Gemini Live token without exposing the API key");
+check(component.includes("interimInputTranscription"), "SAI renders Gemini interim captions while speaking");
+check(component.includes("inputTranscription"), "SAI commits Gemini final speech segments");
+check(component.includes("audio/pcm;rate=16000"), "Microphone audio is streamed as 16 kHz PCM for Gemini Live");
+check(component.includes("audioStreamEnd"), "Stopping voice input cleanly finalizes the Gemini stream");
+check(component.includes("Connecting to Gemini live transcription"), "UI reports model connection state");
 check(component.includes("Transcribing your voice"), "UI exposes the transcription state");
 check(component.includes("recording" ), "Voice UI has an explicit recording state");
 
+check(liveRoute.includes('hasRole(role, ["admin", "manager", "staff"])'), "Gemini Live token endpoint is role-gated");
+check(liveRoute.includes("settingsProviderConfigured"), "Live transcription follows the selected AI provider configuration");
+check(liveRoute.includes("auth_tokens"), "Gemini Live tokens are issued server-side");
+check(liveRoute.includes("liveConnectConstraints"), "Live tokens are constrained to transcription-only model settings");
+check(liveRoute.includes("gemini-3.5-transcribe-live"), "Live token is scoped to Gemini's real-time transcription model");
+check(liveRoute.includes("uses: 1"), "Gemini Live token is single-use");
+check(liveRoute.includes("newSessionExpireTime"), "Gemini Live token has a short session-start window");
 check(route.includes("request.formData()"), "Server transcription endpoint accepts multipart audio");
 check(route.includes("fallbackProvider"), "Server transcription can retry with the alternate configured speech provider");
 check(route.includes("settingsProviderConfigured"), "Legacy active provider selection is respected when settings JSON is absent");

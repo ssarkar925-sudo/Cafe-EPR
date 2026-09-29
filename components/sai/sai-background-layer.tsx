@@ -47,6 +47,16 @@ export default function SAIBackgroundLayer() {
   const speechTranscriptRef = useRef("");
   const speechErrorRef = useRef("");
   const speechRecognitionUnavailableRef = useRef(false);
+  const liveSocketRef = useRef<WebSocket | null>(null);
+  const liveAudioContextRef = useRef<AudioContext | null>(null);
+  const liveProcessorRef = useRef<ScriptProcessorNode | null>(null);
+  const liveStreamRef = useRef<MediaStream | null>(null);
+  const liveTranscriptRef = useRef("");
+  const liveInterimRef = useRef("");
+  const liveShouldSubmitRef = useRef(false);
+  const liveFinalizedRef = useRef(false);
+  const liveCloseTimerRef = useRef<number | null>(null);
+  const [connectingVoice, setConnectingVoice] = useState(false);
 
   async function ask(event?: FormEvent) {
     event?.preventDefault();
@@ -61,6 +71,12 @@ export default function SAIBackgroundLayer() {
       mediaRecorderRef.current?.stop?.();
       speechRecognitionRef.current?.abort?.();
       mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+      liveShouldSubmitRef.current = false;
+      if (liveCloseTimerRef.current !== null) window.clearTimeout(liveCloseTimerRef.current);
+      liveProcessorRef.current?.disconnect();
+      void liveAudioContextRef.current?.close().catch(() => undefined);
+      liveStreamRef.current?.getTracks().forEach((track) => track.stop());
+      liveSocketRef.current?.close(1000, "component-unmount");
     };
   }, []);
 
@@ -107,6 +123,199 @@ export default function SAIBackgroundLayer() {
     } finally {
       setTranscribing(false);
     }
+  }
+
+
+  function downsampleToGeminiPcm(input: Float32Array, sampleRate: number): Int16Array {
+    const ratio = sampleRate / 16_000;
+    const outputLength = Math.floor(input.length / ratio);
+    const output = new Int16Array(outputLength);
+    for (let index = 0; index < outputLength; index++) {
+      const start = Math.floor(index * ratio);
+      const end = Math.min(Math.floor((index + 1) * ratio), input.length);
+      let total = 0;
+      for (let sample = start; sample < end; sample++) total += input[sample];
+      const value = Math.max(-1, Math.min(1, total / Math.max(1, end - start)));
+      output[index] = value < 0 ? value * 0x8000 : value * 0x7fff;
+    }
+    return output;
+  }
+
+  function pcmToBase64(pcm: Int16Array): string {
+    const bytes = new Uint8Array(pcm.buffer, pcm.byteOffset, pcm.byteLength);
+    let binary = "";
+    for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+      binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + 0x8000, bytes.length)));
+    }
+    return btoa(binary);
+  }
+
+  function cleanupGeminiLiveAudio() {
+    liveProcessorRef.current?.disconnect();
+    liveProcessorRef.current = null;
+    liveStreamRef.current?.getTracks().forEach((track) => track.stop());
+    liveStreamRef.current = null;
+    const context = liveAudioContextRef.current;
+    liveAudioContextRef.current = null;
+    if (context && context.state !== "closed") void context.close().catch(() => undefined);
+  }
+
+  function finishGeminiLiveSession(socket: WebSocket) {
+    if (liveFinalizedRef.current || liveSocketRef.current !== socket) return;
+    liveFinalizedRef.current = true;
+    liveSocketRef.current = null;
+    if (liveCloseTimerRef.current !== null) {
+      window.clearTimeout(liveCloseTimerRef.current);
+      liveCloseTimerRef.current = null;
+    }
+    cleanupGeminiLiveAudio();
+    setListening(false);
+    setConnectingVoice(false);
+    setTranscribing(false);
+
+    const transcript = liveTranscriptRef.current.trim();
+    if (!transcript) {
+      if (liveShouldSubmitRef.current) setVoiceError("Gemini did not detect speech. Check the selected microphone and try again.");
+      liveShouldSubmitRef.current = false;
+      return;
+    }
+
+    setText(transcript);
+    const shouldSubmit = liveShouldSubmitRef.current;
+    liveShouldSubmitRef.current = false;
+    if (shouldSubmit) void askPrompt(transcript);
+  }
+
+  async function startGeminiLiveSpeechRecognition() {
+    if (!window.isSecureContext) throw new Error("Microphone access requires a secure HTTPS connection.");
+    if (!navigator.mediaDevices?.getUserMedia) throw new Error("Microphone capture is unavailable in this browser or app.");
+
+    setVoiceError("");
+    setConnectingVoice(true);
+    liveTranscriptRef.current = "";
+    liveInterimRef.current = "";
+    liveShouldSubmitRef.current = false;
+    liveFinalizedRef.current = false;
+
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    });
+    liveStreamRef.current = stream;
+
+    try {
+      const tokenResponse = await fetch("/api/sai/live-token", { method: "POST", cache: "no-store" });
+      const tokenData = await tokenResponse.json().catch(() => null);
+      if (!tokenResponse.ok || typeof tokenData?.token !== "string") {
+        throw new Error(tokenData?.error || "Gemini live transcription is unavailable.");
+      }
+
+      const socketUrl = new URL("wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained");
+      socketUrl.searchParams.set("access_token", tokenData.token);
+      const socket = new WebSocket(socketUrl);
+      liveSocketRef.current = socket;
+
+      await new Promise<void>((resolve, reject) => {
+        const timeout = window.setTimeout(() => reject(new Error("Gemini live transcription connection timed out.")), 15_000);
+        socket.onopen = () => {
+          socket.send(JSON.stringify({
+            setup: {
+              model: "models/gemini-3.5-transcribe-live",
+              generationConfig: { responseModalities: ["TEXT"] },
+              inputAudioTranscription: {
+                languageCodes: [],
+                mode: "SMART",
+                customVocabulary: ["CafeERP", "SAI", "AEPS", "DMT", "UPI", "BBPS", "CSC DigiPay", "Spice Money", "RRN", "UTR", "Khata"],
+              },
+            },
+          }));
+        };
+        socket.onmessage = (event) => {
+          let payload: any;
+          try { payload = JSON.parse(String(event.data)); } catch { return; }
+          if (payload?.error?.message) {
+            window.clearTimeout(timeout);
+            reject(new Error(payload.error.message));
+            return;
+          }
+          if (payload?.setupComplete) {
+            window.clearTimeout(timeout);
+            resolve();
+          }
+          const content = payload?.serverContent;
+          const interim = String(content?.interimInputTranscription?.text || "").trim();
+          const final = String(content?.inputTranscription?.text || "").trim();
+          if (final) {
+            liveTranscriptRef.current = [liveTranscriptRef.current, final].filter(Boolean).join(" ").trim();
+            liveInterimRef.current = "";
+            setText(liveTranscriptRef.current);
+          } else if (interim) {
+            liveInterimRef.current = interim;
+            setText([liveTranscriptRef.current, liveInterimRef.current].filter(Boolean).join(" "));
+          }
+        };
+        socket.onerror = () => {
+          window.clearTimeout(timeout);
+          reject(new Error("Could not connect to Gemini live transcription."));
+        };
+        socket.onclose = () => {
+          window.clearTimeout(timeout);
+          if (liveShouldSubmitRef.current) finishGeminiLiveSession(socket);
+          else if (liveSocketRef.current === socket) {
+            liveSocketRef.current = null;
+            cleanupGeminiLiveAudio();
+            setConnectingVoice(false);
+            setListening(false);
+          }
+        };
+      });
+
+      const AudioContextConstructor = window.AudioContext;
+      if (!AudioContextConstructor) throw new Error("Live microphone audio is not supported on this device.");
+      const audioContext = new AudioContextConstructor({ sampleRate: 16_000 });
+      liveAudioContextRef.current = audioContext;
+      await audioContext.resume();
+      const source = audioContext.createMediaStreamSource(stream);
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      const silentGain = audioContext.createGain();
+      silentGain.gain.value = 0;
+      processor.onaudioprocess = (event) => {
+        if (socket.readyState !== WebSocket.OPEN) return;
+        const pcm = downsampleToGeminiPcm(event.inputBuffer.getChannelData(0), audioContext.sampleRate);
+        if (!pcm.length) return;
+        socket.send(JSON.stringify({ realtimeInput: { audio: { data: pcmToBase64(pcm), mimeType: "audio/pcm;rate=16000" } } }));
+      };
+      source.connect(processor);
+      processor.connect(silentGain);
+      silentGain.connect(audioContext.destination);
+      liveProcessorRef.current = processor;
+      liveShouldSubmitRef.current = true;
+      setConnectingVoice(false);
+      setListening(true);
+    } catch (error) {
+      liveShouldSubmitRef.current = false;
+      const socket = liveSocketRef.current;
+      liveSocketRef.current = null;
+      socket?.close();
+      cleanupGeminiLiveAudio();
+      setConnectingVoice(false);
+      throw error;
+    }
+  }
+
+  function stopGeminiLiveSpeechRecognition() {
+    const socket = liveSocketRef.current;
+    if (!socket) return;
+    liveShouldSubmitRef.current = true;
+    setListening(false);
+    setTranscribing(true);
+    cleanupGeminiLiveAudio();
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ realtimeInput: { audioStreamEnd: true } }));
+    }
+    liveCloseTimerRef.current = window.setTimeout(() => {
+      if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) socket.close(1000, "transcription-complete");
+      finishGeminiLiveSession(socket);
+    }, 1_500);
   }
 
   async function stopVoiceRecording() {
@@ -181,7 +390,12 @@ export default function SAIBackgroundLayer() {
   }
 
   async function toggleVoice() {
-    if (transcribing) return;
+    if (transcribing || connectingVoice) return;
+
+    if (liveSocketRef.current) {
+      stopGeminiLiveSpeechRecognition();
+      return;
+    }
 
     if (mediaRecorderRef.current?.state === "recording") {
       await stopVoiceRecording();
@@ -191,6 +405,15 @@ export default function SAIBackgroundLayer() {
     if (speechRecognitionRef.current) {
       speechRecognitionRef.current.stop();
       return;
+    }
+
+    let liveStartupError = "";
+    try {
+      await startGeminiLiveSpeechRecognition();
+      return;
+    } catch (error) {
+      liveStartupError = error instanceof Error ? error.message : "Gemini live transcription could not start.";
+      setConnectingVoice(false);
     }
 
     if (startLiveSpeechRecognition()) return;
@@ -258,6 +481,7 @@ export default function SAIBackgroundLayer() {
 
       recorder.start();
       setListening(true);
+      if (liveStartupError) setVoiceError("Live captions are unavailable right now. Recording fallback is active; transcript will appear after you stop.");
     } catch (error) {
       const name = error instanceof DOMException ? error.name : "";
       setListening(false);
@@ -424,7 +648,7 @@ export default function SAIBackgroundLayer() {
                   disabled={busy}
                   className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 dark:text-white"
                 />
-                <button type="button" onClick={toggleVoice} aria-label={listening ? "Stop voice input" : "Voice input"} title={listening ? "Stop listening" : "Speak to SAI"} className={`rounded-lg p-1.5 transition hover:bg-white dark:hover:bg-white/10 ${listening ? "text-rose-500" : "text-slate-400 hover:text-slate-700 dark:hover:text-white"}`}>
+                <button type="button" onClick={toggleVoice} aria-label={listening ? "Stop voice input" : "Voice input"} title={listening ? "Stop listening" : connectingVoice ? "Connecting to Gemini" : "Speak to SAI"} className={`rounded-lg p-1.5 transition hover:bg-white dark:hover:bg-white/10 ${listening ? "text-rose-500" : "text-slate-400 hover:text-slate-700 dark:hover:text-white"}`}>
                   <Mic className="h-4 w-4" />
                 </button>
                 <button type="submit" aria-label="Send" disabled={!text.trim() || busy} className="rounded-lg bg-slate-900 p-1.5 text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-30 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200">
@@ -432,7 +656,7 @@ export default function SAIBackgroundLayer() {
                 </button>
               </div>
               <div className="mt-2 flex items-center justify-between px-1 text-[9px] text-slate-400">
-                <span>{voiceError || (transcribing ? "Transcribing your voice…" : listening ? "Recording… click the microphone again to stop." : "SAI works in the background.")}</span>
+                <span>{voiceError || (connectingVoice ? "Connecting to Gemini live transcription…" : transcribing ? "Finalizing your transcript…" : listening ? "Listening… your words will appear as you speak." : "SAI works in the background.")}</span>
                 {online === true && <span className="inline-flex items-center gap-1"><Check className="h-3 w-3" /> connected</span>}
               </div>
             </form>

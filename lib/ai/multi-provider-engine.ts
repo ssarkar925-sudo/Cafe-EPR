@@ -210,7 +210,8 @@ async function callGeminiProvider(
     throw new Error(data?.error?.message || `Gemini call failed (HTTP ${response.status})`);
   }
 
-  const parts = data?.candidates?.[0]?.content?.parts || [];
+  const candidate = data?.candidates?.[0];
+  const parts = candidate?.content?.parts || [];
   const text = parts.map((p: any) => p.text).filter(Boolean).join("\n").trim();
   const toolCalls: UniversalToolCall[] = parts
     .filter((p: any) => p.functionCall?.name)
@@ -219,6 +220,11 @@ async function callGeminiProvider(
       args: p.functionCall.args || {},
       id: p.functionCall.id,
     }));
+
+  if (!text && toolCalls.length === 0) {
+    const finishReason = candidate?.finishReason ? ` (finish reason: ${candidate.finishReason})` : "";
+    throw new Error(`Gemini returned no response content${finishReason}. Check the selected model and Gemini API configuration.`);
+  }
 
   return { text, toolCalls, raw: data, model, provider: "gemini" };
 }
