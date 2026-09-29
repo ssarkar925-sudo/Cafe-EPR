@@ -1,0 +1,42 @@
+import fs from "node:fs";
+
+const component = fs.readFileSync("components/sai/sai-background-layer.tsx", "utf8");
+const route = fs.readFileSync("app/api/sai/transcribe/route.ts", "utf8");
+
+let passed = 0;
+let failed = 0;
+
+function check(condition, message) {
+  if (condition) {
+    passed++;
+    console.log(`  PASS: ${message}`);
+  } else {
+    failed++;
+    console.error(`  FAIL: ${message}`);
+  }
+}
+
+console.log("SAI root voice pipeline regression tests");
+
+check(component.includes("MediaRecorder"), "SAI uses browser audio recording instead of Web Speech recognition");
+check(component.includes("navigator.mediaDevices?.getUserMedia"), "SAI captures from the actual microphone device");
+check(component.includes("echoCancellation"), "Microphone capture enables echo cancellation");
+check(component.includes("noiseSuppression"), "Microphone capture enables noise suppression");
+check(component.includes("autoGainControl"), "Microphone capture enables automatic gain control");
+check(component.includes("MediaRecorder.isTypeSupported"), "Recorder selects a browser-supported audio format");
+check(component.includes("/api/sai/transcribe"), "Recorded audio is sent to the server transcription endpoint");
+check(component.includes("Transcribing your voice"), "UI exposes the transcription state");
+check(component.includes("recording" ), "Voice UI has an explicit recording state");
+
+check(route.includes("request.formData()"), "Server transcription endpoint accepts multipart audio");
+check(route.includes('file instanceof File'), "Server validates an uploaded audio file");
+check(route.includes("MAX_AUDIO_BYTES"), "Server limits audio upload size");
+check(route.includes("gemini-2.5-flash"), "Gemini server transcription fallback is wired");
+check(route.includes("inlineData"), "Gemini receives the recorded audio as inline media");
+check(route.includes("gpt-4o-mini-transcribe"), "OpenAI transcription fallback is wired");
+check(route.includes("No speech was detected"), "Empty transcription is handled explicitly");
+check(route.includes('hasRole(role, ["admin", "manager", "staff"])'), "Voice transcription is role-gated");
+check(route.includes("x-goog-api-key"), "Gemini API key stays server-side");
+
+console.log(`\n${passed} passed / ${failed} failed`);
+process.exitCode = failed ? 1 : 0;
