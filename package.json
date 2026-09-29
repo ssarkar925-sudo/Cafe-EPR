@@ -61,7 +61,8 @@
     "test:sai-recovery-manager": "node scripts/test-sai-recovery-manager.mjs",
     "test:sai-microphone": "node scripts/test-sai-microphone.mjs",
     "test:sai-floating-popup": "node scripts/test-sai-floating-popup.mjs",
-    "test:sai-voice-pipeline": "node scripts/test-sai-voice-pipeline.mjs"
+    "test:sai-voice-pipeline": "node scripts/test-sai-voice-pipeline.mjs",
+    "test:electron-microphone": "node scripts/test-electron-microphone-permission.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.1",
