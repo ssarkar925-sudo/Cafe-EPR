@@ -140,8 +140,19 @@ export async function runSaiChat(input: { message: string; history?: unknown; ro
       const execution = await runSaiInstruction({ instruction, actor, route: input.route });
       for (const resultItem of execution.results) if ((resultItem.evidenceIds || []).length) liveDataUsed = true;
       for (const step of execution.plan.steps) usedCapabilities.push(step.capability);
-      contents.push({ role: "model", parts: [{ functionCall: { name: toolCall.name, args: { instruction }, id: toolCall.id } }] });
-      contents.push({ role: "user", parts: [{ functionResponse: { name: toolCall.name, id: toolCall.id, response: { plan: execution.plan, results: execution.results, blockedSteps: execution.blockedSteps, traceId: execution.traceId } } }] });
+      contents.push({
+        role: "user",
+        parts: [{
+          text:
+            "LIVE SAI CORE OBSERVATION (authoritative; do not invent beyond it):\n" +
+            JSON.stringify({
+              plan: execution.plan,
+              results: execution.results,
+              blockedSteps: execution.blockedSteps,
+              traceId: execution.traceId,
+            }),
+        }],
+      });
     }
     result = await callSaiModel(config, systemPrompt, contents, actor, traceId);
   }
