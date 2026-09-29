@@ -2,6 +2,7 @@ import fs from "node:fs";
 
 const source = fs.readFileSync("components/sai/sai-background-layer.tsx", "utf8");
 const androidManifest = fs.readFileSync("android/app/src/main/AndroidManifest.xml", "utf8");
+const middleware = fs.readFileSync("middleware.ts", "utf8");
 let passed = 0;
 let failed = 0;
 
@@ -31,6 +32,8 @@ check(source.includes("window.isSecureContext"), "Voice input explains when HTTP
 check(source.includes("browser or device settings"), "Permission-denied guidance works across browser and app surfaces");
 check(androidManifest.includes('android.permission.RECORD_AUDIO'), "Android declares the runtime microphone permission");
 check(androidManifest.includes('android.hardware.microphone" android:required="false"'), "Microphone hardware remains optional for device compatibility");
+check(middleware.includes('microphone=(self)'), "SAI is allowed by the site Permissions-Policy");
+check(!middleware.includes('microphone=()'), "Site policy does not block microphone capture");
 check(source.includes("recording"), "Voice flow exposes a recording state");
 
 console.log(`\n${passed} passed / ${failed} failed`);
