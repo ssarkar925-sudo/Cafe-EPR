@@ -33,7 +33,7 @@ check(!engine.includes('id: "gemini-2.5-flash"'), "Gemini 2.5 Flash is no longer
 check(!engine.includes('id: "gemini-2.0-flash"'), "Gemini 2.0 Flash is no longer selectable");
 check(engine.includes("normalizeGeminiModel"), "Runtime normalizes stale Gemini model IDs");
 check(engine.includes("async function postProviderJson"), "Provider responses use shared safe JSON handling");
-check((engine.match(/postProviderJson\\(/g) || []).length === 4, "Gemini, OpenAI-compatible, and Anthropic calls share the guarded request path");
+check((engine.split("postProviderJson(").length - 1) === 4, "Gemini, OpenAI-compatible, and Anthropic calls share the guarded request path");
 check(engine.includes('const responseBody = await response.text().catch(() => "")'), "Empty provider bodies are handled without raw JSON parser errors");
 check(engine.includes("returned an empty response (HTTP"), "Empty successful provider responses produce an actionable error");
 check(engine.includes("returned an invalid response (HTTP"), "Malformed successful provider responses produce an actionable error");
