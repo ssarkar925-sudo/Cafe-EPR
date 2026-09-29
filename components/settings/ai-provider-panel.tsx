@@ -22,7 +22,7 @@ import {
 
 export default function AIProviderPanel({ active }: { active: boolean }) {
   const [provider, setProvider] = useState<AIProviderId>("gemini");
-  const [model, setModel] = useState("gemini-2.5-pro");
+  const [model, setModel] = useState(PROVIDER_CATALOG.gemini.defaultModel);
   const [apiKey, setApiKey] = useState("");
   const [maskedKeys, setMaskedKeys] = useState<Record<string, string>>({});
   const [endpointUrl, setEndpointUrl] = useState("");
@@ -51,7 +51,7 @@ export default function AIProviderPanel({ active }: { active: boolean }) {
         if (res.ok) {
           const loadedProvider = data.provider || "gemini";
           setProvider(loadedProvider);
-          setModel(data.model || PROVIDER_CATALOG[loadedProvider as AIProviderId]?.defaultModel || "gemini-2.5-pro");
+          setModel(data.model || PROVIDER_CATALOG[loadedProvider as AIProviderId]?.defaultModel || PROVIDER_CATALOG.gemini.defaultModel);
           setMaskedKeys(data.maskedKeys || (data.maskedKey ? { [loadedProvider]: data.maskedKey } : {}));
           setEndpointUrl(data.endpointUrl || "");
           setFallbackEnabled(data.fallbackEnabled !== false);
@@ -251,7 +251,7 @@ export default function AIProviderPanel({ active }: { active: boolean }) {
             2. Model Selection ({selectedProviderMeta.name})
           </label>
           <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400">
-            High-Intelligence & Speed Options Available
+            Current Gemini 3.x models + multi-provider support
           </span>
         </div>
         <div className="flex flex-col sm:flex-row gap-2">
@@ -387,7 +387,7 @@ export default function AIProviderPanel({ active }: { active: boolean }) {
           className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/20"
         />
         <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-          Enable automatic fallback to Gemini / Heuristic core if this provider rate-limits or fails
+          Enable automatic provider fallback. SAI never silently substitutes a canned answer.
         </span>
       </label>
 
