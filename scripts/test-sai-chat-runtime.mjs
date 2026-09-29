@@ -25,6 +25,8 @@ check(route.includes("assertSaiChatActor"), "SAI chat route authenticates throug
 check(route.includes("runSaiChat"), "SAI chat route runs the SAI chat orchestrator");
 
 check(runtime.includes("loadSaiWorldState"), "SAI chat loads live SAI world state");
+check(runtime.includes('.from("ai_provider_configs")'), "SAI chat reads the legacy provider configuration when needed");
+check(runtime.includes("config.active_provider && validProviders.has(config.active_provider)"), "Settings configuration overrides the legacy provider selection");
 check(runtime.includes("runSaiInstruction"), "SAI chat can invoke the SAI plan/execution core");
 check(runtime.includes("sai_query_erp"), "SAI exposes a typed live ERP query bridge");
 check(runtime.includes("listSaiCapabilityDescriptors"), "SAI supplies registered capability context to reasoning");

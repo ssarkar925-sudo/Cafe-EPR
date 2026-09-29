@@ -39,13 +39,34 @@ async function resolveProviderConfig(supabase: Awaited<ReturnType<typeof createC
   let model = "gemini-3.8-flash";
   let endpointUrl = "";
   const keys: Record<string, string> = {};
+  const validProviders = new Set<AIProviderId>(["gemini", "openai", "anthropic", "groq", "openrouter"]);
+
+  try {
+    const { data: legacyData } = await supabase
+      .from("ai_provider_configs")
+      .select("active_provider,model_name,api_key,endpoint_url")
+      .eq("id", "default")
+      .maybeSingle();
+    if (legacyData) {
+      const legacyProvider = legacyData.active_provider as AIProviderId;
+      if (validProviders.has(legacyProvider)) {
+        provider = legacyProvider;
+        if (legacyData.api_key) keys[legacyProvider] = String(legacyData.api_key).trim();
+      }
+      if (typeof legacyData.model_name === "string" && legacyData.model_name.trim()) model = legacyData.model_name.trim();
+      if (typeof legacyData.endpoint_url === "string") endpointUrl = legacyData.endpoint_url.trim();
+    }
+  } catch {}
 
   try {
     const { data } = await supabase.from("settings").select("ai_config").limit(1).maybeSingle();
     const config = (data?.ai_config || {}) as { active_provider?: AIProviderId; model_name?: string; endpoint_url?: string; keys?: Record<string, string> };
-    const validProviders = new Set<AIProviderId>(["gemini", "openai", "anthropic", "groq", "openrouter"]);
-    if (config.active_provider && validProviders.has(config.active_provider)) provider = config.active_provider;
-    if (config.model_name && typeof config.model_name === "string") model = config.model_name.trim();
+    if (config.active_provider && validProviders.has(config.active_provider)) {
+      provider = config.active_provider;
+    }
+    if (config.model_name && typeof config.model_name === "string" && config.model_name.trim()) {
+      model = config.model_name.trim();
+    }
     if (typeof config.endpoint_url === "string") endpointUrl = config.endpoint_url.trim();
     if (config.keys && typeof config.keys === "object") {
       for (const [name, key] of Object.entries(config.keys)) if (typeof key === "string" && key.trim()) keys[name] = key.trim();

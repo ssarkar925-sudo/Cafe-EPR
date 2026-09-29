@@ -18,7 +18,10 @@ function check(condition, message) {
 
 console.log("SAI root voice pipeline regression tests");
 
-check(component.includes("MediaRecorder"), "SAI uses browser audio recording instead of Web Speech recognition");
+check(component.includes("MediaRecorder"), "SAI retains recorded-audio transcription fallback");
+check(component.includes("startLiveSpeechRecognition"), "SAI offers live speech recognition while speaking");
+check(component.includes("interimResults = true"), "SAI renders partial speech before final recognition");
+check(component.includes("speechRecognitionUnavailableRef"), "SAI can fall back when live recognition service is unavailable");
 check(component.includes("navigator.mediaDevices?.getUserMedia"), "SAI captures from the actual microphone device");
 check(component.includes("echoCancellation"), "Microphone capture enables echo cancellation");
 check(component.includes("noiseSuppression"), "Microphone capture enables noise suppression");
@@ -29,6 +32,8 @@ check(component.includes("Transcribing your voice"), "UI exposes the transcripti
 check(component.includes("recording" ), "Voice UI has an explicit recording state");
 
 check(route.includes("request.formData()"), "Server transcription endpoint accepts multipart audio");
+check(route.includes("fallbackProvider"), "Server transcription can retry with the alternate configured speech provider");
+check(route.includes("settingsProviderConfigured"), "Legacy active provider selection is respected when settings JSON is absent");
 check(route.includes('file instanceof File'), "Server validates an uploaded audio file");
 check(route.includes("MAX_AUDIO_BYTES"), "Server limits audio upload size");
 check(route.includes('model: "gemini-3.5-transcribe"'), "Gemini 3.5 Transcribe is wired for server voice transcription");
