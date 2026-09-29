@@ -21,8 +21,10 @@ export default function SAIBackgroundLayer() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [listening, setListening] = useState(false);
   const [voiceError, setVoiceError] = useState("");
-  const recognitionRef = useRef<any>(null);
-  const voiceTranscriptRef = useRef("");
+  const [transcribing, setTranscribing] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function ask(event?: FormEvent) {
@@ -35,82 +37,143 @@ export default function SAIBackgroundLayer() {
 
   useEffect(() => {
     return () => {
-      recognitionRef.current?.abort?.();
+      mediaRecorderRef.current?.stop?.();
+      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
     };
   }, []);
 
-  function getSpeechLocale(): string {
-    const language = String(navigator.language || "").toLowerCase();
-    if (language.startsWith("bn")) return "bn-IN";
-    if (language.startsWith("hi")) return "hi-IN";
-    if (language.startsWith("en")) return "en-IN";
-    return navigator.language || "en-IN";
+  function pickRecordingMimeType(): string {
+    const candidates = [
+      "audio/webm;codecs=opus",
+      "audio/webm",
+      "audio/ogg;codecs=opus",
+      "audio/mp4",
+    ];
+    return candidates.find((type) => MediaRecorder.isTypeSupported(type)) || "";
+  }
+
+  async function transcribeRecording(blob: Blob) {
+    setTranscribing(true);
+    setVoiceError("");
+    try {
+      const extension = blob.type.includes("webm")
+        ? "webm"
+        : blob.type.includes("ogg")
+          ? "ogg"
+          : blob.type.includes("mp4")
+            ? "mp4"
+            : "audio";
+      const form = new FormData();
+      form.append("audio", blob, `sai-voice.${extension}`);
+
+      const response = await fetch("/api/sai/transcribe", {
+        method: "POST",
+        body: form,
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.error || "Voice transcription failed.");
+      }
+
+      const transcript = String(data?.transcript || "").trim();
+      if (!transcript) throw new Error("No speech was detected. Please speak again.");
+
+      setText(transcript);
+      await askPrompt(transcript);
+    } catch (error) {
+      setVoiceError(error instanceof Error ? error.message : "Voice transcription failed.");
+    } finally {
+      setTranscribing(false);
+    }
+  }
+
+  async function stopVoiceRecording() {
+    const recorder = mediaRecorderRef.current;
+    if (!recorder) return;
+
+    recorder.stop();
   }
 
   async function toggleVoice() {
-    if (listening) {
-      recognitionRef.current?.stop?.();
-      setListening(false);
+    if (transcribing) return;
+
+    if (mediaRecorderRef.current?.state === "recording") {
+      await stopVoiceRecording();
       return;
     }
 
-    const Recognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setVoiceError("Microphone capture is not available in this browser.");
+      return;
+    }
 
-    if (!Recognition) {
-      setVoiceError("Voice input is not supported in this browser.");
+    const mimeType = pickRecordingMimeType();
+    if (!mimeType) {
+      setVoiceError("This browser cannot record microphone audio.");
       return;
     }
 
     setVoiceError("");
-    const recognition = new Recognition();
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.maxAlternatives = 1;
-    recognition.lang = getSpeechLocale();
 
-    recognition.onstart = () => {
-      setVoiceError("");
-      setListening(true);
-    };
-    recognition.onresult = (event: any) => {
-      const transcript = Array.from(event.results)
-        .map((result: any) => result[0]?.transcript || "")
-        .join("")
-        .trim();
-      if (transcript) {
-        voiceTranscriptRef.current = transcript;
-        setText(transcript);
-      }
-    };
-    recognition.onerror = (event: any) => {
-      setListening(false);
-      if (event?.error === "aborted") return;
-
-      const errorCode = String(event?.error || "");
-      setVoiceError(
-        errorCode === "not-allowed"
-          ? "Chrome allowed the microphone, but speech recognition was rejected. Check Chrome voice recognition/network access and try again."
-          : errorCode === "no-speech"
-            ? "I could not hear speech. Please speak again."
-            : errorCode === "audio-capture"
-              ? "The microphone could not be opened. Check the selected input device."
-              : "I could not hear that. Please try again.",
-      );
-    };
-    recognition.onend = () => {
-      setListening(false);
-      const transcript = voiceTranscriptRef.current.trim();
-      voiceTranscriptRef.current = "";
-      if (transcript) void askPrompt(transcript);
-    };
-
-    recognitionRef.current = recognition;
     try {
-      recognition.start();
-    } catch {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+
+      const recorder = new MediaRecorder(stream, { mimeType });
+      audioChunksRef.current = [];
+      mediaStreamRef.current = stream;
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (event) => {
+        if (event.data?.size) audioChunksRef.current.push(event.data);
+      };
+
+      recorder.onerror = () => {
+        setListening(false);
+        setVoiceError("Microphone recording failed. Please try again.");
+        stream.getTracks().forEach((track) => track.stop());
+        mediaStreamRef.current = null;
+        mediaRecorderRef.current = null;
+      };
+
+      recorder.onstop = () => {
+        setListening(false);
+        stream.getTracks().forEach((track) => track.stop());
+        mediaStreamRef.current = null;
+        mediaRecorderRef.current = null;
+
+        const chunks = audioChunksRef.current;
+        audioChunksRef.current = [];
+        if (!chunks.length) {
+          setVoiceError("No microphone audio was captured. Please try again.");
+          return;
+        }
+
+        const blob = new Blob(chunks, { type: mimeType });
+        void transcribeRecording(blob);
+      };
+
+      recorder.start();
+      setListening(true);
+    } catch (error) {
+      const name = error instanceof DOMException ? error.name : "";
       setListening(false);
-      setVoiceError("Voice recognition could not start. Please try again.");
+      if (name === "NotAllowedError") {
+        setVoiceError("Chrome is not allowing microphone capture. Check the microphone toggle for this site.");
+      } else if (name === "NotFoundError") {
+        setVoiceError("No microphone device was found.");
+      } else if (name === "NotReadableError") {
+        setVoiceError("The selected microphone is busy or unavailable.");
+      } else if (name === "SecurityError") {
+        setVoiceError("Microphone capture is blocked by browser security.");
+      } else {
+        setVoiceError("Unable to start microphone recording.");
+      }
     }
   }
 
@@ -261,7 +324,7 @@ export default function SAIBackgroundLayer() {
                 </button>
               </div>
               <div className="mt-2 flex items-center justify-between px-1 text-[9px] text-slate-400">
-                <span>{voiceError || (listening ? "Listening… speak naturally." : "SAI works in the background.")}</span>
+                <span>{voiceError || (transcribing ? "Transcribing your voice…" : listening ? "Recording… click the microphone again to stop." : "SAI works in the background.")}</span>
                 {online === true && <span className="inline-flex items-center gap-1"><Check className="h-3 w-3" /> connected</span>}
               </div>
             </form>

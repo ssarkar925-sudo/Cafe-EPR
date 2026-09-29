@@ -14,19 +14,19 @@ function check(condition, message) {
   }
 }
 
-console.log("SAI microphone and speech-input regression tests");
-check(source.includes("SpeechRecognition") || source.includes("webkitSpeechRecognition"), "SAI uses browser speech recognition");
-check(source.includes('recognition.start()'), "Voice input starts recognition directly from the user action");
-check(!source.includes("getMicrophonePermissionState"), "SAI does not gate voice on the Permissions API state");
-check(!source.includes("prepareVoiceInput"), "Voice startup has no redundant microphone preflight gate");
-check(source.includes("Chrome allowed the microphone, but speech recognition was rejected"), "Speech rejection does not falsely claim microphone permission is blocked");
-check(source.includes('errorCode === "audio-capture"'), "Audio capture failures are surfaced separately");
-check(source.includes('if (language.startsWith("bn")) return "bn-IN"'), "Bengali speech locale is supported");
-check(source.includes('if (language.startsWith("hi")) return "hi-IN"'), "Hindi speech locale is supported");
-check(source.includes('if (language.startsWith("en")) return "en-IN"'), "Indian English speech locale is supported");
-check(source.includes('recognition.lang = getSpeechLocale()'), "Speech recognition uses the selected locale");
-check(source.includes("recognition.onerror"), "Recognition errors are surfaced to the user");
-check(source.includes("recognition.onresult"), "Recognition transcripts are captured");
+console.log("SAI microphone capture regression tests");
+check(source.includes("MediaRecorder"), "SAI uses MediaRecorder for microphone capture");
+check(source.includes("navigator.mediaDevices?.getUserMedia"), "SAI captures from the actual microphone device");
+check(source.includes("echoCancellation"), "Microphone capture enables echo cancellation");
+check(source.includes("noiseSuppression"), "Microphone capture enables noise suppression");
+check(source.includes("autoGainControl"), "Microphone capture enables automatic gain control");
+check(source.includes("MediaRecorder.isTypeSupported"), "Recorder selects a browser-supported MIME type");
+check(source.includes("/api/sai/transcribe"), "Recorded audio is sent to server transcription");
+check(source.includes("transcribing"), "UI has an explicit transcription state");
+check(!source.includes("SpeechRecognition"), "SAI no longer depends on browser SpeechRecognition");
+check(!source.includes("webkitSpeechRecognition"), "SAI no longer depends on WebKit SpeechRecognition");
+check(source.includes("getUserMedia"), "Voice input is grounded in real browser media capture");
+check(source.includes("recording"), "Voice flow exposes a recording state");
 
 console.log(`\n${passed} passed / ${failed} failed`);
 process.exitCode = failed ? 1 : 0;

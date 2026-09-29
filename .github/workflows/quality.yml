@@ -52,6 +52,9 @@ jobs:
       - name: SAI microphone input
         run: npm run test:sai-microphone
 
+      - name: SAI server voice pipeline
+        run: npm run test:sai-voice-pipeline
+
       - name: SAI floating popup
         run: npm run test:sai-floating-popup
 
