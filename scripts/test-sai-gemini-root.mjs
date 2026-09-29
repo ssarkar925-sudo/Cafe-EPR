@@ -32,6 +32,16 @@ check(!engine.includes('id: "gemini-2.5-pro"'), "Gemini 2.5 Pro is no longer sel
 check(!engine.includes('id: "gemini-2.5-flash"'), "Gemini 2.5 Flash is no longer selectable");
 check(!engine.includes('id: "gemini-2.0-flash"'), "Gemini 2.0 Flash is no longer selectable");
 check(engine.includes("normalizeGeminiModel"), "Runtime normalizes stale Gemini model IDs");
+check(engine.includes("async function postProviderJson"), "Provider responses use shared safe JSON handling");
+check((engine.split("postProviderJson(").length - 1) === 4, "Gemini, OpenAI-compatible, and Anthropic calls share the guarded request path");
+check(engine.includes('const responseBody = await response.text().catch(() => "")'), "Empty provider bodies are handled without raw JSON parser errors");
+check(engine.includes("returned an empty response (HTTP"), "Empty successful provider responses produce an actionable error");
+check(engine.includes("returned an invalid response (HTTP"), "Malformed successful provider responses produce an actionable error");
+check(engine.includes("TRANSIENT_PROVIDER_STATUSES = new Set([429, 502, 503, 504])"), "Transient provider statuses are identified");
+check(engine.includes("attempt < 2"), "Transient provider failures receive at most one bounded retry");
+check(engine.includes("getProviderRetryDelay(response)"), "Retry-After is checked before retrying");
+check(engine.includes("request timed out. Please try again."), "Provider timeouts produce a clear retry message");
+
 check(engine.includes('"gemini-2.5-pro"'), "Runtime explicitly recognizes stale 2.5 Pro configuration");
 check(engine.includes('"gemini-2.5-flash"'), "Runtime explicitly recognizes stale 2.5 Flash configuration");
 
