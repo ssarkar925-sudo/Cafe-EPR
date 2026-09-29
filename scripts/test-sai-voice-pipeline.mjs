@@ -35,7 +35,7 @@ check(component.includes("inputTranscription"), "SAI commits Gemini final speech
 check(component.includes("audio/pcm;rate=16000"), "Microphone audio is streamed as 16 kHz PCM for Gemini Live");
 check(component.includes("audioStreamEnd"), "Stopping voice input cleanly finalizes the Gemini stream");
 check(component.includes("Connecting to Gemini live transcription"), "UI reports model connection state");
-check(component.includes("Transcribing your voice"), "UI exposes the transcription state");
+check(component.includes("Finalizing your transcript") || component.includes("Transcribing your voice"), "UI exposes the live transcription/finalization state");
 check(component.includes("recording" ), "Voice UI has an explicit recording state");
 
 check(liveRoute.includes('hasRole(role, ["admin", "manager", "staff"])'), "Gemini Live token endpoint is role-gated");
