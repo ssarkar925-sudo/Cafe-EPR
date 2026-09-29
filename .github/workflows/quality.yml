@@ -47,6 +47,10 @@ jobs:
           retention-days: 3
       - name: AI browser safety
         run: npm run test:ai-browser
+
+      - name: SAI POS draft handoff safety
+        run: npm run test:sai-pos-draft-handoff
+
       - name: AI learning control
         run: npm run test:ai-learning
       - name: SAI microphone input

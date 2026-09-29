@@ -153,15 +153,28 @@ export async function runSaiChat(input: { message: string; history?: unknown; ro
 
   const usedCapabilities: string[] = [];
   let liveDataUsed = false;
+  let posDraft: Record<string, unknown> | null = null;
   let result = await callSaiModel(config, systemPrompt, contents, actor, traceId);
 
   if (result.toolCalls.length) {
     for (const toolCall of result.toolCalls.slice(0, 3)) {
       if (toolCall.name !== SAI_QUERY_TOOL.name) continue;
       const instruction = typeof toolCall.args?.instruction === "string" && toolCall.args.instruction.trim() ? toolCall.args.instruction.trim() : message;
-      const posDraft = toolCall.args?.posDraft && typeof toolCall.args.posDraft === "object" && !Array.isArray(toolCall.args.posDraft) ? toolCall.args.posDraft as Record<string, unknown> : undefined;
-      const execution = await runSaiInstruction({ instruction, actor, route: input.route, posDraft });
-      for (const resultItem of execution.results) if ((resultItem.evidenceIds || []).length) liveDataUsed = true;
+      const posDraftInput = toolCall.args?.posDraft && typeof toolCall.args.posDraft === "object" && !Array.isArray(toolCall.args.posDraft) ? toolCall.args.posDraft as Record<string, unknown> : undefined;
+      const execution = await runSaiInstruction({ instruction, actor, route: input.route, posDraft: posDraftInput });
+      for (const resultItem of execution.results) {
+        if ((resultItem.evidenceIds || []).length) liveDataUsed = true;
+        // Surface a prepared POS sale draft so the SAI surface can offer a
+        // safe "Open in POS" handoff. The draft itself is an estimate only;
+        // the handoff endpoint re-validates everything against live DB state.
+        if (resultItem.ok && resultItem.output && typeof resultItem.output === "object" && !Array.isArray(resultItem.output)) {
+          const output = resultItem.output as Record<string, unknown>;
+          const handoff = output.handoff as Record<string, unknown> | undefined;
+          if (typeof output.draftId === "string" && handoff?.path === "/pos" && Array.isArray(output.lines)) {
+            posDraft = output;
+          }
+        }
+      }
       for (const step of execution.plan.steps) usedCapabilities.push(step.capability);
       contents.push({
         role: "user",
@@ -182,8 +195,8 @@ export async function runSaiChat(input: { message: string; history?: unknown; ro
 
   const responseText = result.text.trim();
   if (!responseText) throw new Error("SAI_EMPTY_MODEL_RESPONSE: The active provider returned no usable answer.");
-  await recordSaiTrace({ traceId, actor, sequenceNo: 90, phase: "REMEMBER", eventType: "chat.response", status: "completed", operation: "sai_chat", message: "SAI chat turn completed", data: { language, responseLength: responseText.length, usedCapabilities: [...new Set(usedCapabilities)], liveDataUsed } });
-  return { message: responseText, language, traceId, usedCapabilities: [...new Set(usedCapabilities)], liveDataUsed };
+  await recordSaiTrace({ traceId, actor, sequenceNo: 90, phase: "REMEMBER", eventType: "chat.response", status: "completed", operation: "sai_chat", message: "SAI chat turn completed", data: { language, responseLength: responseText.length, usedCapabilities: [...new Set(usedCapabilities)], liveDataUsed, hasPosDraft: Boolean(posDraft) } });
+  return { message: responseText, language, traceId, usedCapabilities: [...new Set(usedCapabilities)], liveDataUsed, ...(posDraft ? { posDraft } : {}) };
 }
 
 export async function assertSaiChatActor(): Promise<SaiActor> {

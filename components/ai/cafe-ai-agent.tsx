@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 // ─── SAI Identity ─────────────────────────────────────────────────────────────
@@ -143,6 +144,7 @@ function SaiOrb({ busy, speaking, listening }: { busy: boolean; speaking: boolea
 }
 
 export default function CafeAIAgent() {
+  const router = useRouter();
   const [message, setMessage] = useState("");
   const [chat, setChat] = useState<ChatMessage[]>([]);
   const [busy, setBusy] = useState(false);
@@ -158,6 +160,7 @@ export default function CafeAIAgent() {
   const [savingRule, setSavingRule] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [interimText, setInterimText] = useState("");
+  const [openingInPos, setOpeningInPos] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -459,6 +462,89 @@ export default function CafeAIAgent() {
     }
   }
 
+  /**
+   * "Open in POS" — server-validated draft handoff.
+   *
+   * Calls the /api/ai/quick-sale/open-in-pos endpoint which:
+   *  1. Re-reads every item from the live database (never trusts AI prices).
+   *  2. Validates activity, stock, and customer status.
+   *  3. Recomputes GST with live catalog data.
+   *  4. Returns fresh CartLine[] — no invoice or payment is created.
+   *
+   * The validated cart is written into the POS localStorage key that PosShell
+   * already reads on mount (cafeerp_pos_tabs_{userId}), then the user is
+   * navigated to /pos for review and final checkout using the normal UI.
+   */
+  async function openInPos() {
+    if (!approval || openingInPos) return;
+    if (approval.action !== "create_sale") {
+      setError("Open in POS is only available for sale drafts.");
+      return;
+    }
+    setOpeningInPos(true);
+    setError("");
+    try {
+      const res = await fetch("/api/ai/quick-sale/open-in-pos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ approval_id: approval.approval_id }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        const problems = Array.isArray(data?.problems) ? data.problems : [];
+        const detail = problems.length > 0 ? "\n• " + problems.join("\n• ") : "";
+        throw new Error((data?.error || "Could not open draft in POS") + detail);
+      }
+
+      // Write validated cart to POS localStorage so PosShell picks it up on mount.
+      // We use the same key pattern PosShell uses: cafeerp_pos_tabs_{userId}
+      // We don't know the userId here, so we write to the shared fallback key.
+      // If the user is logged in the POS page will also read the user-scoped key;
+      // using "shared" matches PosShell's own fallback behaviour.
+      const newTab = {
+        id: `sai-draft-${approval.approval_id.slice(0, 8)}-${Date.now()}`,
+        title: "SAI Draft",
+        cart: data.cartLines,
+        customerId: data.customer?.id ?? "",
+        customerSearch: data.customer?.name ?? "",
+        discount: "",
+        discountType: "flat",
+        paymentChoice: data.paymentChoice ?? "cash",
+        cashReceived: "",
+        splitRows: [],
+        collectPreviousDue: false,
+        useAdvance: false,
+      };
+
+      try {
+        localStorage.setItem("cafeerp_pos_tabs_shared", JSON.stringify([newTab]));
+        localStorage.setItem("cafeerp_pos_active_tab_shared", newTab.id);
+        // Also write the POS customer if available
+        if (data.customer) {
+          localStorage.setItem("cafeerp_pos_sai_customer", JSON.stringify(data.customer));
+        }
+      } catch {
+        // Fallback: navigate anyway; operator will add items manually
+      }
+
+      const msg = data.message || "Draft loaded into POS. Please review and submit.";
+      const localized = await localizeOutput(msg);
+      addChat("sai", `✓ ${localized}\n\nOpening POS for review…`);
+      speak("Opening POS. Please review the items, then press Pay to complete.");
+      setApproval(null);
+
+      // Navigate to POS — use router for SPA navigation
+      router.push("/pos");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Could not open draft in POS";
+      setError(msg);
+      speak("I could not open the draft in POS. " + msg.split("\n")[0]);
+    } finally {
+      setOpeningInPos(false);
+    }
+  }
+
   async function deleteMemory(id: string) {
     try {
       await fetch("/api/ai/memory", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
@@ -700,26 +786,61 @@ export default function CafeAIAgent() {
                     </div>
                   </div>
                 )}
-                <div className="flex gap-2">
-                  <button
-                    onClick={approveCurrentAction}
-                    disabled={busy}
-                    className="flex-1 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2 text-xs font-black text-white shadow-md transition hover:brightness-110 active:scale-95 disabled:opacity-50"
-                  >
-                    {busy ? "Executing…" : approval.action === "record_customer_payment" ? "✓ Approve & Credit Khata"
-                      : approval.action === "import_portal_transactions" ? "✓ Approve & Stage"
-                      : "✓ Approve & Generate Invoice"}
-                  </button>
-                  <button
-                    onClick={() => setApproval(null)}
-                    disabled={busy}
-                    className="rounded-xl border border-white/10 px-3 py-2 text-xs font-bold text-slate-400 hover:bg-white/5 transition active:scale-95"
-                  >
-                    Cancel
-                  </button>
-                </div>
+
+                {/* Sale draft: "Open in POS" primary action + "Approve directly" secondary */}
+                {approval.action === "create_sale" ? (
+                  <div className="flex flex-col gap-2">
+                    <div className="rounded-lg border border-cyan-500/20 bg-cyan-950/20 px-3 py-2 text-[11px] text-cyan-400/80">
+                      <span className="font-bold">ℹ Safe handoff:</span> &quot;Open in POS&quot; re-validates prices and stock from the live database, loads the cart for your review, and lets you adjust before paying. No invoice is created until you press Pay in POS.
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={openInPos}
+                        disabled={openingInPos || busy}
+                        className="flex-1 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 px-4 py-2.5 text-xs font-black text-white shadow-md transition hover:brightness-110 active:scale-95 disabled:opacity-50"
+                      >
+                        {openingInPos ? "Validating & opening…" : "🛒 Open in POS for Review"}
+                      </button>
+                      <button
+                        onClick={approveCurrentAction}
+                        disabled={busy || openingInPos}
+                        title="Create invoice directly without opening POS"
+                        className="rounded-xl border border-emerald-500/30 bg-emerald-950/30 px-3 py-2 text-xs font-bold text-emerald-400 hover:bg-emerald-950/50 transition active:scale-95 disabled:opacity-50 whitespace-nowrap"
+                      >
+                        {busy ? "…" : "✓ Approve directly"}
+                      </button>
+                      <button
+                        onClick={() => setApproval(null)}
+                        disabled={busy || openingInPos}
+                        className="rounded-xl border border-white/10 px-3 py-2 text-xs font-bold text-slate-400 hover:bg-white/5 transition active:scale-95"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={approveCurrentAction}
+                      disabled={busy}
+                      className="flex-1 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2 text-xs font-black text-white shadow-md transition hover:brightness-110 active:scale-95 disabled:opacity-50"
+                    >
+                      {busy ? "Executing…" : approval.action === "record_customer_payment" ? "✓ Approve & Credit Khata"
+                        : approval.action === "import_portal_transactions" ? "✓ Approve & Stage"
+                        : "✓ Approve & Generate Invoice"}
+                    </button>
+                    <button
+                      onClick={() => setApproval(null)}
+                      disabled={busy}
+                      className="rounded-xl border border-white/10 px-3 py-2 text-xs font-bold text-slate-400 hover:bg-white/5 transition active:scale-95"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
               </div>
             )}
+
 
             {error && (
               <div className="rounded-xl border border-rose-500/30 bg-rose-950/40 px-4 py-2.5 text-xs font-semibold text-rose-300">

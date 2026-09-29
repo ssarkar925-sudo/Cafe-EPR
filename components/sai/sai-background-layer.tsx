@@ -1,9 +1,31 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { Bot, Check, Loader2, Mic, Send, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Bot, Check, Loader2, Mic, Send, ShoppingCart, X } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 type Message = { id: string; role: "user" | "sai"; text: string };
+type SaiDraftLine = {
+  itemId: string;
+  kind: "product" | "service";
+  name: string;
+  code?: string | null;
+  quantity: number;
+  unit?: string;
+  rate?: number;
+  gstRate?: number;
+};
+type SaiSaleDraft = {
+  draftId: string;
+  status?: string;
+  estimateOnly?: boolean;
+  customer?: { id: string; name: string; code?: string | null } | null;
+  lines: SaiDraftLine[];
+  totals?: { estimatedTotal?: number; subtotal?: number; tax?: number };
+  observedAt?: string;
+  handoff?: { path?: string };
+};
 type SpeechRecognitionResultLike = { isFinal: boolean; 0: { transcript: string } };
 type SpeechRecognitionEventLike = { results: ArrayLike<SpeechRecognitionResultLike> };
 type SpeechRecognitionLike = {
@@ -30,12 +52,17 @@ function getSafePosition() {
 }
 
 export default function SAIBackgroundLayer() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [online, setOnline] = useState<boolean | null>(null);
   const [position, setPosition] = useState(getSafePosition);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [posDraft, setPosDraft] = useState<SaiSaleDraft | null>(null);
+  const [openingInPos, setOpeningInPos] = useState(false);
+  const [posError, setPosError] = useState("");
+  const [posProblems, setPosProblems] = useState<string[]>([]);
   const [listening, setListening] = useState(false);
   const [voiceError, setVoiceError] = useState("");
   const [transcribing, setTranscribing] = useState(false);
@@ -555,6 +582,14 @@ export default function SAIBackgroundLayer() {
       const data = await response.json().catch(() => null);
       if (!response.ok) throw new Error(data?.error || "SAI service unavailable");
       setOnline(true);
+      // A prepared POS sale draft is an estimate only. It is kept alongside
+      // the chat so the operator can open it in POS for review — the handoff
+      // endpoint re-validates every line against the live database.
+      if (data?.posDraft && typeof data.posDraft === "object" && typeof data.posDraft.draftId === "string" && Array.isArray(data.posDraft.lines)) {
+        setPosDraft(data.posDraft as SaiSaleDraft);
+        setPosError("");
+        setPosProblems([]);
+      }
       setMessages((current) => [
         ...current,
         { id: crypto.randomUUID(), role: "sai", text: data?.message || data?.reply || "Done." },
@@ -571,6 +606,97 @@ export default function SAIBackgroundLayer() {
       ]);
     } finally {
       setBusy(false);
+    }
+  }
+
+  /**
+   * "Open in POS" — safe handoff of a prepared SAI sale draft.
+   *
+   * 1. Sends the draft to `/api/sai/pos-draft/open-in-pos`, which re-reads
+   *    every item and the customer from the LIVE database, recomputes GST
+   *    with the shared engine, and returns a fresh CartLine[].
+   * 2. Writes the validated cart into the exact POS tab storage PosShell
+   *    reads on mount (`cafeerp_pos_tabs_${userId || "shared"}`), replacing
+   *    any previous tab for the same draft idempotently.
+   * 3. Navigates to `/pos` (with `?customer=<id>` when a customer was
+   *    validated, so POS hydrates the full customer row server-side).
+   *
+   * Creates NO invoice, payment, ledger or stock record. The sale exists
+   * only after the operator presses Pay in POS.
+   */
+  async function openInPos() {
+    if (!posDraft || openingInPos || busy) return;
+    setOpeningInPos(true);
+    setPosError("");
+    setPosProblems([]);
+    try {
+      const response = await fetch("/api/sai/pos-draft/open-in-pos", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ draft: posDraft }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        const problems = Array.isArray(data?.problems) ? data.problems.map(String) : [];
+        setPosProblems(problems);
+        throw new Error(data?.error || "Could not open draft in POS.");
+      }
+      const cartLines = Array.isArray(data?.cartLines) ? data.cartLines : [];
+      if (!cartLines.length) throw new Error("Validated cart is empty. Please create a new draft.");
+      const customer = data?.customer && typeof data.customer === "object" ? data.customer : null;
+
+      // Resolve the same storage scope PosShell uses. PosShell reads
+      // `cafeerp_pos_tabs_${userId || "shared"}` where userId is the
+      // authenticated operator id passed by the POS page.
+      let storageUserId = "";
+      try {
+        const supabase = createClient();
+        const { data: auth } = await supabase.auth.getUser();
+        storageUserId = auth?.user?.id ?? "";
+      } catch {
+        storageUserId = "";
+      }
+      const tabsKey = `cafeerp_pos_tabs_${storageUserId || "shared"}`;
+      const activeKey = `cafeerp_pos_active_tab_${storageUserId || "shared"}`;
+
+      const shortId = String(posDraft.draftId).replace(/[^a-zA-Z0-9]/g, "").slice(0, 8) || "draft";
+      const tabId = `sai-draft-${shortId}`;
+      const newTab = {
+        id: tabId,
+        title: "SAI Draft",
+        cart: cartLines,
+        customerId: customer?.id ?? "",
+        customerSearch: customer?.name ?? "",
+        discount: "",
+        discountType: "flat",
+        paymentChoice: "cash",
+        cashReceived: "",
+        splitRows: [],
+        collectPreviousDue: false,
+        useAdvance: false,
+      };
+
+      try {
+        const raw = localStorage.getItem(tabsKey);
+        const existing = raw ? JSON.parse(raw) : [];
+        const list = Array.isArray(existing) ? existing : [];
+        // Idempotent: replace any previous tab for this draft instead of
+        // duplicating it (double-click protection), keep other tabs, cap at 5.
+        const withoutSame = list.filter((tab: { id?: string }) => tab?.id !== tabId);
+        const next = [...withoutSame, newTab].slice(-5);
+        localStorage.setItem(tabsKey, JSON.stringify(next));
+        localStorage.setItem(activeKey, tabId);
+      } catch {
+        // Storage unavailable — still navigate; operator can add items manually.
+      }
+
+      setPosDraft(null);
+      setOpen(false);
+      router.push(customer?.id ? `/pos?customer=${encodeURIComponent(customer.id)}` : "/pos");
+    } catch (error) {
+      setPosError(error instanceof Error ? error.message : "Could not open draft in POS.");
+    } finally {
+      setOpeningInPos(false);
     }
   }
 
@@ -632,6 +758,52 @@ export default function SAIBackgroundLayer() {
                   {busy && (
                     <div className="flex items-center gap-2 text-[11px] text-slate-400">
                       <Loader2 className="h-3.5 w-3.5 animate-spin" /> SAI is working…
+                    </div>
+                  )}
+                </div>
+              )}
+              {posDraft && (
+                <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-xs font-semibold text-slate-900 dark:text-white">Sale draft for review</div>
+                    {typeof posDraft.totals?.estimatedTotal === "number" && (
+                      <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">₹{Number(posDraft.totals.estimatedTotal).toFixed(2)}</div>
+                    )}
+                  </div>
+                  {posDraft.customer && (
+                    <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Customer: {posDraft.customer.name}</div>
+                  )}
+                  <ul className="mt-2 space-y-1">
+                    {posDraft.lines.slice(0, 8).map((line) => (
+                      <li key={`${line.kind}:${line.itemId}`} className="flex items-center justify-between gap-2 text-[11px] text-slate-600 dark:text-slate-300">
+                        <span className="truncate">{line.name} × {line.quantity}</span>
+                        {typeof line.rate === "number" && <span className="shrink-0">₹{(line.rate * line.quantity).toFixed(2)}</span>}
+                      </li>
+                    ))}
+                    {posDraft.lines.length > 8 && (
+                      <li className="text-[10px] text-slate-400">+{posDraft.lines.length - 8} more items</li>
+                    )}
+                  </ul>
+                  <button
+                    type="button"
+                    onClick={() => void openInPos()}
+                    disabled={openingInPos || busy}
+                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+                  >
+                    {openingInPos ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShoppingCart className="h-3.5 w-3.5" />}
+                    {openingInPos ? "Validating…" : "🛒 Open in POS for Review"}
+                  </button>
+                  <p className="mt-2 text-[10px] leading-relaxed text-slate-400">No invoice is created until you press Pay in POS. Prices and stock are re-validated from the live database.</p>
+                  {(posError || posProblems.length > 0) && (
+                    <div className="mt-2 rounded-lg border border-rose-200 bg-rose-50 p-2 text-[11px] text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300">
+                      {posError && <div className="font-medium">{posError}</div>}
+                      {posProblems.length > 0 && (
+                        <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                          {posProblems.map((problem, index) => (
+                            <li key={index}>{problem}</li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
                   )}
                 </div>
