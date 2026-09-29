@@ -9,8 +9,6 @@ const MAX_AUDIO_BYTES = 8 * 1024 * 1024;
 type ProviderConfig = {
   provider: "gemini" | "openai";
   apiKey: string;
-  fallbackProvider?: "gemini" | "openai";
-  fallbackApiKey?: string;
 };
 
 async function resolveAiConfig(supabase: Awaited<ReturnType<typeof createClient>>): Promise<ProviderConfig> {
@@ -68,18 +66,9 @@ async function resolveAiConfig(supabase: Awaited<ReturnType<typeof createClient>
   if (!geminiKey) geminiKey = process.env.GEMINI_API_KEY || "";
   if (!openAiKey) openAiKey = process.env.OPENAI_API_KEY || "";
 
-  const selectedProvider = activeProvider === "openai" ? "openai" : activeProvider === "gemini" ? "gemini" : null;
-  const provider = selectedProvider && (selectedProvider === "openai" ? openAiKey : geminiKey)
-    ? selectedProvider
-    : geminiKey ? "gemini" : "openai";
+  const provider = activeProvider === "openai" ? "openai" : "gemini";
   const apiKey = provider === "openai" ? openAiKey : geminiKey;
-  const fallbackProvider = provider === "openai" ? "gemini" : "openai";
-  const fallbackApiKey = fallbackProvider === "openai" ? openAiKey : geminiKey;
-  return {
-    provider,
-    apiKey,
-    ...(fallbackApiKey ? { fallbackProvider, fallbackApiKey } : {}),
-  };
+  return { provider, apiKey };
 }
 
 async function transcribeWithGemini(audio: ArrayBuffer, mimeType: string, apiKey: string): Promise<string> {
@@ -288,16 +277,8 @@ export async function POST(request: Request) {
 
     const audio = await file.arrayBuffer();
     const primaryTranscribe = config.provider === "openai" ? transcribeWithOpenAI : transcribeWithGemini;
-    let usedProvider = config.provider;
-    let transcript: string;
-    try {
-      transcript = await primaryTranscribe(audio, mimeType, config.apiKey);
-    } catch (primaryError) {
-      if (!config.fallbackApiKey || !config.fallbackProvider) throw primaryError;
-      const fallbackTranscribe = config.fallbackProvider === "openai" ? transcribeWithOpenAI : transcribeWithGemini;
-      transcript = await fallbackTranscribe(audio, mimeType, config.fallbackApiKey);
-      usedProvider = config.fallbackProvider;
-    }
+    const usedProvider = config.provider;
+    const transcript = await primaryTranscribe(audio, mimeType, config.apiKey);
 
     return NextResponse.json({
       transcript,

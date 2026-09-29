@@ -46,7 +46,8 @@ check(liveRoute.includes("gemini-3.5-transcribe-live"), "Live token is scoped to
 check(liveRoute.includes("uses: 1"), "Gemini Live token is single-use");
 check(liveRoute.includes("newSessionExpireTime"), "Gemini Live token has a short session-start window");
 check(route.includes("request.formData()"), "Server transcription endpoint accepts multipart audio");
-check(route.includes("fallbackProvider"), "Server transcription can retry with the alternate configured speech provider");
+check(route.includes('const provider = activeProvider === "openai" ? "openai" : "gemini";'), "Voice transcription honors the selected provider even when its key is missing");
+check(!route.includes("fallbackProvider"), "Gemini voice requests are never silently routed to another provider");
 check(route.includes("settingsProviderConfigured"), "Legacy active provider selection is respected when settings JSON is absent");
 check(route.includes('file instanceof File'), "Server validates an uploaded audio file");
 check(route.includes("MAX_AUDIO_BYTES"), "Server limits audio upload size");
