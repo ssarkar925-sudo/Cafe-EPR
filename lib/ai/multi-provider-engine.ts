@@ -126,6 +126,79 @@ export const PROVIDER_CATALOG: Record<
   },
 };
 
+const TRANSIENT_PROVIDER_STATUSES = new Set([429, 502, 503, 504]);
+
+function getProviderRetryDelay(response: Response): number | null {
+  const retryAfter = response.headers.get("retry-after");
+  if (!retryAfter) return 400;
+
+  const seconds = Number(retryAfter);
+  const requestedDelay = Number.isFinite(seconds)
+    ? seconds * 1000
+    : Date.parse(retryAfter) - Date.now();
+  return Number.isFinite(requestedDelay) && requestedDelay >= 0 && requestedDelay <= 1500
+    ? requestedDelay
+    : null;
+}
+
+async function postProviderJson(endpoint: string, init: RequestInit, provider: string): Promise<any> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let response: Response;
+    try {
+      response = await fetch(endpoint, {
+        ...init,
+        signal: AbortSignal.timeout(35_000),
+      });
+    } catch (error) {
+      if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
+        throw new Error(`${provider} request timed out. Please try again.`);
+      }
+      throw error;
+    }
+
+    const responseBody = await response.text().catch(() => "");
+    let data: any = null;
+    if (responseBody.trim()) {
+      try {
+        data = JSON.parse(responseBody);
+      } catch {
+        if (response.ok) {
+          throw new Error(`${provider} returned an invalid response (HTTP ${response.status}). Please try again.`);
+        }
+      }
+    }
+
+    if (response.ok) {
+      if (!data || typeof data !== "object" || Array.isArray(data)) {
+        throw new Error(`${provider} returned an empty response (HTTP ${response.status}). Please try again.`);
+      }
+      return data;
+    }
+
+    const transient = TRANSIENT_PROVIDER_STATUSES.has(response.status);
+    if (transient && attempt === 0) {
+      const retryDelay = getProviderRetryDelay(response);
+      if (retryDelay !== null) {
+        await new Promise((resolve) => setTimeout(resolve, retryDelay));
+        continue;
+      }
+    }
+
+    const providerMessage =
+      typeof data?.error?.message === "string"
+        ? data.error.message
+        : typeof data?.message === "string"
+          ? data.message
+          : null;
+    if (transient) {
+      throw new Error(providerMessage || `${provider} is temporarily unavailable (HTTP ${response.status}). Please try again shortly.`);
+    }
+    throw new Error(providerMessage || `${provider} call failed (HTTP ${response.status}).`);
+  }
+
+  throw new Error(`${provider} request failed after a transient retry.`);
+}
+
 export function normalizeGeminiModel(model?: string | null): string {
   const requested = String(model || "").trim();
   const deprecated = new Set([
@@ -198,17 +271,11 @@ async function callGeminiProvider(
     generationConfig: { maxOutputTokens: 2048, temperature: 0.2 },
   };
 
-  const response = await fetch(url, {
+  const data = await postProviderJson(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
     body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(35000),
-  });
-
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(data?.error?.message || `Gemini call failed (HTTP ${response.status})`);
-  }
+  }, "Gemini");
 
   const candidate = data?.candidates?.[0];
   const parts = candidate?.content?.parts || [];
@@ -304,7 +371,7 @@ async function callOpenAICompatibleProvider(
     headers["X-Title"] = "CafeERP AI";
   }
 
-  const response = await fetch(endpoint, {
+  const data = await postProviderJson(endpoint, {
     method: "POST",
     headers,
     body: JSON.stringify({
@@ -314,13 +381,7 @@ async function callOpenAICompatibleProvider(
       temperature: 0.2,
       max_tokens: 2048,
     }),
-    signal: AbortSignal.timeout(35000),
-  });
-
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(data?.error?.message || `${provider} call failed (HTTP ${response.status})`);
-  }
+  }, provider);
 
   const choice = data?.choices?.[0]?.message;
   const text = choice?.content || "";
@@ -367,7 +428,7 @@ async function callAnthropicProvider(
     input_schema: t.parameters,
   }));
 
-  const response = await fetch(endpoint, {
+  const data = await postProviderJson(endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -381,13 +442,7 @@ async function callAnthropicProvider(
       tools: anthropicTools.length > 0 ? anthropicTools : undefined,
       max_tokens: 2048,
     }),
-    signal: AbortSignal.timeout(35000),
-  });
-
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(data?.error?.message || `Anthropic call failed (HTTP ${response.status})`);
-  }
+  }, "Anthropic");
 
   const textBlocks = (data?.content || []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("\n");
   const toolCalls: UniversalToolCall[] = (data?.content || [])
