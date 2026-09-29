@@ -3,7 +3,7 @@ import { checkWhatsAppHealth } from "@/lib/whatsapp-health";
 import { calculateGstInvoice } from "@/lib/gst";
 import { normalizePhone, rankCustomerResults } from "@/lib/customer-search";
 import { parsePhoneSms, parsePortalData, fetchWebsiteData } from "@/lib/ai/data-collector";
-import { executeUniversalModelCall, type UniversalCompletionResult } from "@/lib/ai/multi-provider-engine";
+import { executeUniversalModelCall, normalizeGeminiModel, type UniversalCompletionResult } from "@/lib/ai/multi-provider-engine";
 
 const MAX_TOOL_ROUNDS = 6;
 const MAX_HISTORY = 10;
@@ -1141,7 +1141,7 @@ export async function runIntelligentHeuristicAgent({
 export async function runIntelligentAgent({
   apiKey,
   provider = "gemini",
-  model = "gemini-2.5-flash",
+  model = "gemini-3.8-flash",
   baseUrl,
   message,
   history,
@@ -1164,7 +1164,7 @@ export async function runIntelligentAgent({
   fallbackMessage?: string;
 }) {
   if (!apiKey || apiKey.length < 8 || apiKey.includes("[SENSITIVE")) {
-    return runIntelligentHeuristicAgent({ message, supabase, userId, language, fallbackMessage });
+    throw new Error("SAI model is not configured. Add a valid Gemini 3.8 Flash or other provider API key in AI settings.");
   }
 
   const safeHistory = normalizeHistory(history).filter((item) => item.content !== message.trim());
@@ -1180,11 +1180,12 @@ export async function runIntelligentAgent({
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
     let result: UniversalCompletionResult | null = null;
+    const normalizedModel = provider === "gemini" ? normalizeGeminiModel(model) : model;
     try {
       result = await executeUniversalModelCall({
         config: {
           provider,
-          model,
+          model: normalizedModel,
           apiKey,
           baseUrl,
         },
@@ -1200,12 +1201,12 @@ export async function runIntelligentAgent({
       // heuristic answer. First retry Gemini on its stable Flash model when
       // the configured Gemini model is unavailable (for example access,
       // quota, or transient model errors on Pro).
-      if (provider === "gemini" && model !== "gemini-2.5-flash" && apiKey) {
+      if (provider === "gemini" && normalizedModel !== "gemini-3.8-flash" && apiKey) {
         try {
           result = await executeUniversalModelCall({
             config: {
               provider: "gemini",
-              model: "gemini-2.5-flash",
+              model: "gemini-3.8-flash",
               apiKey,
             },
             systemInstruction: systemPrompt,
@@ -1222,7 +1223,7 @@ export async function runIntelligentAgent({
           result = await executeUniversalModelCall({
             config: {
               provider: "gemini",
-              model: "gemini-2.5-flash",
+              model: "gemini-3.8-flash",
               apiKey: process.env.GEMINI_API_KEY,
             },
             systemInstruction: systemPrompt,
