@@ -72,6 +72,9 @@ jobs:
         run: npm run test:sai-goals-missions
       - name: SAI planner
         run: npm run test:sai-planner
+
+      - name: SAI first-party chat runtime
+        run: npm run test:sai-chat-runtime
       - name: SAI Phase 2A domain intelligence
         run: node scripts/test-sai-planner.mjs
       - name: SAI evidence provenance
