@@ -61,13 +61,13 @@ check(files.migration.includes("sai_execution_traces_staff_insert"), "Trace inse
 check(!/grant .*update/i.test(files.migration), "Base migration has no UPDATE grant");
 check(!/grant .*delete/i.test(files.migration), "Base migration has no DELETE grant");
 check(/create schema if not exists private authorization postgres/i.test(files.rlsFix), "RLS helper lives in the private schema");
-check(/security definer[\\s\\S]*set search_path = pg_catalog/i.test(files.rlsFix), "RLS helper uses a locked search path");
+check(/security definer[\s\S]*set search_path = pg_catalog/i.test(files.rlsFix), "RLS helper uses a locked search path");
 check(/p_actor_user_id = \\(select auth\\.uid\\(\\)\\)/i.test(files.rlsFix), "Parent helper only checks the current actor");
-check(/parent\\.business_id = p_business_id[\\s\\S]*parent\\.trace_id = p_trace_id/i.test(files.rlsFix), "Parent helper scopes matches to business and trace");
+check(/parent\\.business_id = p_business_id[\s\S]*parent\\.trace_id = p_trace_id/i.test(files.rlsFix), "Parent helper scopes matches to business and trace");
 check(/private\\.sai_execution_trace_parent_allowed\\(/i.test(files.rlsFix), "INSERT policy delegates parent validation to the helper");
-check(!/exists\\s*\\(\\s*select 1\\s+from public\\.sai_execution_traces parent/i.test(files.rlsFix), "INSERT policy has no recursive direct self-query");
-check(/revoke all on function[\\s\\S]*from public, anon, authenticated/i.test(files.rlsFix), "Parent helper execution is revoked by default");
-check(/grant execute on function[\\s\\S]*to authenticated/i.test(files.rlsFix), "Only authenticated clients may call the RLS helper");
+check(!/exists\s*\\(\s*select 1\s+from public\\.sai_execution_traces parent/i.test(files.rlsFix), "INSERT policy has no recursive direct self-query");
+check(/revoke all on function[\s\S]*from public, anon, authenticated/i.test(files.rlsFix), "Parent helper execution is revoked by default");
+check(/grant execute on function[\s\S]*to authenticated/i.test(files.rlsFix), "Only authenticated clients may call the RLS helper");
 check(/revoke\s+update,\s*delete/i.test(files.hardening), "Grant hardening revokes UPDATE and DELETE");
 check(/revoke\s+update,\s*delete,\s*truncate,\s*references,\s*trigger/i.test(files.hardening), "Grant hardening removes all non-required write privileges");
 check(files.quality.includes("npm run test:sai-tracing"), "Quality Gate runs trace regression");
