@@ -48,7 +48,7 @@ check(transcribe.includes('model: "gemini-3.5-transcribe"'), "Voice uses dedicat
 check(transcribe.includes("upload/v1beta/files"), "Voice uploads audio through Gemini Files API");
 check(transcribe.includes("/v1beta/interactions"), "Voice invokes Gemini Interactions API");
 check(transcribe.includes("language_codes: []"), "Voice enables automatic language detection");
-check(transcribe.includes('"mode": "smart"'), "Voice uses smart transcription formatting");
+check(transcribe.includes('mode: "smart"'), "Voice uses smart transcription formatting");
 check(transcribe.includes("custom_vocabulary"), "Voice supplies CafeERP domain vocabulary");
 
 console.log(`\n${passed} passed / ${failed} failed`);
