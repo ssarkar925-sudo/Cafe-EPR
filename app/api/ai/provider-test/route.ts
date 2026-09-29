@@ -4,6 +4,7 @@ import {
   executeUniversalModelCall,
   PROVIDER_CATALOG,
   type AIProviderId,
+  normalizeGeminiModel,
 } from "@/lib/ai/multi-provider-engine";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +19,8 @@ export async function POST(request: Request) {
 
     const body = await request.json().catch(() => null);
     const provider: AIProviderId = body?.provider || "gemini";
-    const model = (body?.model || PROVIDER_CATALOG[provider]?.defaultModel || "").trim();
+    let model = (body?.model || PROVIDER_CATALOG[provider]?.defaultModel || "").trim();
+    if (provider === "gemini") model = normalizeGeminiModel(model);
     let apiKey = typeof body?.apiKey === "string" ? body.apiKey.trim() : "";
     const endpointUrl = typeof body?.endpointUrl === "string" ? body.endpointUrl.trim() : "";
 
