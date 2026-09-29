@@ -6,6 +6,7 @@ import "@/lib/sai/capabilities/pos-observe";
 import "@/lib/sai/capabilities/customer-intelligence";
 import "@/lib/sai/capabilities/aeps-intelligence";
 import "@/lib/sai/capabilities/portal-watcher-observe";
+import "@/lib/sai/capabilities/service-intelligence";
 
 const READ_PATTERNS = [
   /what is/i, /show/i, /check/i, /status/i, /how much/i, /who/i, /recent/i, /latest/i,
@@ -21,6 +22,28 @@ function resolveReadCapability(text: string): { id: string; input: Record<string
 
   if (/(portal|watcher|source|collection run|verification|পোর্টাল|ওয়াচার|पोर्टल)/i.test(text)) {
     return { id: "aeps.observe_watcher", input: {} };
+  }
+
+  if (/(dmt|remittance|money transfer|মনি ট্রান্সফার|ডিএমটি|धन हस्तांतरण|मनी ट्रांसफर)/i.test(text)) {
+    return { id: "dmt.observe_transactions", input: {} };
+  }
+
+  if (/(upi|qr payment|upi collection|ইউপিআই|কিউআর|यूपीआई|क्यूआर)/i.test(text)) {
+    return { id: "upi.observe_transactions", input: {} };
+  }
+
+  if (/(recharge|mobile recharge|রিচার্জ|মোবাইল রিচার্জ|रिचार्ज|मोबाइल रिचार्ज)/i.test(text)) {
+    if (/(plan|price|rate|catalog|operator|provider|প্ল্যান|দাম|অপারেটর|রেট|प्लान|कीमत|ऑपरेटर)/i.test(text)) {
+      return { id: "recharge.observe_context", input: {} };
+    }
+    return { id: "recharge.observe_transactions", input: {} };
+  }
+
+  if (/(bbps|bill payment|utility bill|electricity bill|gas bill|water bill|fastag|বিল পেমেন্ট|বিল|बिल भुगतान|यूटिलिटी)/i.test(text)) {
+    if (/(commission|fee|rule|config|কমিশন|ফি|নিয়ম|कमीशन|फीस|नियम)/i.test(text)) {
+      return { id: "bbps.observe_context", input: {} };
+    }
+    return { id: "bbps.observe_transactions", input: {} };
   }
 
   if (/(customer|khata|due|receivable|ledger|balance|গ্রাহক|খাতা|বকেয়া|ग्राहक|खाता|बकाया)/i.test(text)) {
