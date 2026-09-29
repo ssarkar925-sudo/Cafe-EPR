@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserRole, hasRole } from "@/lib/authz";
-import { PROVIDER_CATALOG, type AIProviderId } from "@/lib/ai/multi-provider-engine";
+import { PROVIDER_CATALOG, normalizeGeminiModel, type AIProviderId } from "@/lib/ai/multi-provider-engine";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +52,7 @@ export async function GET() {
       if (!tableError && tableData) {
         activeProvider = (tableData.active_provider as AIProviderId) || activeProvider;
         activeModel = tableData.model_name || PROVIDER_CATALOG[activeProvider]?.defaultModel || activeModel;
+        if (activeProvider === "gemini") activeModel = normalizeGeminiModel(activeModel);
         endpointUrl = tableData.endpoint_url || "";
         fallbackEnabled = tableData.fallback_enabled ?? true;
         updatedAt = tableData.updated_at || null;
@@ -74,6 +75,7 @@ export async function GET() {
       const aiConfig = (settingsData?.ai_config || {}) as StoredAIConfig;
       if (aiConfig.active_provider) activeProvider = aiConfig.active_provider;
       if (aiConfig.model_name) activeModel = aiConfig.model_name;
+      if (activeProvider === "gemini") activeModel = normalizeGeminiModel(activeModel);
       if (aiConfig.endpoint_url !== undefined) endpointUrl = aiConfig.endpoint_url;
       if (aiConfig.fallback_enabled !== undefined) fallbackEnabled = aiConfig.fallback_enabled;
       if (aiConfig.updated_at) updatedAt = aiConfig.updated_at;
@@ -135,7 +137,8 @@ export async function POST(request: Request) {
 
     const body = await request.json().catch(() => null);
     const provider: AIProviderId = body?.provider || "gemini";
-    const model = (body?.model || PROVIDER_CATALOG[provider]?.defaultModel || "gemini-2.5-pro").trim();
+    let model = (body?.model || PROVIDER_CATALOG[provider]?.defaultModel || PROVIDER_CATALOG.gemini.defaultModel).trim();
+    if (provider === "gemini") model = normalizeGeminiModel(model);
     const newApiKey = typeof body?.apiKey === "string" ? body.apiKey.trim() : "";
     const endpointUrl = typeof body?.endpointUrl === "string" ? body.endpointUrl.trim() : "";
     const fallbackEnabled = body?.fallbackEnabled !== false;

@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
 import { CAFE_AI_SYSTEM_INSTRUCTIONS, DEFAULT_AGENT_PERMISSIONS } from "@/lib/ai/agent-policy";
 import { runIntelligentAgent, type AgentHistoryItem } from "@/lib/ai/agent-runtime";
+import { normalizeGeminiModel } from "@/lib/ai/multi-provider-engine";
 import { buildSaiLanguageContext, SAI_RESPONSE_RULES } from "@/lib/sai/cognition/language";
 
 export const dynamic = "force-dynamic";
@@ -85,7 +86,7 @@ export async function POST(request: Request) {
 
     // Load dynamic AI provider configuration from database (Gemini, OpenAI, Claude, Groq, OpenRouter)
     let activeProvider: any = "gemini";
-    let activeModel = "gemini-2.5-pro";
+    let activeModel = "gemini-3.8-flash";
     let apiKey = "";
     let endpointUrl = "";
 
@@ -155,6 +156,7 @@ export async function POST(request: Request) {
     // Prefer in-tab history for recency; use DB turns only if in-tab is short (new session)
     const mergedHistory = inTabHistory.length >= 4 ? inTabHistory : [...dbTurns.slice(-8), ...inTabHistory].slice(-MAX_HISTORY_ITEMS);
 
+    if (activeProvider === "gemini") activeModel = normalizeGeminiModel(activeModel);
     const { language, instruction: languageInstruction } = buildSaiLanguageContext(message);
     const fallbackMessage = surface !== "sai"
       ? undefined

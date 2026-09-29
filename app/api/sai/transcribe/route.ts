@@ -76,58 +76,129 @@ async function resolveAiConfig(supabase: Awaited<ReturnType<typeof createClient>
 }
 
 async function transcribeWithGemini(audio: ArrayBuffer, mimeType: string, apiKey: string): Promise<string> {
-  const bytes = new Uint8Array(audio);
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
-  }
-  const base64 = btoa(binary);
-  const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
-  const response = await fetch(url, {
+  const uploadStart = await fetch("https://generativelanguage.googleapis.com/upload/v1beta/files", {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
       "x-goog-api-key": apiKey,
+      "X-Goog-Upload-Protocol": "resumable",
+      "X-Goog-Upload-Command": "start",
+      "X-Goog-Upload-Header-Content-Length": String(audio.byteLength),
+      "X-Goog-Upload-Header-Content-Type": mimeType,
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      contents: [{
-        role: "user",
-        parts: [
-          {
-            text:
-              "Transcribe this microphone recording exactly as spoken. Return ONLY the transcript, with no explanation. Preserve Bengali, Hindi, English, and mixed-language speech; do not translate it. Keep business terms, numbers, names, and CafeERP/AEPS terms exactly when audible.",
-          },
-          {
-            inlineData: {
-              mimeType,
-              data: base64,
-            },
-          },
-        ],
-      }],
-      generationConfig: {
-        temperature: 0,
-        maxOutputTokens: 512,
+      file: {
+        display_name: `sai-voice-${crypto.randomUUID()}`,
       },
     }),
+    signal: AbortSignal.timeout(15_000),
+  });
+
+  if (!uploadStart.ok) {
+    const data = await uploadStart.json().catch(() => null);
+    throw new Error(data?.error?.message || `Gemini audio upload start failed (HTTP ${uploadStart.status})`);
+  }
+
+  const uploadUrl =
+    uploadStart.headers.get("x-goog-upload-url") ||
+    uploadStart.headers.get("X-Goog-Upload-URL");
+
+  if (!uploadUrl) {
+    throw new Error("Gemini audio upload did not return an upload URL.");
+  }
+
+  const uploadResponse = await fetch(uploadUrl, {
+    method: "POST",
+    headers: {
+      "Content-Length": String(audio.byteLength),
+      "X-Goog-Upload-Offset": "0",
+      "X-Goog-Upload-Command": "upload, finalize",
+    },
+    body: audio,
     signal: AbortSignal.timeout(30_000),
   });
 
-  const data = await response.json().catch(() => null);
-  if (!response.ok) {
-    throw new Error(data?.error?.message || `Gemini transcription failed (HTTP ${response.status})`);
+  const fileData = await uploadResponse.json().catch(() => null);
+  if (!uploadResponse.ok) {
+    throw new Error(fileData?.error?.message || `Gemini audio upload failed (HTTP ${uploadResponse.status})`);
   }
 
-  const transcript = data?.candidates?.[0]?.content?.parts
-    ?.map((part: any) => part?.text)
-    ?.filter(Boolean)
-    ?.join(" ")
-    ?.trim();
+  const fileUri = String(fileData?.file?.uri || "");
+  const fileName = String(fileData?.file?.name || "");
+  const storedMimeType = String(fileData?.file?.mimeType || mimeType);
 
-  if (!transcript) throw new Error("No speech was detected in the recording.");
-  return transcript.slice(0, 16_000);
+  if (!fileUri) throw new Error("Gemini did not return an uploaded audio URI.");
+
+  try {
+    const response = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/interactions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        body: JSON.stringify({
+          model: "gemini-3.5-transcribe",
+          input: [
+            {
+              type: "audio",
+              uri: fileUri,
+              mime_type: storedMimeType,
+            },
+          ],
+          generation_config: {
+            transcription_config: {
+              language_codes: [],
+              mode: "smart",
+              custom_vocabulary: [
+                "CafeERP",
+                "SAI",
+                "AEPS",
+                "DMT",
+                "UPI",
+                "BBPS",
+                "CSC DigiPay",
+                "Spice Money",
+                "RRN",
+                "UTR",
+                "Khata",
+                "commission",
+                "portal",
+              ],
+            },
+          },
+        }),
+        signal: AbortSignal.timeout(45_000),
+      },
+    );
+
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(data?.error?.message || `Gemini transcription failed (HTTP ${response.status})`);
+    }
+
+    const transcript = String(data?.output_text || "").trim() ||
+      (Array.isArray(data?.outputs)
+        ? data.outputs
+            .filter((item: any) => item?.type === "text")
+            .map((item: any) => String(item?.text || ""))
+            .join(" ")
+            .trim()
+        : "");
+
+    if (!transcript) throw new Error("No speech was detected in the recording.");
+    return transcript.slice(0, 16_000);
+  } finally {
+    if (fileName) {
+      void fetch(`https://generativelanguage.googleapis.com/v1beta/${fileName}`, {
+        method: "DELETE",
+        headers: { "x-goog-api-key": apiKey },
+      }).catch(() => undefined);
+    }
+  }
 }
+
 
 async function transcribeWithOpenAI(
   audio: ArrayBuffer,

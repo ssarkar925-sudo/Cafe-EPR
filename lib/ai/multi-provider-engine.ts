@@ -53,16 +53,14 @@ export const PROVIDER_CATALOG: Record<
   gemini: {
     name: "Google Gemini",
     description: "High speed, ultra-large context, deep multimodal reasoning, and native tool execution.",
-    defaultModel: "gemini-2.5-pro",
+    defaultModel: "gemini-3.8-flash",
     models: [
-      { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", tag: "Premier Frontier Flagship" },
-      { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", tag: "High Speed & Reasoning" },
-      { id: "gemini-2.0-flash-thinking-exp-01-21", name: "Gemini 2.0 Flash Thinking", tag: "Deep Chain-of-Thought" },
-      { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", tag: "Fast Standard Workhorse" },
-      { id: "gemini-2.0-flash-lite-preview-02-05", name: "Gemini 2.0 Flash Lite", tag: "Ultra Low Cost & Latency" },
-      { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro", tag: "2M Context Window" },
-      { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash", tag: "High Throughput" },
-      { id: "gemini-1.5-flash-8b", name: "Gemini 1.5 Flash 8B", tag: "Lightweight High Speed" },
+      { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash", tag: "Current Stable • Fast • Agentic" },
+      { id: "gemini-3.7-flash", name: "Gemini 3.7 Flash", tag: "Current Stable • Speed" },
+      { id: "gemini-3.6-flash", name: "Gemini 3.6 Flash", tag: "Current Stable • Fast" },
+      { id: "gemini-3.5-flash", name: "Gemini 3.5 Flash", tag: "Current Stable • Agentic" },
+      { id: "gemini-3.1-pro-preview", name: "Gemini 3.1 Pro", tag: "Current Preview • Deep Reasoning" },
+      { id: "gemini-3.1-flash-lite", name: "Gemini 3.1 Flash-Lite", tag: "Current Stable • Cost Efficient" },
     ],
     badge: "Google Cloud",
     icon: "✨",
@@ -128,6 +126,19 @@ export const PROVIDER_CATALOG: Record<
   },
 };
 
+export function normalizeGeminiModel(model?: string | null): string {
+  const requested = String(model || "").trim();
+  const deprecated = new Set([
+    "gemini-2.5-pro",
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-001",
+    "gemini-2.0-flash-lite",
+    "gemini-2.0-flash-lite-001",
+  ]);
+  return !requested || deprecated.has(requested) ? "gemini-3.8-flash" : requested;
+}
+
 /**
  * Executes a round of completion with tool-calling across any configured provider.
  */
@@ -143,7 +154,8 @@ export async function executeUniversalModelCall({
   tools: UniversalToolDeclaration[];
 }): Promise<UniversalCompletionResult> {
   const provider = config.provider || "gemini";
-  const model = config.model || PROVIDER_CATALOG[provider]?.defaultModel || "gemini-2.5-flash";
+  const rawModel = config.model || PROVIDER_CATALOG[provider]?.defaultModel || "gemini-3.8-flash";
+  const model = provider === "gemini" ? normalizeGeminiModel(rawModel) : rawModel;
 
   switch (provider) {
     case "gemini":
