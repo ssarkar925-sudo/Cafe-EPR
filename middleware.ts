@@ -25,7 +25,7 @@ const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const MAX_LOGIN_ATTEMPTS = 15;
 const ipRequestCounts = new Map<string, { count: number; resetAt: number }>();
 function checkRateLimit(ip: string): boolean { const now = Date.now(); const entry = ipRequestCounts.get(ip); if (!entry || now > entry.resetAt) { ipRequestCounts.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS }); return true; } if (entry.count >= MAX_LOGIN_ATTEMPTS) return false; entry.count++; return true; }
-function applySecurityHeaders(res: NextResponse): NextResponse { res.headers.set("X-Content-Type-Options", "nosniff"); res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin"); res.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload"); res.headers.set("X-DNS-Prefetch-Control", "on"); res.headers.set("Permissions-Policy", "camera=(self), microphone=(), geolocation=()"); res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate"); res.headers.set("Pragma", "no-cache"); res.headers.set("Expires", "0"); return res; }
+function applySecurityHeaders(res: NextResponse): NextResponse { res.headers.set("X-Content-Type-Options", "nosniff"); res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin"); res.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload"); res.headers.set("X-DNS-Prefetch-Control", "on"); res.headers.set("Permissions-Policy", "camera=(self), microphone=(self), geolocation=()"); res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate"); res.headers.set("Pragma", "no-cache"); res.headers.set("Expires", "0"); return res; }
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
