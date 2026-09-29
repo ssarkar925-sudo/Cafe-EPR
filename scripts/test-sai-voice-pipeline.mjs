@@ -31,8 +31,10 @@ check(component.includes("recording" ), "Voice UI has an explicit recording stat
 check(route.includes("request.formData()"), "Server transcription endpoint accepts multipart audio");
 check(route.includes('file instanceof File'), "Server validates an uploaded audio file");
 check(route.includes("MAX_AUDIO_BYTES"), "Server limits audio upload size");
-check(route.includes("gemini-2.5-flash"), "Gemini server transcription fallback is wired");
-check(route.includes("inlineData"), "Gemini receives the recorded audio as inline media");
+check(route.includes('model: "gemini-3.5-transcribe"'), "Gemini 3.5 Transcribe is wired for server voice transcription");
+check(route.includes("upload/v1beta/files"), "Gemini voice uses the Files API for recorded audio");
+check(route.includes("/v1beta/interactions"), "Gemini voice uses the Interactions API for transcription");
+check(route.includes("language_codes: []"), "Gemini voice enables automatic language detection");
 check(route.includes("gpt-4o-mini-transcribe"), "OpenAI transcription fallback is wired");
 check(route.includes("No speech was detected"), "Empty transcription is handled explicitly");
 check(route.includes('hasRole(role, ["admin", "manager", "staff"])'), "Voice transcription is role-gated");
