@@ -1,33 +1,33 @@
 /**
- * SAI POS Draft Handoff — Regression Tests
+ * SAI POS Draft Handoff — Regression Tests (current SAI architecture)
  *
- * These tests verify the static safety properties of the POS draft handoff
- * implementation without requiring a live database. They check:
+ * Verifies the static safety properties of the POS draft handoff without
+ * requiring a live database:
  *
- *  1. API route contract (open-in-pos endpoint)
- *     - Auth guard present
- *     - Approval ID validation
- *     - Expired/invalid status rejection
- *     - No mutation of any write table
- *     - GST always recomputed (calculateGstInvoice import present)
- *     - Live catalog re-read (not trusting AI payload)
- *     - Per-item problems returned as 422, not 500
- *     - Customer re-validated from DB
+ *  1. API route contract (app/api/sai/pos-draft/open-in-pos/route.ts)
+ *     - Auth guard present (admin/manager/staff)
+ *     - Draft identity validation
+ *     - Expiry rejection (410)
+ *     - Sale-only validation
+ *     - Live catalog re-read (never trusts AI prices)
+ *     - GST recomputed via calculateGstInvoice
+ *     - Customer re-validated from live DB
+ *     - Per-item problems returned as 422
+ *     - No DB writes, no create_sale RPC
  *
- *  2. Client UI contract (cafe-ai-agent)
- *     - "Open in POS" button present for sale drafts
- *     - Approval state conditional on action === "create_sale"
- *     - router.push("/pos") call present (SPA navigation, no hard reload)
- *     - localStorage write uses PosShell's established key pattern
- *     - No invoice-creation code in the openInPos path
- *     - No direct database mutation in client code
+ *  2. Chat plumbing (lib/sai/cognition/chat-runtime.ts)
+ *     - Prepared sale drafts are surfaced to the SAI surface as posDraft
  *
- *  3. Safety invariants
- *     - The handoff endpoint does NOT import or call create_sale RPC
- *     - The handoff endpoint does NOT call requireOwnerApproval (no new approval)
- *     - The handoff endpoint does NOT call markExecuted
- *     - The approval status is NOT changed by the handoff endpoint
- *     - CartLine keys are unique per draft (include approval ID prefix)
+ *  3. Client UI contract (components/sai/sai-background-layer.tsx)
+ *     - "Open in POS for Review" primary button for valid sale drafts
+ *     - Safety note: no invoice until Pay in POS
+ *     - router.push("/pos") navigation with ?customer=<id> hydration
+ *     - Exact POS storage keys (cafeerp_pos_tabs_ / cafeerp_pos_active_tab_)
+ *     - Double-click protection, validation error display
+ *
+ * Safety invariants:
+ *  - Open in POS != Approve sale != Create invoice != Take payment.
+ *  - The ONLY financial writer is the existing POS checkout (Pay flow).
  */
 
 import fs from "fs";
@@ -36,12 +36,31 @@ import path from "path";
 const OPEN_IN_POS_ROUTE = path.join(
   "app",
   "api",
+  "sai",
+  "pos-draft",
+  "open-in-pos",
+  "route.ts"
+);
+const LEGACY_OPEN_IN_POS_ROUTE = path.join(
+  "app",
+  "api",
   "ai",
   "quick-sale",
   "open-in-pos",
   "route.ts"
 );
-const CAFE_AI_AGENT = path.join("components", "ai", "cafe-ai-agent.tsx");
+const SAI_BACKGROUND_LAYER = path.join(
+  "components",
+  "sai",
+  "sai-background-layer.tsx"
+);
+const CHAT_RUNTIME = path.join("lib", "sai", "cognition", "chat-runtime.ts");
+const DRAFT_CAPABILITY = path.join(
+  "lib",
+  "sai",
+  "capabilities",
+  "pos-draft-intelligence.ts"
+);
 
 let passed = 0;
 let failed = 0;
@@ -56,26 +75,31 @@ function assert(condition, name) {
   }
 }
 
+function readRequired(file) {
+  try {
+    return fs.readFileSync(file, "utf8");
+  } catch (e) {
+    console.error(`Cannot read file: ${file} — ${e.message}`);
+    process.exit(1);
+  }
+}
+
 // ── Load sources ────────────────────────────────────────────────────────────
 
-let route, agent;
+const route = readRequired(OPEN_IN_POS_ROUTE);
+const layer = readRequired(SAI_BACKGROUND_LAYER);
+const chatRuntime = readRequired(CHAT_RUNTIME);
+const capability = readRequired(DRAFT_CAPABILITY);
+let legacyRoute = null;
 try {
-  route = fs.readFileSync(OPEN_IN_POS_ROUTE, "utf8");
-} catch (e) {
-  console.error(`Cannot read route file: ${OPEN_IN_POS_ROUTE}`, e.message);
-  process.exit(1);
+  legacyRoute = fs.readFileSync(LEGACY_OPEN_IN_POS_ROUTE, "utf8");
+} catch {
+  legacyRoute = null;
 }
 
-try {
-  agent = fs.readFileSync(CAFE_AI_AGENT, "utf8");
-} catch (e) {
-  console.error(`Cannot read agent file: ${CAFE_AI_AGENT}`, e.message);
-  process.exit(1);
-}
+// ── Section 1: API route contract ───────────────────────────────────────────
 
-// ── Section 1: API route contract ──────────────────────────────────────────
-
-console.log("\nSection 1: open-in-pos API route contract\n");
+console.log("\nSection 1: sai/pos-draft/open-in-pos API route contract\n");
 
 assert(
   route.includes("getUserRole") && route.includes("hasRole"),
@@ -83,13 +107,13 @@ assert(
 );
 
 assert(
-  route.includes('["admin", "staff"]') || route.includes('["admin","staff"]'),
-  "Route requires admin or staff role"
+  route.includes('"admin"') && route.includes('"staff"'),
+  "Route requires an operator role (admin/staff)"
 );
 
 assert(
-  route.includes("approval_id") && route.includes("approvalId"),
-  "Route validates approval_id parameter"
+  route.includes("draft is required") && route.includes("draftId"),
+  "Route validates draft identity"
 );
 
 assert(
@@ -98,18 +122,24 @@ assert(
 );
 
 assert(
-  route.includes("status: 404") || route.includes("{ status: 404 }"),
-  "Route returns 404 for missing approval"
+  route.includes("status: 400"),
+  "Route returns 400 for malformed/non-sale drafts"
 );
 
 assert(
-  route.includes("status: 409") || route.includes("status: 410"),
-  "Route returns 409/410 for non-pending or expired approval"
+  route.includes("status: 410"),
+  "Route returns 410 for expired drafts"
 );
 
 assert(
-  route.includes("action !== \"create_sale\""),
-  "Route rejects non-sale-draft approval IDs"
+  route.includes("Only product/service sale drafts") ||
+    route.includes("not a sale draft"),
+  "Route rejects non-sale drafts"
+);
+
+assert(
+  route.includes("Draft contains no items") && route.includes("status: 422"),
+  "Route returns 422 when the draft has no valid items"
 );
 
 assert(
@@ -118,12 +148,12 @@ assert(
 );
 
 assert(
-  route.includes("from(\"products\")") && route.includes("from(\"services\")"),
+  route.includes('from("products")') && route.includes('from("services")'),
   "Route re-reads products and services from live DB"
 );
 
 assert(
-  route.includes("from(\"customers\")"),
+  route.includes('from("customers")'),
   "Route re-validates customer from live DB"
 );
 
@@ -138,161 +168,179 @@ assert(
 );
 
 assert(
-  route.includes("status: 422"),
-  "Route returns 422 with problems array for invalid items"
-);
-
-assert(
-  route.includes('"problems"') || route.includes("problems"),
+  route.includes("problems"),
   "Route returns per-item problem list"
 );
 
-// Safety: no DB mutations
 assert(
-  !route.includes(".insert(") && !route.includes(".update(") && !route.includes(".delete("),
-  "Route makes no DB writes (no insert/update/delete)"
+  !route.includes(".insert(") &&
+    !route.includes(".update(") &&
+    !route.includes(".delete(") &&
+    !route.includes(".upsert("),
+  "Route makes no DB writes (no insert/update/upsert/delete)"
 );
 
 assert(
-  !route.includes("supabase.rpc(\"create_sale\"") && !route.includes("rpc('create_sale'"),
+  !route.includes(".rpc(") && !/supabase\s*\.\s*rpc/.test(route),
   "Route does not call create_sale RPC"
 );
 
 assert(
-  !route.includes("requireOwnerApproval"),
-  "Route does not create a new approval record"
+  !route.includes(".rpc("),
+  "Route calls no RPC at all (read/validate/transform only)"
 );
 
 assert(
-  !route.includes("markExecuted") && !route.includes("claimApprovedAction"),
-  "Route does not change approval status"
+  route.includes("No invoice is created until you press Pay in POS") ||
+    route.includes("ZERO financial") ||
+    route.includes("no invoice"),
+  "Route documents the no-write safety contract"
 );
 
-assert(
-  !route.includes("stock_qty") || route.includes("only ${"),
-  "Route uses stock_qty for check, not write"
-);
-
-assert(
-  route.includes("No invoice") || route.includes("no invoice") || route.includes("no DB writes"),
-  "Route has safety comment documenting no-write contract"
-);
-
-// CartLine format compatibility
 assert(
   route.includes("cartLines") && route.includes("key:"),
   "Route returns cartLines array with PosShell-compatible key field"
 );
 
 assert(
-  route.includes("approvalId.slice(0, 8)") || route.includes("approvalId"),
-  "CartLine keys include approval ID prefix for uniqueness"
-);
-
-// ── Section 2: Client UI contract ─────────────────────────────────────────
-
-console.log("\nSection 2: cafe-ai-agent client UI contract\n");
-
-assert(
-  agent.includes("openInPos"),
-  "Agent defines openInPos function"
+  route.includes("sai-draft-"),
+  "CartLine keys are namespaced per SAI draft for uniqueness"
 );
 
 assert(
-  agent.includes("Open in POS") || agent.includes("open-in-pos"),
-  "Agent has 'Open in POS' action button text or API call"
+  route.includes("costPrice") && route.includes("gstRate") && route.includes("hsnSac"),
+  "CartLine preserves cost price, GST rate and HSN/SAC from live DB"
 );
 
 assert(
-  agent.includes('approval.action === "create_sale"'),
-  "Open in POS button is conditional on action === create_sale"
+  route.includes("stockQty") && route.includes("unit"),
+  "CartLine preserves live stock quantity and unit"
+);
+
+// ── Section 2: chat plumbing ────────────────────────────────────────────────
+
+console.log("\nSection 2: SAI chat draft plumbing\n");
+
+assert(
+  chatRuntime.includes("posDraft") && chatRuntime.includes('handoff?.path === "/pos"'),
+  "Chat runtime surfaces prepared sale drafts (posDraft) to the SAI surface"
 );
 
 assert(
-  agent.includes('router.push("/pos")') || agent.includes("router.push('/pos')"),
+  capability.includes('handoff: { path: "/pos"'),
+  "Draft capability targets /pos handoff"
+);
+
+assert(
+  capability.includes("estimateOnly: true"),
+  "Draft capability marks output as estimate-only"
+);
+
+// ── Section 3: background layer UI ──────────────────────────────────────────
+
+console.log("\nSection 3: sai-background-layer client UI contract\n");
+
+assert(
+  layer.includes("openInPos"),
+  "Background layer defines openInPos handoff"
+);
+
+assert(
+  layer.includes("Open in POS for Review"),
+  "Background layer shows 'Open in POS for Review' primary button"
+);
+
+assert(
+  layer.includes("/api/sai/pos-draft/open-in-pos"),
+  "openInPos calls the SAI-namespaced validation endpoint"
+);
+
+assert(
+  layer.includes('router.push("/pos")') ||
+    layer.includes("router.push(customer?.id") ||
+    layer.includes('`/pos?customer='),
   "openInPos navigates to /pos via router.push (SPA nav)"
 );
 
 assert(
-  agent.includes("cafeerp_pos_tabs_shared") || agent.includes("cafeerp_pos_tabs_"),
-  "openInPos writes to PosShell's established localStorage key pattern"
+  layer.includes("?customer="),
+  "Customer survives handoff via /pos?customer=<id> hydration"
 );
 
 assert(
-  agent.includes("cafeerp_pos_active_tab_shared") || agent.includes("cafeerp_pos_active_tab_"),
-  "openInPos writes active tab ID to localStorage"
+  layer.includes("cafeerp_pos_tabs_${") && layer.includes("cafeerp_pos_active_tab_${"),
+  "openInPos uses the exact POS tab storage key pattern"
 );
 
 assert(
-  agent.includes("useRouter"),
-  "Agent imports useRouter from next/navigation"
+  layer.includes("useRouter"),
+  "Background layer imports useRouter from next/navigation"
 );
 
-// No invoice creation in openInPos path
+assert(
+  layer.includes("No invoice is created until you press Pay in POS"),
+  "UI shows safety note: no invoice until operator presses Pay"
+);
+
+assert(
+  layer.includes("Validating"),
+  "Button shows loading state during validation"
+);
+
+assert(
+  layer.includes("openingInPos") && layer.includes("setOpeningInPos"),
+  "Busy flag prevents concurrent/double-click handoff requests"
+);
+
+assert(
+  layer.includes("posProblems") || (layer.includes("problems") && layer.includes("setPosProblems")),
+  "openInPos surfaces per-item problem details to the operator"
+);
+
 const openInPosSource = (() => {
-  const startIdx = agent.indexOf("async function openInPos");
-  const endIdx = agent.indexOf("\n  async function ", startIdx + 1);
-  return startIdx > -1 ? agent.slice(startIdx, endIdx > -1 ? endIdx : startIdx + 5000) : "";
+  const startIdx = layer.indexOf("async function openInPos");
+  if (startIdx < 0) return "";
+  const endIdx = layer.indexOf("\n  return (", startIdx);
+  return layer.slice(startIdx, endIdx > -1 ? endIdx : startIdx + 6000);
 })();
 
+assert(openInPosSource.length > 0, "openInPos function is extractable for analysis");
+
 assert(
-  openInPosSource.length > 0,
-  "openInPos function is extractable for analysis"
+  !openInPosSource.includes("create_sale") && !openInPosSource.includes(".rpc("),
+  "openInPos performs no financial write from the client"
 );
 
 assert(
-  !openInPosSource.includes("supabase.rpc") && !openInPosSource.includes("/api/ai/agent/approval/"),
-  "openInPos does not call the create_sale approval endpoint"
+  openInPosSource.includes("cartLines"),
+  "openInPos uses server-returned cartLines (never AI prices)"
 );
 
 assert(
-  openInPosSource.includes("/api/ai/quick-sale/open-in-pos"),
-  "openInPos calls the correct validation endpoint"
+  openInPosSource.includes("customerId") && openInPosSource.includes("customerSearch"),
+  "openInPos carries the validated customer into the POS tab"
 );
+
+// ── Section 4: legacy compatibility ─────────────────────────────────────────
+
+console.log("\nSection 4: legacy approval handoff (non-regression)\n");
 
 assert(
-  openInPosSource.includes("cartLines") || openInPosSource.includes("cart"),
-  "openInPos receives and uses cartLines from server response"
+  legacyRoute !== null,
+  "Legacy approval-based handoff endpoint is preserved (not deleted)"
 );
 
-// ── Section 3: Safety invariants ──────────────────────────────────────────
+if (legacyRoute) {
+  assert(
+    !legacyRoute.includes(".insert(") &&
+      !legacyRoute.includes(".update(") &&
+      !legacyRoute.includes(".delete(") &&
+      !legacyRoute.includes(".rpc("),
+    "Legacy endpoint keeps its no-write invariant"
+  );
+}
 
-console.log("\nSection 3: Safety invariants\n");
-
-assert(
-  !agent.includes('fetch("/api/ai/agent/approval/') || agent.includes("approveCurrentAction"),
-  "Direct approval endpoint is only called from approveCurrentAction, not openInPos"
-);
-
-assert(
-  agent.includes("openingInPos") && agent.includes("setOpeningInPos"),
-  "Loading state prevents concurrent openInPos calls"
-);
-
-assert(
-  agent.includes("problems") && agent.includes("detail"),
-  "openInPos surfaces per-item problem details to operator"
-);
-
-assert(
-  agent.includes("speak(") && agent.includes("could not open"),
-  "openInPos uses voice to report errors to operator"
-);
-
-// Ensure the 'Open in POS' info note is present
-assert(
-  agent.includes("No invoice is created until you press Pay") ||
-  agent.includes("no invoice") ||
-  agent.includes("Safe handoff"),
-  "UI shows safety note: no invoice until operator submits in POS"
-);
-
-assert(
-  agent.includes("Validating") || agent.includes("Validating &"),
-  "Button shows loading state during validation ('Validating…')"
-);
-
-// ── Summary ────────────────────────────────────────────────────────────────
+// ── Summary ─────────────────────────────────────────────────────────────────
 
 console.log(`\n${passed} passed / ${failed} failed`);
 if (failed) process.exit(1);

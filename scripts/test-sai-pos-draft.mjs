@@ -31,6 +31,9 @@ check(planner.includes('import "@/lib/sai/capabilities/pos-draft-intelligence"')
 check(runtime.includes("posDraft?: Record<string, unknown>") && runtime.includes("posDraft: input.posDraft"), "passes typed draft input through the validated SAI plan");
 check(chat.includes("posDraft: {") && chat.includes("toolCall.args?.posDraft") && chat.includes("explicitly requested"), "model can pass a structured draft only in response to an explicit request");
 check(registry.includes('pos-draft-intelligence'), "registers the capability in the authenticated capability API");
+check(capability.includes('draftId: crypto.randomUUID()'), "draft carries a stable identity for handoff correlation");
+check(capability.includes('itemId: String(row.id)') && capability.includes('quantity') && capability.includes('kind: row.kind'), "draft lines carry item identity, kind and quantity for live re-validation");
+check(capability.includes('customer: customer ? { id: String(customer.id)'), "draft carries the live customer identity for handoff hydration");
 check(pkg.scripts["test:sai-pos-draft"] === "node scripts/test-sai-pos-draft.mjs", "declares the focused draft regression test");
 check(quality.includes("npm run test:sai-pos-draft"), "runs draft safety checks in the Quality Gate");
 console.log(`\\n${passed} passed / ${failed} failed`);
