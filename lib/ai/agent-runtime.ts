@@ -1193,9 +1193,31 @@ export async function runIntelligentAgent({
         tools: TOOL_DECLARATIONS as any,
       });
     } catch (err: any) {
-      console.warn(`${provider} API call failed, falling back to heuristic:`, err?.message || err);
-      // If custom provider fails and provider is not gemini, try gemini fallback with GEMINI_API_KEY
-      if (provider !== "gemini" && process.env.GEMINI_API_KEY) {
+      const failureMessage = err?.message || String(err);
+      console.warn(`${provider} API call failed`, failureMessage);
+
+      // Never silently replace a failed SAI model turn with the same canned
+      // heuristic answer. First retry Gemini on its stable Flash model when
+      // the configured Gemini model is unavailable (for example access,
+      // quota, or transient model errors on Pro).
+      if (provider === "gemini" && model !== "gemini-2.5-flash" && apiKey) {
+        try {
+          result = await executeUniversalModelCall({
+            config: {
+              provider: "gemini",
+              model: "gemini-2.5-flash",
+              apiKey,
+            },
+            systemInstruction: systemPrompt,
+            contents,
+            tools: TOOL_DECLARATIONS as any,
+          });
+        } catch (flashError: any) {
+          throw new Error(
+            `SAI model unavailable. Primary Gemini model failed: ${failureMessage}. Flash fallback also failed: ${flashError?.message || String(flashError)}`
+          );
+        }
+      } else if (provider !== "gemini" && process.env.GEMINI_API_KEY) {
         try {
           result = await executeUniversalModelCall({
             config: {
@@ -1207,11 +1229,13 @@ export async function runIntelligentAgent({
             contents,
             tools: TOOL_DECLARATIONS as any,
           });
-        } catch {
-          return runIntelligentHeuristicAgent({ message, supabase, userId, language, fallbackMessage });
+        } catch (geminiError: any) {
+          throw new Error(
+            `SAI model unavailable. ${failureMessage}. Gemini fallback also failed: ${geminiError?.message || String(geminiError)}`
+          );
         }
       } else {
-        return runIntelligentHeuristicAgent({ message, supabase, userId, language, fallbackMessage });
+        throw new Error(`SAI model unavailable: ${failureMessage}`);
       }
     }
 
