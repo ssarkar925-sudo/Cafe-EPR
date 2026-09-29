@@ -135,14 +135,22 @@ async function transcribeWithOpenAI(
   apiKey: string,
 ): Promise<string> {
   const form = new FormData();
-  const extension = mimeType.includes("webm") ? "webm" : mimeType.includes("mp4") ? "mp4" : "audio";
+  const extension = mimeType.includes("webm")
+    ? "webm"
+    : mimeType.includes("ogg")
+      ? "ogg"
+      : mimeType.includes("mp4")
+        ? "mp4"
+        : mimeType.includes("m4a")
+          ? "m4a"
+          : mimeType.includes("wav")
+            ? "wav"
+            : "audio";
   form.append("file", new Blob([audio], { type: mimeType }), `sai-voice.${extension}`);
   form.append("model", "gpt-4o-mini-transcribe");
   form.append("response_format", "json");
 
-  const endpoint = endpointUrl
-    ? `${endpointUrl.replace(/\/$/, "")}/audio/transcriptions`
-    : "https://api.openai.com/v1/audio/transcriptions";
+  const endpoint = "https://api.openai.com/v1/audio/transcriptions";
 
   const response = await fetch(endpoint, {
     method: "POST",
