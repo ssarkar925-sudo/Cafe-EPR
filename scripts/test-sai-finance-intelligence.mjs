@@ -10,7 +10,7 @@ console.log("SAI Phase 2C finance intelligence regression checks");
 for(const id of ["finance.observe_cash","finance.observe_float","finance.observe_settlements","finance.reconcile","finance.observe_attention"])
   check(capability.includes(`id: "${id}"`),`registers ${id}`);
 check(capability.includes('from("cash_entries")') && capability.includes('from("customers")'),"cash and receivables read authoritative ledgers");
-check(capability.includes('from("payment_instruments")') && capability.includes("current_balance"),"float reads canonical instrument balances");
+check(capability.includes('from("payment_instruments")') && capability.includes('rpc("get_pool_balances"'),"float reads canonical Finance pool balances and instrument metadata");
 check(capability.includes('from("settlements")') && capability.includes("reversed"),"settlements report authoritative status");
 check(capability.includes('from("accounting_transaction_register")'),"reconciliation uses the canonical accounting register view");
 check(capability.includes("source_type") && capability.includes("source_id"),"reconciliation traces service transactions to journal source IDs");

@@ -45,22 +45,26 @@ async function observeCash(actor: Actor, input: Record<string, unknown>): Promis
   const from = dateOf(input.from, today);
   const to = dateOf(input.to, today);
   const limit = limitOf(input);
-  const [entries, customers] = await Promise.all([
+  const [entries, customers, poolBalances] = await Promise.all([
     supabase.from("cash_entries")
       .select("id,entry_date,method,direction,amount,description,ref_type,ref_id,created_at")
       .eq("method", "cash").gte("entry_date", from).lte("entry_date", to)
       .order("entry_date", { ascending: false }).order("created_at", { ascending: false }).limit(limit),
     supabase.from("customers").select("id,name,phone,balance").gt("balance", 0)
       .order("balance", { ascending: false }).limit(limit),
+    supabase.rpc("get_pool_balances", { p_as_of: to }),
   ]);
   if (entries.error) return fail("CASH", entries.error);
   if (customers.error) return fail("CASH_DUES", customers.error);
+  if (poolBalances.error) return fail("CASH_BALANCE", poolBalances.error);
   const rows = (entries.data ?? []) as Row[];
   const dues = (customers.data ?? []) as Row[];
   const totalIn = rows.filter((r) => r.direction === "in").reduce((s, r) => s + Number(r.amount ?? 0), 0);
   const totalOut = rows.filter((r) => r.direction === "out").reduce((s, r) => s + Number(r.amount ?? 0), 0);
   const output = {
     observed: true, period: { from, to },
+    cashInHand: roundMoney(poolBalances.data?.cash?.current),
+    balanceAsOf: to,
     movements: { count: rows.length, cashIn: roundMoney(totalIn), cashOut: roundMoney(totalOut), netMovement: roundMoney(totalIn - totalOut) },
     entries: rows.map((r) => ({ id: r.id, date: r.entry_date, direction: r.direction, amount: roundMoney(r.amount), description: r.description, referenceType: r.ref_type, referenceId: r.ref_id })),
     outstandingCustomerDues: {
@@ -69,7 +73,7 @@ async function observeCash(actor: Actor, input: Record<string, unknown>): Promis
       customers: dues.map((r) => ({ customerId: r.id, name: r.name, phoneLast4: String(r.phone ?? "").replace(/\D/g, "").slice(-4) || null, balance: roundMoney(r.balance) })),
       limited: dues.length === limit,
     },
-    source: "cash_entries and customers.balance",
+    source: "get_pool_balances plus cash_entries and customers.balance",
     authorityNote: AUTHORITY_NOTE,
   };
   const id = await recordEvidence(actor, "cash", `cash_entries:${from}..${to}`, output);
@@ -78,23 +82,27 @@ async function observeCash(actor: Actor, input: Record<string, unknown>): Promis
 
 async function observeFloat(actor: Actor, input: Record<string, unknown>): Promise<SaiCapabilityResult> {
   const supabase = await createClient();
-  const { data, error } = await supabase.from("payment_instruments")
-    .select("id,name,type,is_active,opening_balance,current_balance,created_at")
-    .eq("is_active", true).order("type").order("name").limit(limitOf(input));
-  if (error) return fail("FLOAT", error);
-  const instruments = (data ?? []) as Row[];
+  const asOf = new Date().toISOString().slice(0, 10);
+  const [instrumentResult, poolResult] = await Promise.all([
+    supabase.from("payment_instruments").select("id,name,type,is_active").eq("is_active", true).order("type").order("name").limit(limitOf(input)),
+    supabase.rpc("get_pool_balances", { p_as_of: asOf }),
+  ]);
+  if (instrumentResult.error) return fail("FLOAT_INSTRUMENTS", instrumentResult.error);
+  if (poolResult.error) return fail("FLOAT_BALANCES", poolResult.error);
+  const instruments = (instrumentResult.data ?? []) as Row[];
   const threshold = Math.max(0, Number(input.threshold ?? 1000) || 0);
+  const balances = poolResult.data && typeof poolResult.data === "object" ? poolResult.data as Record<string, any> : {};
+  const pools = Object.entries(balances).filter(([key, value]) => key !== "total" && value && typeof value === "object").map(([key, value]) => ({
+    pool: key, openingBalance: roundMoney(value.opening), currentBalance: roundMoney(value.current),
+    movementSinceOpening: roundMoney(value.movements),
+    attention: key !== "credit_card" && Number(value.current ?? 0) <= threshold ? "low_float" : null,
+  }));
   const output = {
-    observed: true,
-    instruments: instruments.map((r) => ({
-      instrumentId: r.id, name: r.name, type: r.type,
-      openingBalance: roundMoney(r.opening_balance), currentBalance: roundMoney(r.current_balance),
-      movementSinceOpening: roundMoney(Number(r.current_balance ?? 0) - Number(r.opening_balance ?? 0)),
-      attention: Number(r.current_balance ?? 0) <= threshold ? "low_float" : null,
-    })),
+    observed: true, asOf, pools,
+    instruments: instruments.map((r) => ({ instrumentId: r.id, name: r.name, type: r.type })),
     lowFloatThreshold: threshold,
-    lowFloatCount: instruments.filter((r) => Number(r.current_balance ?? 0) <= threshold).length,
-    source: "payment_instruments.current_balance (CafeERP canonical instrument balance)",
+    lowFloatCount: pools.filter((r) => r.attention === "low_float").length,
+    source: "get_pool_balances (CafeERP Finance Hub canonical pool calculation)",
     authorityNote: AUTHORITY_NOTE,
   };
   const id = await recordEvidence(actor, "float", "payment_instruments:is_active=true", output);
@@ -188,22 +196,25 @@ async function observeReconciliation(actor: Actor, input: Record<string, unknown
 async function observeAttention(actor: Actor, input: Record<string, unknown>): Promise<SaiCapabilityResult> {
   const supabase = await createClient();
   const threshold = Math.max(0, Number(input.threshold ?? 1000) || 0);
-  const [cash, instruments, settlements, dues, failedTx, missingAccounting] = await Promise.all([
-    supabase.from("cash_entries").select("direction,amount").eq("method", "cash"),
-    supabase.from("payment_instruments").select("id,name,type,current_balance").eq("is_active", true).lte("current_balance", threshold).limit(50),
+  const [poolBalances, settlements, dues, failedTx, missingAccounting] = await Promise.all([
+    supabase.rpc("get_pool_balances", { p_as_of: new Date().toISOString().slice(0, 10) }),
     supabase.from("settlements").select("id,settlement_number,settlement_date,amount,status,remarks").eq("status", "reversed").order("settlement_date", { ascending: false }).limit(25),
     supabase.from("customers").select("id,name,balance").gt("balance", 0).order("balance", { ascending: false }).limit(25),
     supabase.from("transactions").select("id,transaction_number,service_type,status,transaction_date,amount").in("status", ["failed", "pending", "processing"]).order("transaction_date", { ascending: false }).limit(50),
     supabase.from("transactions").select("id,transaction_number,service_type,status,transaction_date").in("status", ["success", "successful", "completed", "posted"]).order("transaction_date", { ascending: false }).limit(100),
   ]);
-  for (const [key, result] of Object.entries({ cash, instruments, settlements, dues, failedTx, missingAccounting })) {
+  for (const [key, result] of Object.entries({ poolBalances, settlements, dues, failedTx, missingAccounting })) {
     if (result.error) return fail(`ATTENTION_${key.toUpperCase()}`, result.error);
   }
-  const cashRows = (cash.data ?? []) as Row[];
-  const cashBalance = cashRows.reduce((sum, r) => sum + (r.direction === "in" ? 1 : -1) * Number(r.amount ?? 0), 0);
+  const balances = poolBalances.data && typeof poolBalances.data === "object" ? poolBalances.data as Record<string, any> : {};
+  const cashBalance = Number(balances.cash?.current ?? 0);
   const attention: Array<Record<string, unknown>> = [];
-  if (cashBalance <= threshold) attention.push({ type: "low_cash", severity: cashBalance < 0 ? "critical" : "warning", amount: roundMoney(cashBalance), detail: "Derived from the canonical cash-entry trail." });
-  for (const r of instruments.data ?? []) attention.push({ type: "low_float", severity: Number(r.current_balance ?? 0) <= 0 ? "critical" : "warning", instrumentId: r.id, name: r.name, balance: roundMoney(r.current_balance) });
+  if (cashBalance <= threshold) attention.push({ type: "low_cash", severity: cashBalance < 0 ? "critical" : "warning", amount: roundMoney(cashBalance), detail: "Read from CafeERP's canonical pool-balance calculation." });
+  for (const [pool, value] of Object.entries(balances)) {
+    if (pool === "total" || pool === "cash" || pool === "credit_card" || !value || typeof value !== "object") continue;
+    const current = Number((value as Row).current ?? 0);
+    if (current <= threshold) attention.push({ type: "low_float", severity: current <= 0 ? "critical" : "warning", pool, balance: roundMoney(current) });
+  }
   for (const r of settlements.data ?? []) attention.push({ type: "reversed_settlement", severity: "warning", settlementId: r.id, number: r.settlement_number, amount: roundMoney(r.amount), date: r.settlement_date, detail: r.remarks });
   for (const r of dues.data ?? []) attention.push({ type: "customer_due", severity: "info", customerId: r.id, name: r.name, balance: roundMoney(r.balance) });
   for (const r of failedTx.data ?? []) attention.push({ type: "service_transaction_attention", severity: "warning", transactionId: r.id, transactionNumber: r.transaction_number, serviceType: r.service_type, status: r.status, amount: roundMoney(r.amount) });
@@ -218,7 +229,7 @@ async function observeAttention(actor: Actor, input: Record<string, unknown>): P
     observed: true, attentionCount: attention.length, attention,
     thresholds: { lowCashOrFloat: threshold },
     coverage: { recentTransactions: (missingAccounting.data ?? []).length, transactionWindowLimited: (missingAccounting.data ?? []).length === 100 },
-    source: "cash_entries, payment_instruments, settlements, customers, transactions, accounting_transaction_register",
+    source: "get_pool_balances, payment_instruments, settlements, customers, transactions, accounting_transaction_register",
     authorityNote: AUTHORITY_NOTE,
   };
   const id = await recordEvidence(actor, "attention", "finance-operational-attention", output);
