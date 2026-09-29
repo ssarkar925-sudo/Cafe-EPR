@@ -9,12 +9,15 @@ const MAX_AUDIO_BYTES = 8 * 1024 * 1024;
 type ProviderConfig = {
   provider: "gemini" | "openai";
   apiKey: string;
+  fallbackProvider?: "gemini" | "openai";
+  fallbackApiKey?: string;
 };
 
 async function resolveAiConfig(supabase: Awaited<ReturnType<typeof createClient>>): Promise<ProviderConfig> {
   let activeProvider = "gemini";
   let geminiKey = "";
   let openAiKey = "";
+  let settingsProviderConfigured = false;
 
   try {
     const { data } = await supabase
@@ -25,7 +28,10 @@ async function resolveAiConfig(supabase: Awaited<ReturnType<typeof createClient>
 
     const config = data?.ai_config;
     if (config && typeof config === "object") {
-      if (typeof config.active_provider === "string") activeProvider = config.active_provider;
+      if (typeof config.active_provider === "string") {
+        activeProvider = config.active_provider;
+        settingsProviderConfigured = true;
+      }
       const keys = config.keys;
       if (keys && typeof keys === "object") {
         if (typeof keys.gemini === "string") geminiKey = keys.gemini.trim();
@@ -40,12 +46,12 @@ async function resolveAiConfig(supabase: Awaited<ReturnType<typeof createClient>
     try {
       const { data } = await supabase
         .from("ai_provider_configs")
-        .select("active_provider,api_key")
+        .select("active_provider,api_key,model_name")
         .eq("id", "default")
         .maybeSingle();
 
       if (data) {
-        if (typeof data.active_provider === "string" && !activeProvider) {
+        if (typeof data.active_provider === "string" && !settingsProviderConfigured) {
           activeProvider = data.active_provider;
         }
         const legacyKey = typeof data.api_key === "string" ? data.api_key.trim() : "";
@@ -62,17 +68,18 @@ async function resolveAiConfig(supabase: Awaited<ReturnType<typeof createClient>
   if (!geminiKey) geminiKey = process.env.GEMINI_API_KEY || "";
   if (!openAiKey) openAiKey = process.env.OPENAI_API_KEY || "";
 
-  if (activeProvider === "openai" && openAiKey) {
-    return { provider: "openai", apiKey: openAiKey };
-  }
-  if (geminiKey) {
-    return { provider: "gemini", apiKey: geminiKey };
-  }
-  if (openAiKey) {
-    return { provider: "openai", apiKey: openAiKey };
-  }
-
-  return { provider: "gemini", apiKey: "" };
+  const selectedProvider = activeProvider === "openai" ? "openai" : activeProvider === "gemini" ? "gemini" : null;
+  const provider = selectedProvider && (selectedProvider === "openai" ? openAiKey : geminiKey)
+    ? selectedProvider
+    : geminiKey ? "gemini" : "openai";
+  const apiKey = provider === "openai" ? openAiKey : geminiKey;
+  const fallbackProvider = provider === "openai" ? "gemini" : "openai";
+  const fallbackApiKey = fallbackProvider === "openai" ? openAiKey : geminiKey;
+  return {
+    provider,
+    apiKey,
+    ...(fallbackApiKey ? { fallbackProvider, fallbackApiKey } : {}),
+  };
 }
 
 async function transcribeWithGemini(audio: ArrayBuffer, mimeType: string, apiKey: string): Promise<string> {
@@ -280,14 +287,21 @@ export async function POST(request: Request) {
     }
 
     const audio = await file.arrayBuffer();
-    const transcript =
-      config.provider === "openai"
-        ? await transcribeWithOpenAI(audio, mimeType, config.apiKey)
-        : await transcribeWithGemini(audio, mimeType, config.apiKey);
+    const primaryTranscribe = config.provider === "openai" ? transcribeWithOpenAI : transcribeWithGemini;
+    let usedProvider = config.provider;
+    let transcript: string;
+    try {
+      transcript = await primaryTranscribe(audio, mimeType, config.apiKey);
+    } catch (primaryError) {
+      if (!config.fallbackApiKey || !config.fallbackProvider) throw primaryError;
+      const fallbackTranscribe = config.fallbackProvider === "openai" ? transcribeWithOpenAI : transcribeWithGemini;
+      transcript = await fallbackTranscribe(audio, mimeType, config.fallbackApiKey);
+      usedProvider = config.fallbackProvider;
+    }
 
     return NextResponse.json({
       transcript,
-      provider: config.provider === "openai" ? "openai" : "gemini",
+      provider: usedProvider,
       source: "server-transcription",
     });
   } catch (error) {

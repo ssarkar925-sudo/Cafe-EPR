@@ -4,6 +4,23 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { Bot, Check, Loader2, Mic, Send, X } from "lucide-react";
 
 type Message = { id: string; role: "user" | "sai"; text: string };
+type SpeechRecognitionResultLike = { isFinal: boolean; 0: { transcript: string } };
+type SpeechRecognitionEventLike = { results: ArrayLike<SpeechRecognitionResultLike> };
+type SpeechRecognitionLike = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: { error: string }) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+};
+type SpeechRecognitionWindow = Window & {
+  SpeechRecognition?: new () => SpeechRecognitionLike;
+  webkitSpeechRecognition?: new () => SpeechRecognitionLike;
+};
 
 function getSafePosition() {
   if (typeof window === "undefined") return { bottom: 24, right: 24 };
@@ -26,6 +43,10 @@ export default function SAIBackgroundLayer() {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const speechRecognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const speechTranscriptRef = useRef("");
+  const speechErrorRef = useRef("");
+  const speechRecognitionUnavailableRef = useRef(false);
 
   async function ask(event?: FormEvent) {
     event?.preventDefault();
@@ -38,6 +59,7 @@ export default function SAIBackgroundLayer() {
   useEffect(() => {
     return () => {
       mediaRecorderRef.current?.stop?.();
+      speechRecognitionRef.current?.abort?.();
       mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
     };
   }, []);
@@ -94,6 +116,70 @@ export default function SAIBackgroundLayer() {
     recorder.stop();
   }
 
+  function startLiveSpeechRecognition(): boolean {
+    if (speechRecognitionUnavailableRef.current) return false;
+    const speechWindow = window as SpeechRecognitionWindow;
+    const SpeechRecognitionConstructor = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
+    if (!SpeechRecognitionConstructor) return false;
+
+    const recognition = new SpeechRecognitionConstructor();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = navigator.language || "en-IN";
+    speechTranscriptRef.current = "";
+    speechErrorRef.current = "";
+    speechRecognitionRef.current = recognition;
+
+    recognition.onresult = (event) => {
+      const finalParts: string[] = [];
+      const interimParts: string[] = [];
+      for (let index = 0; index < event.results.length; index++) {
+        const item = event.results[index];
+        const transcript = item?.[0]?.transcript?.trim();
+        if (!transcript) continue;
+        (item.isFinal ? finalParts : interimParts).push(transcript);
+      }
+      speechTranscriptRef.current = finalParts.join(" ").trim();
+      setText([speechTranscriptRef.current, interimParts.join(" ").trim()].filter(Boolean).join(" "));
+    };
+
+    recognition.onerror = (event) => {
+      speechErrorRef.current = event.error || "recognition-error";
+      if (event.error === "network" || event.error === "service-not-allowed") {
+        speechRecognitionUnavailableRef.current = true;
+        setVoiceError("Live speech is unavailable here. Tap the microphone again to use server transcription.");
+      } else if (event.error === "not-allowed") {
+        setVoiceError("Microphone access was denied. Allow microphone access for CafeERP, then try again.");
+      } else {
+        setVoiceError("Live speech recognition stopped. Tap the microphone again to retry.");
+      }
+    };
+
+    recognition.onend = () => {
+      if (speechRecognitionRef.current !== recognition) return;
+      speechRecognitionRef.current = null;
+      setListening(false);
+      if (speechErrorRef.current) return;
+      const transcript = speechTranscriptRef.current.trim();
+      if (!transcript) {
+        setVoiceError("No speech was recognized. Speak clearly and try again.");
+        return;
+      }
+      setText(transcript);
+      void askPrompt(transcript);
+    };
+
+    try {
+      recognition.start();
+      setVoiceError("");
+      setListening(true);
+      return true;
+    } catch {
+      speechRecognitionRef.current = null;
+      return false;
+    }
+  }
+
   async function toggleVoice() {
     if (transcribing) return;
 
@@ -101,6 +187,13 @@ export default function SAIBackgroundLayer() {
       await stopVoiceRecording();
       return;
     }
+
+    if (speechRecognitionRef.current) {
+      speechRecognitionRef.current.stop();
+      return;
+    }
+
+    if (startLiveSpeechRecognition()) return;
 
     if (!window.isSecureContext) {
       setVoiceError("Microphone access requires a secure HTTPS connection. Open CafeERP over HTTPS and try again.");

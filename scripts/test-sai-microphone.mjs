@@ -25,8 +25,9 @@ check(source.includes("autoGainControl"), "Microphone capture enables automatic 
 check(source.includes("MediaRecorder.isTypeSupported"), "Recorder selects a browser-supported MIME type");
 check(source.includes("/api/sai/transcribe"), "Recorded audio is sent to server transcription");
 check(source.includes("transcribing"), "UI has an explicit transcription state");
-check(!source.includes("SpeechRecognition"), "SAI no longer depends on browser SpeechRecognition");
-check(!source.includes("webkitSpeechRecognition"), "SAI no longer depends on WebKit SpeechRecognition");
+check(source.includes("startLiveSpeechRecognition"), "SAI starts live speech recognition when supported");
+check(source.includes("interimResults = true"), "SAI displays interim text while the user speaks");
+check(source.includes("speechRecognitionUnavailableRef"), "SAI falls back when live recognition is unavailable");
 check(source.includes("getUserMedia"), "Voice input is grounded in real browser media capture");
 check(source.includes("window.isSecureContext"), "Voice input explains when HTTPS is required");
 check(source.includes("browser or device settings"), "Permission-denied guidance works across browser and app surfaces");
