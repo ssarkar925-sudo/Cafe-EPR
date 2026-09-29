@@ -63,7 +63,8 @@
     "test:sai-floating-popup": "node scripts/test-sai-floating-popup.mjs",
     "test:sai-voice-pipeline": "node scripts/test-sai-voice-pipeline.mjs",
     "test:electron-microphone": "node scripts/test-electron-microphone-permission.mjs",
-    "test:sai-gemini-root": "node scripts/test-sai-gemini-root.mjs"
+    "test:sai-gemini-root": "node scripts/test-sai-gemini-root.mjs",
+    "test:sai-chat-runtime": "node scripts/test-sai-chat-runtime.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.1",
