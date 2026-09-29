@@ -89,6 +89,9 @@ jobs:
       - name: SAI Phase 2C finance intelligence
         run: npm run test:sai-finance-intelligence
 
+      - name: SAI POS observation workflow
+        run: npm run test:sai-pos-workflow
+
       - name: SAI simulation and contradiction detection
         run: npm run test:sai-simulation
 

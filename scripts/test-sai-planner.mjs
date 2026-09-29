@@ -4,6 +4,7 @@ const root=process.cwd(),read=f=>fs.readFileSync(path.join(root,f),"utf8");
 const types=read("lib/sai/core/types.ts"),compiler=read("lib/sai/cognition/plan-compiler.ts"),planner=read("lib/sai/cognition/planner.ts"),api=read("app/api/sai/plan/route.ts"),missionApi=read("app/api/sai/missions/compile/route.ts"),runtime=read("lib/sai/cognition/runtime.ts"),executor=read("lib/sai/core/executor.ts"),command=read("lib/sai/core/command.ts"),policy=read("lib/sai/core/policy.ts"),capabilities=read("lib/sai/core/capabilities.ts"),capabilitiesApi=read("app/api/sai/capabilities/route.ts"),runApi=read("app/api/sai/run/route.ts");
 const customerCaps=read("lib/sai/capabilities/customer-intelligence.ts"),aepsCaps=read("lib/sai/capabilities/aeps-intelligence.ts"),watcherCaps=read("lib/sai/capabilities/portal-watcher-observe.ts");
 const serviceCaps=read("lib/sai/capabilities/service-intelligence.ts");
+const posCaps=read("lib/sai/capabilities/pos-sales-intelligence.ts");
 let passed=0,failed=0;const check=(c,m)=>c?(passed++,console.log(`  PASS: ${m}`)):(failed++,console.error(`  FAIL: ${m}`));
 // Validate planner/compiler/registry contracts at the CI boundary.
 console.log("SAI planner, plan-compiler, and capability-registry regression tests");
@@ -69,6 +70,9 @@ check(planner.includes("upi.observe_transactions"),"Planner routes UPI intents t
 check(planner.includes("recharge.observe_transactions"),"Planner routes Recharge intents to Phase 2B");
 check(planner.includes("bbps.observe_transactions"),"Planner routes BBPS intents to Phase 2B");
 check(planner.includes("recharge.observe_context") && planner.includes("bbps.observe_context"),"Planner routes service configuration questions");
+check(posCaps.includes('id: "pos.observe_sales"'),"Phase 3 registers read-only POS sales observation");
+check(planner.includes('"pos.observe_sales"'),"Planner routes POS sales intents");
+check(!/\.insert\(|\.update\(|\.upsert\(|\.delete\(/.test(posCaps),"POS capability has no database mutation calls");
 check(read("lib/ai/agent-runtime.ts").includes('normalizedModel !== "gemini-3.8-flash"'),"Agent runtime retries Gemini 3.8 Flash before failing");
 check(!read("lib/ai/agent-runtime.ts").includes("falling back to heuristic"),"Agent runtime no longer silently falls back to canned heuristic after model failure");
 check(read("lib/ai/agent-runtime.ts").includes("SAI model unavailable"),"Model failure becomes an explicit SAI service error instead of a false canned answer");
