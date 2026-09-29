@@ -65,7 +65,8 @@ check(files.rlsFix.includes("security definer\nset search_path = pg_catalog"), "
 check(files.rlsFix.includes("p_actor_user_id = (select auth.uid())"), "Parent helper only checks the current actor");
 check(files.rlsFix.includes("parent.business_id = p_business_id") && files.rlsFix.includes("parent.trace_id = p_trace_id"), "Parent helper scopes matches to business and trace");
 check(files.rlsFix.includes("private.sai_execution_trace_parent_allowed("), "INSERT policy delegates parent validation to the helper");
-const insertPolicy = files.rlsFix.slice(files.rlsFix.indexOf("create policy sai_execution_traces_staff_insert"));\ncheck(!insertPolicy.includes("from public.sai_execution_traces parent"), "INSERT policy has no recursive direct self-query");
+const insertPolicy = files.rlsFix.slice(files.rlsFix.indexOf("create policy sai_execution_traces_staff_insert"));
+check(!insertPolicy.includes("from public.sai_execution_traces parent"), "INSERT policy has no recursive direct self-query");
 check(files.rlsFix.includes("revoke all on function") && files.rlsFix.includes("from public, anon, authenticated"), "Parent helper execution is revoked by default");
 check(files.rlsFix.includes("grant execute on function") && files.rlsFix.includes("to authenticated"), "Only authenticated clients may call the RLS helper");
 check(/revoke\s+update,\s*delete/i.test(files.hardening), "Grant hardening revokes UPDATE and DELETE");
