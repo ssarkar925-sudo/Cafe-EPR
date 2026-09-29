@@ -51,6 +51,9 @@ jobs:
       - name: SAI POS draft handoff safety
         run: npm run test:sai-pos-draft-handoff
 
+      - name: SAI POS handoff integration (fixture-driven)
+        run: npm run test:sai-pos-handoff-integration
+
       - name: AI learning control
         run: npm run test:ai-learning
       - name: SAI microphone input

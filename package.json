@@ -14,6 +14,8 @@
     "typecheck": "tsc --noEmit",
     "test": "node scripts/test-financial-invariants.mjs",
     "test:sai-pos-draft-handoff": "node scripts/test-sai-pos-draft-handoff.mjs",
+    "test:sai-pos-handoff-integration": "node --import ./scripts/ts-test-hooks.mjs scripts/test-sai-pos-handoff-integration.mjs",
+    "test:e2e:sai-pos": "node scripts/test-e2e-sai-pos.mjs",
     "test:theme": "node scripts/test-theme-display-options.mjs",
     "test:invariants": "node scripts/test-financial-invariants.mjs",
     "test:qa": "node scripts/test-comprehensive-qa-suite.mjs",

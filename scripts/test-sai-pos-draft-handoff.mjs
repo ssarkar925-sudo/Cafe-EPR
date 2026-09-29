@@ -61,6 +61,7 @@ const DRAFT_CAPABILITY = path.join(
   "capabilities",
   "pos-draft-intelligence.ts"
 );
+const HANDOFF_TRANSFORM = path.join("lib", "sai", "pos-handoff-transform.ts");
 
 let passed = 0;
 let failed = 0;
@@ -87,6 +88,7 @@ function readRequired(file) {
 // ── Load sources ────────────────────────────────────────────────────────────
 
 const route = readRequired(OPEN_IN_POS_ROUTE);
+const transform = readRequired(HANDOFF_TRANSFORM);
 const layer = readRequired(SAI_BACKGROUND_LAYER);
 const chatRuntime = readRequired(CHAT_RUNTIME);
 const capability = readRequired(DRAFT_CAPABILITY);
@@ -112,7 +114,7 @@ assert(
 );
 
 assert(
-  route.includes("draft is required") && route.includes("draftId"),
+  route.includes("draft is required") || route.includes("normalizeSaiPosDraft"),
   "Route validates draft identity"
 );
 
@@ -122,29 +124,30 @@ assert(
 );
 
 assert(
-  route.includes("status: 400"),
-  "Route returns 400 for malformed/non-sale drafts"
+  route.includes("normalizeSaiPosDraft") && transform.includes("status: 400"),
+  "Draft shape errors map to 400 for malformed/non-sale drafts"
 );
 
 assert(
-  route.includes("status: 410"),
-  "Route returns 410 for expired drafts"
+  transform.includes("status: 410"),
+  "Handoff core returns 410 for expired drafts"
 );
 
 assert(
-  route.includes("Only product/service sale drafts") ||
-    route.includes("not a sale draft"),
-  "Route rejects non-sale drafts"
+  transform.includes("Only product/service sale drafts") ||
+    transform.includes("not a sale draft"),
+  "Handoff core rejects non-sale drafts"
 );
 
 assert(
-  route.includes("Draft contains no items") && route.includes("status: 422"),
-  "Route returns 422 when the draft has no valid items"
+  transform.includes("Draft contains no items") && transform.includes("status: 422"),
+  "Handoff core returns 422 when the draft has no valid items"
 );
 
 assert(
-  route.includes("calculateGstInvoice"),
-  "Route imports and calls calculateGstInvoice (live recompute)"
+  route.includes("buildPosHandoffCart") &&
+    transform.includes("calculateGstInvoice"),
+  "Route delegates to the pure core, which recomputes GST via calculateGstInvoice"
 );
 
 assert(
@@ -158,18 +161,29 @@ assert(
 );
 
 assert(
-  route.includes("is_active"),
-  "Route checks is_active on catalog items"
+  transform.includes("is_active"),
+  "Handoff core checks is_active on catalog items"
 );
 
 assert(
-  route.includes("stock_qty"),
-  "Route checks stock_qty for product items"
+  transform.includes("stock_qty"),
+  "Handoff core checks stock_qty for product items"
 );
 
 assert(
-  route.includes("problems"),
+  route.includes("problems") && transform.includes("problems"),
   "Route returns per-item problem list"
+);
+
+assert(
+  !transform.includes(".insert(") &&
+    !transform.includes(".update(") &&
+    !transform.includes(".delete(") &&
+    !transform.includes(".upsert(") &&
+    !transform.includes(".rpc(") &&
+    !transform.includes("supabase") &&
+    !transform.includes("create_sale"),
+  "Pure core performs zero I/O: no DB writes, no RPC, no Supabase import"
 );
 
 assert(
@@ -198,23 +212,28 @@ assert(
 );
 
 assert(
-  route.includes("cartLines") && route.includes("key:"),
-  "Route returns cartLines array with PosShell-compatible key field"
+  transform.includes("cartLines") && transform.includes("key:"),
+  "Pure core returns cartLines array with PosShell-compatible key field"
 );
 
 assert(
-  route.includes("sai-draft-"),
+  transform.includes("sai-draft-"),
   "CartLine keys are namespaced per SAI draft for uniqueness"
 );
 
 assert(
-  route.includes("costPrice") && route.includes("gstRate") && route.includes("hsnSac"),
+  transform.includes("costPrice") && transform.includes("gstRate") && transform.includes("hsnSac"),
   "CartLine preserves cost price, GST rate and HSN/SAC from live DB"
 );
 
 assert(
-  route.includes("stockQty") && route.includes("unit"),
+  transform.includes("stockQty") && transform.includes("unit"),
   "CartLine preserves live stock quantity and unit"
+);
+
+assert(
+  route.includes("cartLines") && route.includes("buildPosHandoffCart"),
+  "Route returns the core-built cartLines to the client"
 );
 
 // ── Section 2: chat plumbing ────────────────────────────────────────────────
