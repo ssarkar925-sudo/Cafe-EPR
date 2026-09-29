@@ -13,6 +13,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/test-financial-invariants.mjs",
+    "test:sai-pos-draft-handoff": "node scripts/test-sai-pos-draft-handoff.mjs",
     "test:theme": "node scripts/test-theme-display-options.mjs",
     "test:invariants": "node scripts/test-financial-invariants.mjs",
     "test:qa": "node scripts/test-comprehensive-qa-suite.mjs",
