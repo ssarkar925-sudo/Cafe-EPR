@@ -16,11 +16,12 @@ const MAX_MESSAGE_LENGTH = 8000;
 
 const SAI_QUERY_TOOL: UniversalToolDeclaration = {
   name: "sai_query_erp",
-  description: "Query live CafeERP business data through SAI Core. Use this for current customers, Khata, invoices, AEPS transactions, AEPS configuration, Portal Watcher, inventory, sales, or other live data. Read-only observation bridge.",
+  description: "Query live CafeERP data through read-only SAI Core. For an explicitly requested POS sale draft, also provide posDraft with item names, quantities, optional item kinds, customer name, and optional flat discount. This only prepares a catalog- and stock-checked estimate for operator review; it never posts a sale.",
   parameters: {
     type: "object",
     properties: {
-      instruction: { type: "string", description: "Precise live ERP question to investigate. Preserve important names and identifiers." },
+      instruction: { type: "string", description: "Precise live ERP question or request to prepare a sale draft. Preserve names and identifiers." },
+      posDraft: { type: "object", description: "Structured sale draft request, only when explicitly requested.", properties: { items: { type: "array", items: { type: "object", properties: { query: { type: "string" }, quantity: { type: "number" }, kind: { type: "string", enum: ["product", "service"] } }, required: ["query", "quantity"] } }, customerQuery: { type: "string" }, discount: { type: "number", description: "Optional flat invoice discount." } }, required: ["items"] },
     },
     required: ["instruction"],
   },
@@ -158,7 +159,8 @@ export async function runSaiChat(input: { message: string; history?: unknown; ro
     for (const toolCall of result.toolCalls.slice(0, 3)) {
       if (toolCall.name !== SAI_QUERY_TOOL.name) continue;
       const instruction = typeof toolCall.args?.instruction === "string" && toolCall.args.instruction.trim() ? toolCall.args.instruction.trim() : message;
-      const execution = await runSaiInstruction({ instruction, actor, route: input.route });
+      const posDraft = toolCall.args?.posDraft && typeof toolCall.args.posDraft === "object" && !Array.isArray(toolCall.args.posDraft) ? toolCall.args.posDraft as Record<string, unknown> : undefined;
+      const execution = await runSaiInstruction({ instruction, actor, route: input.route, posDraft });
       for (const resultItem of execution.results) if ((resultItem.evidenceIds || []).length) liveDataUsed = true;
       for (const step of execution.plan.steps) usedCapabilities.push(step.capability);
       contents.push({

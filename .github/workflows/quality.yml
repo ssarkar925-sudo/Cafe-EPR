@@ -91,6 +91,8 @@ jobs:
 
       - name: SAI POS observation workflow
         run: npm run test:sai-pos-workflow
+      - name: SAI typed POS draft safety
+        run: npm run test:sai-pos-draft
 
       - name: SAI simulation and contradiction detection
         run: npm run test:sai-simulation
