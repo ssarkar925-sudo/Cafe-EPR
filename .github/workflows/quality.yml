@@ -58,6 +58,9 @@ jobs:
       - name: SAI server voice pipeline
         run: npm run test:sai-voice-pipeline
 
+      - name: SAI Gemini 3.x root
+        run: npm run test:sai-gemini-root
+
       - name: SAI floating popup
         run: npm run test:sai-floating-popup
 
