@@ -41,6 +41,7 @@ check(engine.includes("TRANSIENT_PROVIDER_STATUSES = new Set([429, 502, 503, 504
 check(engine.includes("attempt < 2"), "Transient provider failures receive at most one bounded retry");
 check(engine.includes("getProviderRetryDelay(response)"), "Retry-After is checked before retrying");
 check(engine.includes("request timed out. Please try again."), "Provider timeouts produce a clear retry message");
+check(engine.includes("AbortSignal.timeout(60_000)"), "Provider request window accommodates the observed Gemini latency");
 
 check(engine.includes('"gemini-2.5-pro"'), "Runtime explicitly recognizes stale 2.5 Pro configuration");
 check(engine.includes('"gemini-2.5-flash"'), "Runtime explicitly recognizes stale 2.5 Flash configuration");
