@@ -1,6 +1,7 @@
 import fs from "node:fs";
 
 const source = fs.readFileSync("components/sai/sai-background-layer.tsx", "utf8");
+const androidManifest = fs.readFileSync("android/app/src/main/AndroidManifest.xml", "utf8");
 let passed = 0;
 let failed = 0;
 
@@ -26,6 +27,10 @@ check(source.includes("transcribing"), "UI has an explicit transcription state")
 check(!source.includes("SpeechRecognition"), "SAI no longer depends on browser SpeechRecognition");
 check(!source.includes("webkitSpeechRecognition"), "SAI no longer depends on WebKit SpeechRecognition");
 check(source.includes("getUserMedia"), "Voice input is grounded in real browser media capture");
+check(source.includes("window.isSecureContext"), "Voice input explains when HTTPS is required");
+check(source.includes("browser or device settings"), "Permission-denied guidance works across browser and app surfaces");
+check(androidManifest.includes('android.permission.RECORD_AUDIO'), "Android declares the runtime microphone permission");
+check(androidManifest.includes('android.hardware.microphone" android:required="false"'), "Microphone hardware remains optional for device compatibility");
 check(source.includes("recording"), "Voice flow exposes a recording state");
 
 console.log(`\n${passed} passed / ${failed} failed`);
