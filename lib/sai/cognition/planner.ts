@@ -4,6 +4,7 @@ import { getSaiCapability } from "@/lib/sai/core/capabilities";
 import "@/lib/sai/capabilities/business-observe";
 import "@/lib/sai/capabilities/pos-observe";
 import "@/lib/sai/capabilities/pos-sales-intelligence";
+import "@/lib/sai/capabilities/pos-draft-intelligence";
 import "@/lib/sai/capabilities/customer-intelligence";
 import "@/lib/sai/capabilities/aeps-intelligence";
 import "@/lib/sai/capabilities/portal-watcher-observe";
@@ -16,13 +17,15 @@ const READ_PATTERNS = [
   /aeps/i, /aadhaar/i, /withdrawal/i, /payment collection/i, /commission/i, /fee/i,
   /portal/i, /watcher/i, /source/i, /collection run/i, /verification/i,
   /cash/i, /bank/i, /float/i, /settlement/i, /reconcil/i, /mismatch/i, /accounting entr/i, /what needs my attention/i, /unsettled/i,
-  /\bsales?\b/i, /invoice/i, /receipt/i, /point of sale/i, /\bpos\b/i,
+  /\bsales?\b/i, /invoice/i, /receipt/i, /point of sale/i, /\bpos\b/i, /prepare .*sale|sale draft|draft .*sale/i,
   /কত/, /দেখাও/, /কি আছে/, /কে/, /গ্রাহক/, /খাতা/, /বকেয়া/, /লেনদেন/, /পোর্টাল/, /ওয়াচার/,
   /क्या/, /बताओ/, /ग्राहक/, /खाता/, /बकाया/, /लेनदेन/, /पोर्टल/,
 ];
 
-function resolveReadCapability(text: string): { id: string; input: Record<string, unknown> } {
+function resolveReadCapability(text: string, posDraft?: Record<string, unknown>): { id: string; input: Record<string, unknown> } {
   const lower = text.toLowerCase();
+
+  if (posDraft && /(prepare .*sale|sale draft|draft .*sale|create .*invoice)/i.test(text)) return { id: "pos.prepare_sale_draft", input: posDraft };
 
   if (/(pos|point of sale|invoice|receipt|\bsales?\b)/i.test(text) && !/(bbps|bill payment|cash|bank|float|settlement|reconcil|mismatch|accounting entr|attention)/i.test(text)) {
     const invoiceNumber = text.match(/\bINV-[A-Z0-9-]+\b/i)?.[0] ?? null;
@@ -94,13 +97,13 @@ function resolveReadCapability(text: string): { id: string; input: Record<string
   return { id: "business.observe", input: { instruction: text } };
 }
 
-export function planSaiInstruction(input: { instruction: string; world: SaiWorldState }): SaiPlan {
+export function planSaiInstruction(input: { instruction: string; world: SaiWorldState; posDraft?: Record<string, unknown> }): SaiPlan {
   const text = input.instruction.trim();
   if (!text) throw new Error("SAI_INSTRUCTION_REQUIRED");
 
   const isRead = READ_PATTERNS.some((pattern) => pattern.test(text));
   if (isRead) {
-    const selected = resolveReadCapability(text);
+    const selected = resolveReadCapability(text, input.posDraft);
     const capability = getSaiCapability(selected.id);
     return compileSaiPlan({
       source: "instruction",

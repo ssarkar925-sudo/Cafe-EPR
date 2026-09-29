@@ -13,6 +13,7 @@ export async function runSaiInstruction(input: {
   actor: SaiActor;
   route?: string;
   approvalId?: string;
+  posDraft?: Record<string, unknown>;
 }): Promise<{
   traceId: string;
   plan: ReturnType<typeof planSaiInstruction>;
@@ -72,7 +73,7 @@ export async function runSaiInstruction(input: {
       data: { route: input.route ?? null },
     });
 
-    const plan = planSaiInstruction({ instruction: input.instruction, world });
+    const plan = planSaiInstruction({ instruction: input.instruction, world, posDraft: input.posDraft });
 
     await recordSaiTrace({
       traceId,
