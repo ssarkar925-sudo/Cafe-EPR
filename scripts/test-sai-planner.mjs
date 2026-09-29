@@ -52,7 +52,7 @@ check(watcherCaps.includes("aeps_portal_collection_observations"),"Watcher capab
 check(planner.includes("customer.search") && planner.includes("customer.ledger"),"Planner routes customer intents to Phase 2A");
 check(planner.includes("aeps.observe_transactions") && planner.includes("aeps.observe_import_queue") && planner.includes("aeps.observe_context"),"Planner routes AEPS intents to Phase 2A");
 check(planner.includes("aeps.observe_watcher"),"Planner routes watcher intents to Phase 2A");
-check((runtimeSource => runtimeSource)(read("lib/ai/agent-runtime.ts")).includes('model !== "gemini-2.5-flash"'),"Agent runtime retries Gemini Flash before failing");
+check(read("lib/ai/agent-runtime.ts").includes('normalizedModel !== "gemini-3.8-flash"'),"Agent runtime retries Gemini 3.8 Flash before failing");
 check(!read("lib/ai/agent-runtime.ts").includes("falling back to heuristic"),"Agent runtime no longer silently falls back to canned heuristic after model failure");
 check(read("lib/ai/agent-runtime.ts").includes("SAI model unavailable"),"Model failure becomes an explicit SAI service error instead of a false canned answer");
 console.log(`\n${passed} passed / ${failed} failed`);process.exitCode=failed?1:0;
