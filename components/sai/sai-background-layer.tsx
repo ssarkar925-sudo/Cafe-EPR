@@ -102,8 +102,13 @@ export default function SAIBackgroundLayer() {
       return;
     }
 
+    if (!window.isSecureContext) {
+      setVoiceError("Microphone access requires a secure HTTPS connection. Open CafeERP over HTTPS and try again.");
+      return;
+    }
+
     if (!navigator.mediaDevices?.getUserMedia) {
-      setVoiceError("Microphone capture is not available in this browser.");
+      setVoiceError("Microphone capture is not available in this browser. Update the browser or app and try again.");
       return;
     }
 
@@ -164,7 +169,7 @@ export default function SAIBackgroundLayer() {
       const name = error instanceof DOMException ? error.name : "";
       setListening(false);
       if (name === "NotAllowedError") {
-        setVoiceError("Chrome is not allowing microphone capture. Check the microphone toggle for this site.");
+        setVoiceError("Microphone access was denied. Allow microphone access for CafeERP in your browser or device settings, then try again.");
       } else if (name === "NotFoundError") {
         setVoiceError("No microphone device was found.");
       } else if (name === "NotReadableError") {
