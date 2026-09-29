@@ -3,6 +3,7 @@ import type { SaiPlan, SaiRiskLevel, SaiWorldState } from "@/lib/sai/core/types"
 import { getSaiCapability } from "@/lib/sai/core/capabilities";
 import "@/lib/sai/capabilities/business-observe";
 import "@/lib/sai/capabilities/pos-observe";
+import "@/lib/sai/capabilities/pos-sales-intelligence";
 import "@/lib/sai/capabilities/customer-intelligence";
 import "@/lib/sai/capabilities/aeps-intelligence";
 import "@/lib/sai/capabilities/portal-watcher-observe";
@@ -15,12 +16,18 @@ const READ_PATTERNS = [
   /aeps/i, /aadhaar/i, /withdrawal/i, /payment collection/i, /commission/i, /fee/i,
   /portal/i, /watcher/i, /source/i, /collection run/i, /verification/i,
   /cash/i, /bank/i, /float/i, /settlement/i, /reconcil/i, /mismatch/i, /accounting entr/i, /what needs my attention/i, /unsettled/i,
+  /\bsales?\b/i, /invoice/i, /receipt/i, /point of sale/i, /\bpos\b/i,
   /কত/, /দেখাও/, /কি আছে/, /কে/, /গ্রাহক/, /খাতা/, /বকেয়া/, /লেনদেন/, /পোর্টাল/, /ওয়াচার/,
   /क्या/, /बताओ/, /ग्राहक/, /खाता/, /बकाया/, /लेनदेन/, /पोर्टल/,
 ];
 
 function resolveReadCapability(text: string): { id: string; input: Record<string, unknown> } {
   const lower = text.toLowerCase();
+
+  if (/(pos|point of sale|invoice|receipt|\bsales?\b)/i.test(text) && !/(bbps|bill payment|cash|bank|float|settlement|reconcil|mismatch|accounting entr|attention)/i.test(text)) {
+    const invoiceNumber = text.match(/\bINV-[A-Z0-9-]+\b/i)?.[0] ?? null;
+    return { id: "pos.observe_sales", input: { invoiceNumber, query: text } };
+  }
 
   if (/(what needs (my )?attention|needs attention|what should i focus on|business health|কী মনোযোগ|ध्यान देने योग्य)/i.test(text)) {
     return { id: "finance.observe_attention", input: {} };
@@ -70,7 +77,7 @@ function resolveReadCapability(text: string): { id: string; input: Record<string
 
   if (/(customer|khata|due|receivable|ledger|balance|গ্রাহক|খাতা|বকেয়া|ग्राहक|खाता|बकाया)/i.test(text)) {
     const customerMatch = text.match(/(?:for|of|from|customer|গ্রাহক|के लिए|का|की)\\s+(.+)$/i);
-    return { id: /\\b(?:khata|ledger|due|receivable|balance)\\b|খাতা|বকেয়া|खाता|बकाया/i.test(text) ? "customer.ledger" : "customer.search",
+    return { id: /\b(?:khata|ledger|due|receivable|balance)\b|খাতা|বকেয়া|खाता|बकाया/i.test(text) ? "customer.ledger" : "customer.search",
       input: { query: customerMatch?.[1]?.trim() || text } };
   }
 
