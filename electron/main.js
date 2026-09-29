@@ -8,6 +8,39 @@ const aepsWatcher = new AepsWatcher();
 const DEFAULT_CLOUD_URL = "https://cafeerp.ssarkar925.workers.dev";
 const APP_URL = process.env.APP_URL || DEFAULT_CLOUD_URL;
 
+function isCafeErpOrigin(url) {
+  try {
+    const parsed = new URL(url);
+    return parsed.origin === new URL(APP_URL).origin;
+  } catch {
+    return false;
+  }
+}
+
+function configureMediaPermissions() {
+  const ses = require("electron").session.defaultSession;
+
+  // Electron does not inherit Chrome's site permission UI. Explicitly allow
+  // microphone/camera media requests from the CafeERP origin so renderer
+  // getUserMedia/MediaRecorder can open the user's hardware.
+  ses.setPermissionRequestHandler((webContents, permission, callback, details) => {
+    const origin = details?.requestingOrigin || webContents?.getURL?.() || "";
+    const allowed = isCafeErpOrigin(origin);
+
+    if (allowed && permission === "media") {
+      callback(true);
+      return;
+    }
+
+    callback(false);
+  });
+
+  ses.setPermissionCheckHandler((webContents, permission, requestingOrigin) => {
+    const origin = requestingOrigin || webContents?.getURL?.() || "";
+    return isCafeErpOrigin(origin) && permission === "media";
+  });
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1440,
@@ -236,6 +269,7 @@ ipcMain.handle("show-notification", async (_event, options = {}) => {
 });
 
 app.whenReady().then(() => {
+  configureMediaPermissions();
   createWindow();
 
   app.on("activate", () => {
