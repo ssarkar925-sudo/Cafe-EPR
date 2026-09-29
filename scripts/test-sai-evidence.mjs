@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 const root=process.cwd(),read=f=>fs.readFileSync(path.join(root,f),"utf8");
-const types=read("lib/sai/core/types.ts"),evidence=read("lib/sai/core/evidence.ts"),dispatcher=read("lib/sai/cognition/dispatcher.ts"),executor=read("lib/sai/core/executor.ts"),api=read("app/api/sai/evidence/route.ts"),migration=read("supabase/migrations/20260928132437_sai_evidence_provenance.sql"),constraintFix=read("supabase/migrations/20260929083906_sai_evidence_subject_type_constraint.sql"),index=read("lib/sai/core/index.ts");
+const types=read("lib/sai/core/types.ts"),evidence=read("lib/sai/core/evidence.ts"),dispatcher=read("lib/sai/cognition/dispatcher.ts"),executor=read("lib/sai/core/executor.ts"),api=read("app/api/sai/evidence/route.ts"),migration=read("supabase/migrations/20260928132437_sai_evidence_provenance.sql"),constraintFix=read("supabase/migrations/20260929084338_20260929083906_sai_evidence_subject_type_constraint.sql"),index=read("lib/sai/core/index.ts");
 let passed=0,failed=0;const check=(c,m)=>c?(passed++,console.log(`  PASS: ${m}`)):(failed++,console.error(`  FAIL: ${m}`));
 console.log("SAI evidence and provenance regression tests");
 check(types.includes("SaiEvidenceSubjectType"),"Evidence subjects are typed");

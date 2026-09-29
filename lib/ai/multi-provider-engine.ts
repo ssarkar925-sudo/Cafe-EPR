@@ -147,7 +147,7 @@ async function postProviderJson(endpoint: string, init: RequestInit, provider: s
     try {
       response = await fetch(endpoint, {
         ...init,
-        signal: AbortSignal.timeout(35_000),
+        signal: AbortSignal.timeout(60_000),
       });
     } catch (error) {
       if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
