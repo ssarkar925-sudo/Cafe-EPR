@@ -7,17 +7,14 @@ export const dynamic = "force-dynamic";
 const MAX_AUDIO_BYTES = 8 * 1024 * 1024;
 
 type ProviderConfig = {
-  provider: string;
-  model: string;
+  provider: "gemini" | "openai";
   apiKey: string;
-  endpointUrl: string;
 };
 
 async function resolveAiConfig(supabase: Awaited<ReturnType<typeof createClient>>): Promise<ProviderConfig> {
-  let provider = "gemini";
-  let model = "gemini-2.5-flash";
-  let apiKey = "";
-  let endpointUrl = "";
+  let activeProvider = "gemini";
+  let geminiKey = "";
+  let openAiKey = "";
 
   try {
     const { data } = await supabase
@@ -28,73 +25,64 @@ async function resolveAiConfig(supabase: Awaited<ReturnType<typeof createClient>
 
     const config = data?.ai_config;
     if (config && typeof config === "object") {
-      if (typeof config.active_provider === "string") provider = config.active_provider;
-      if (typeof config.model_name === "string" && config.model_name.trim()) model = config.model_name;
-      if (typeof config.endpoint_url === "string") endpointUrl = config.endpoint_url;
+      if (typeof config.active_provider === "string") activeProvider = config.active_provider;
       const keys = config.keys;
-      if (keys && typeof keys === "object" && typeof keys[provider] === "string") {
-        apiKey = keys[provider].trim();
+      if (keys && typeof keys === "object") {
+        if (typeof keys.gemini === "string") geminiKey = keys.gemini.trim();
+        if (typeof keys.openai === "string") openAiKey = keys.openai.trim();
       }
     }
   } catch {
-    // Continue to resilient fallback sources.
+    // Continue to fallback sources.
   }
 
-  if (!apiKey) {
+  if (!geminiKey || !openAiKey) {
     try {
       const { data } = await supabase
         .from("ai_provider_configs")
-        .select("active_provider,model_name,api_key,endpoint_url")
+        .select("active_provider,api_key")
         .eq("id", "default")
         .maybeSingle();
 
       if (data) {
-        if (typeof data.active_provider === "string") provider = data.active_provider;
-        if (typeof data.model_name === "string" && data.model_name.trim()) model = data.model_name;
-        if (typeof data.api_key === "string") apiKey = data.api_key.trim();
-        if (typeof data.endpoint_url === "string" && data.endpoint_url.trim()) endpointUrl = data.endpoint_url;
-      }
-    } catch {
-      // Fall through to environment variables.
-    }
-  }
-
-  if (!apiKey) {
-    if (provider === "openai") apiKey = process.env.OPENAI_API_KEY || "";
-    else if (provider === "groq") apiKey = process.env.GROQ_API_KEY || "";
-    else if (provider === "openrouter") apiKey = process.env.OPENROUTER_API_KEY || "";
-    else if (provider === "anthropic") apiKey = process.env.ANTHROPIC_API_KEY || "";
-    else apiKey = process.env.GEMINI_API_KEY || "";
-  }
-
-  // Gemini is the canonical fallback for voice transcription because it accepts
-  // short WebM microphone recordings directly as audio input.
-  if (!apiKey && provider !== "gemini") {
-    try {
-      const { data } = await supabase
-        .from("settings")
-        .select("ai_config")
-        .limit(1)
-        .maybeSingle();
-      const keys = data?.ai_config?.keys;
-      if (keys && typeof keys === "object" && typeof keys.gemini === "string") {
-        apiKey = keys.gemini.trim();
-        if (apiKey) {
-          provider = "gemini";
-          model = "gemini-2.5-flash";
-          endpointUrl = "";
+        if (typeof data.active_provider === "string" && !activeProvider) {
+          activeProvider = data.active_provider;
+        }
+        const legacyKey = typeof data.api_key === "string" ? data.api_key.trim() : "";
+        if (legacyKey) {
+          if (data.active_provider === "openai" && !openAiKey) openAiKey = legacyKey;
+          else if (data.active_provider === "gemini" && !geminiKey) geminiKey = legacyKey;
         }
       }
     } catch {
-      // No alternate key.
+      // Environment fallbacks below.
     }
   }
 
-  return { provider, model, apiKey, endpointUrl };
+  if (!geminiKey) geminiKey = process.env.GEMINI_API_KEY || "";
+  if (!openAiKey) openAiKey = process.env.OPENAI_API_KEY || "";
+
+  if (activeProvider === "openai" && openAiKey) {
+    return { provider: "openai", apiKey: openAiKey };
+  }
+  if (geminiKey) {
+    return { provider: "gemini", apiKey: geminiKey };
+  }
+  if (openAiKey) {
+    return { provider: "openai", apiKey: openAiKey };
+  }
+
+  return { provider: "gemini", apiKey: "" };
 }
 
 async function transcribeWithGemini(audio: ArrayBuffer, mimeType: string, apiKey: string): Promise<string> {
-  const base64 = Buffer.from(audio).toString("base64");
+  const bytes = new Uint8Array(audio);
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+  }
+  const base64 = btoa(binary);
   const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
   const response = await fetch(url, {
     method: "POST",
@@ -145,7 +133,6 @@ async function transcribeWithOpenAI(
   audio: ArrayBuffer,
   mimeType: string,
   apiKey: string,
-  endpointUrl?: string,
 ): Promise<string> {
   const form = new FormData();
   const extension = mimeType.includes("webm") ? "webm" : mimeType.includes("mp4") ? "mp4" : "audio";
@@ -216,7 +203,7 @@ export async function POST(request: Request) {
     const audio = await file.arrayBuffer();
     const transcript =
       config.provider === "openai"
-        ? await transcribeWithOpenAI(audio, mimeType, config.apiKey, config.endpointUrl)
+        ? await transcribeWithOpenAI(audio, mimeType, config.apiKey)
         : await transcribeWithGemini(audio, mimeType, config.apiKey);
 
     return NextResponse.json({
