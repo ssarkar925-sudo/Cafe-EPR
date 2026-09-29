@@ -56,8 +56,15 @@ export default function SAIBackgroundLayer() {
     setTranscribing(true);
     setVoiceError("");
     try {
+      const extension = blob.type.includes("webm")
+        ? "webm"
+        : blob.type.includes("ogg")
+          ? "ogg"
+          : blob.type.includes("mp4")
+            ? "mp4"
+            : "audio";
       const form = new FormData();
-      form.append("audio", blob, "sai-voice.webm");
+      form.append("audio", blob, `sai-voice.${extension}`);
 
       const response = await fetch("/api/sai/transcribe", {
         method: "POST",
