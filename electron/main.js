@@ -17,17 +17,25 @@ function isCafeErpOrigin(url) {
   }
 }
 
-function configureMediaPermissions() {
-  const ses = require("electron").session.defaultSession;
+function configureMediaPermissions(webContentsSession) {
+  const ses = webContentsSession;
 
-  // Electron does not inherit Chrome's site permission UI. Explicitly allow
-  // microphone/camera media requests from the CafeERP origin so renderer
-  // getUserMedia/MediaRecorder can open the user's hardware.
+  // Electron's media permission object exposes the requesting frame origin via
+  // securityOrigin. Bind the handlers to the exact session used by the
+  // CafeERP BrowserWindow rather than assuming defaultSession ownership.
   ses.setPermissionRequestHandler((webContents, permission, callback, details) => {
-    const origin = details?.requestingOrigin || webContents?.getURL?.() || "";
-    const allowed = isCafeErpOrigin(origin);
+    const origin =
+      details?.securityOrigin ||
+      webContents?.getURL?.() ||
+      "";
 
-    if (allowed && permission === "media") {
+    const allowedOrigin = isCafeErpOrigin(origin);
+    const mediaTypes = Array.isArray(details?.mediaTypes)
+      ? details.mediaTypes
+      : [];
+    const requestsAudio = mediaTypes.length === 0 || mediaTypes.includes("audio");
+
+    if (permission === "media" && allowedOrigin && requestsAudio) {
       callback(true);
       return;
     }
@@ -35,10 +43,22 @@ function configureMediaPermissions() {
     callback(false);
   });
 
-  ses.setPermissionCheckHandler((webContents, permission, requestingOrigin) => {
-    const origin = requestingOrigin || webContents?.getURL?.() || "";
-    return isCafeErpOrigin(origin) && permission === "media";
-  });
+  ses.setPermissionCheckHandler(
+    (webContents, permission, requestingOrigin, details) => {
+      const origin =
+        details?.securityOrigin ||
+        requestingOrigin ||
+        webContents?.getURL?.() ||
+        "";
+
+      if (permission === "media" && isCafeErpOrigin(origin)) {
+        const mediaType = details?.mediaType;
+        return !mediaType || mediaType === "audio" || mediaType === "unknown";
+      }
+
+      return false;
+    },
+  );
 }
 
 function createWindow() {
@@ -60,6 +80,10 @@ function createWindow() {
 
   // Remove default window menu for modern app feel
   mainWindow.setMenuBarVisibility(false);
+
+  // Configure microphone permissions on the exact session used by this window
+  // before any remote CafeERP page is loaded.
+  configureMediaPermissions(mainWindow.webContents.session);
 
   // Load Cloudflare Worker URL for instant over-the-air updates
   mainWindow.loadURL(APP_URL);
@@ -269,7 +293,6 @@ ipcMain.handle("show-notification", async (_event, options = {}) => {
 });
 
 app.whenReady().then(() => {
-  configureMediaPermissions();
   createWindow();
 
   app.on("activate", () => {
