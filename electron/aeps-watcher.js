@@ -897,8 +897,8 @@ async function refreshTransactionView(win) {
         ).filter(visible);
 
         const refresh = controls.find((el) =>
-          /^(refresh|reload|refresh data|reload data|sync|refresh list|refresh report)$/i.test(
-            String(el.innerText || el.value || el.getAttribute("aria-label") || "").trim()
+          /^(refresh|reload|refresh data|reload data|sync|full sync|fullsync|refresh list|refresh report|sync passbook|full sync passbook)$/i.test(
+            String(el.innerText || el.value || el.getAttribute("aria-label") || el.getAttribute("title") || "").trim()
           )
         );
 
@@ -938,9 +938,13 @@ function extractRenderedAuthSignals(text, url) {
   // Its pre-auth page instead asks for a CSC ID, Aadhaar biometrics, and a
   // Scan/Login action. Treat that combination as a real auth barrier.
   const cscBiometricLogin =
-    /(?:valids+CSCs+ID|CSCs+ID)/i.test(pageText) &&
+    /(?:valid[ \t]+CSC[ \t]+ID|CSC[ \t]+ID)/i.test(pageText) &&
     /biometric|biometrics/i.test(pageText) &&
-    /(?:scan|login)/i.test(pageText);
+    /(?:scan|login)/i.test(pageText) &&
+    (document.querySelector('input[name*="csc" i], input[id*="csc" i], input[placeholder*="csc" i]') != null ||
+      Array.from(document.querySelectorAll("button, [role='button'], input[type='submit'], a")).some((el) =>
+        /(?:scan|login)/i.test(String(el.innerText || el.value || el.getAttribute("aria-label") || "").trim())
+      ));
 
   const biometricLogin =
     /(?:aadhaar|aadhar).{0,80}(?:biometric|authentication)/is.test(pageText) &&
