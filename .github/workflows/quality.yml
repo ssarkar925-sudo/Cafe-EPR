@@ -16,7 +16,7 @@ concurrency:
 jobs:
   quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
     env:
       NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
@@ -45,6 +45,40 @@ jobs:
           path: invariant.log
           if-no-files-found: ignore
           retention-days: 3
+      - name: Lint
+        run: npm run lint
+
+      # Non-SAI production regressions are release-blocking.
+      - name: Comprehensive application QA
+        run: npm run test:qa
+      - name: Cross-module reconciliation
+        run: npm run test:reconciliation
+      - name: Client idempotency contract
+        run: npm run test:idempotency-client
+      - name: V1 foundation contract
+        run: npm run test:v1-foundation
+      - name: V1 phase 2 shell
+        run: npm run test:v1-phase2
+      - name: V1 phase 3 admin
+        run: npm run test:v1-phase3
+      - name: V1 services
+        run: npm run test:v1-services
+      - name: V1 day close
+        run: npm run test:v1-day-close
+      - name: V1 back entry
+        run: npm run test:v1-back-entry
+      - name: V1 offline sync
+        run: npm run test:v1-offline-sync
+      - name: V1 returns and refunds
+        run: npm run test:v1-returns-refunds
+      - name: Customer search
+        run: npm run test:customer-search
+      - name: Customer creation
+        run: npm run test:customer-creation
+      - name: Quick Sale exclusion
+        run: npm run test:quick-sale-exclusion
+      - name: WhatsApp document flow
+        run: npm run test:whatsapp-document
       - name: AI browser safety
         run: npm run test:ai-browser
 
