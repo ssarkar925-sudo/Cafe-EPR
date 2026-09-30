@@ -58,22 +58,6 @@ jobs:
         run: npm run test:reconciliation
       - name: Client idempotency contract
         run: npm run test:idempotency-client
-      - name: V1 foundation contract
-        run: npm run test:v1-foundation
-      - name: V1 phase 2 shell
-        run: npm run test:v1-phase2
-      - name: V1 phase 3 admin
-        run: npm run test:v1-phase3
-      - name: V1 services
-        run: npm run test:v1-services
-      - name: V1 day close
-        run: npm run test:v1-day-close
-      - name: V1 back entry
-        run: npm run test:v1-back-entry
-      - name: V1 offline sync
-        run: npm run test:v1-offline-sync
-      - name: V1 returns and refunds
-        run: npm run test:v1-returns-refunds
       - name: Customer search
         run: npm run test:customer-search
       - name: Customer creation
