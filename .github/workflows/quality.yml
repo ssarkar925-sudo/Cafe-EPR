@@ -48,6 +48,9 @@ jobs:
       - name: Production hardening contract
         run: npm run test:production-hardening
 
+      - name: AEPS watcher detection contract
+        run: npm run test:aeps-watcher
+
       - name: Lint
         run: npm run lint
 
