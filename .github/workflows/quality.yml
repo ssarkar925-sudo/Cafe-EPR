@@ -45,6 +45,9 @@ jobs:
           path: invariant.log
           if-no-files-found: ignore
           retention-days: 3
+      - name: Production hardening contract
+        run: npm run test:production-hardening
+
       - name: Lint
         run: npm run lint
 
