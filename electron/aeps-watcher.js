@@ -454,8 +454,15 @@ class AepsWatcher {
         if (refreshResult?.refreshed) {
           if (refreshResult?.reloaded) {
             await waitForPageLoad(session.win, 8000);
+            // A successful document load does not mean a React/Angular report
+            // has finished rendering its rows. Give the authenticated page a
+            // short settle window before extracting transactions.
+            await session.win.webContents.executeJavaScript(
+              "(" + extractRenderedPage.toString() + ")(2500)",
+              true
+            );
           } else {
-            await new Promise((resolve) => setTimeout(resolve, 1800));
+            await new Promise((resolve) => setTimeout(resolve, 2200));
           }
 
           result = await session.win.webContents.executeJavaScript(
@@ -917,9 +924,12 @@ async function refreshTransactionView(win) {
       return { refreshed: true, reloaded: false };
     }
 
-    // No safe refresh control was found. Reload the same authenticated URL;
+    // No safe refresh control was found. Prepare the load listener BEFORE
+    // calling reload so a fast cached navigation cannot race past the listener.
     // Electron's persistent partition retains portal cookies/session state.
+    const loadPromise = waitForPageLoad(win, 8000);
     await win.webContents.reload();
+    await loadPromise;
     return { refreshed: true, reloaded: true };
   } catch {
     return { refreshed: false, reloaded: false };
