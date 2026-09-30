@@ -174,6 +174,7 @@ export default function AepsWorkspace({
   const [pastedSourceText, setPastedSourceText] = useState("");
   const [reviewOpen, setReviewOpen] = useState(false);
   const [insightsOpen, setInsightsOpen] = useState(false);
+  const [liveWatcherOpen, setLiveWatcherOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
   // Form Fields
@@ -2450,30 +2451,6 @@ export default function AepsWorkspace({
             >
               <span>⚙</span> Setup Rules
             </button>
-            <button
-              type="button"
-              onClick={() => setInsightsOpen(!insightsOpen)}
-              className="rounded-xl border border-violet-200 bg-violet-50 px-3.5 py-2.5 text-xs font-bold text-violet-700 hover:bg-violet-100 transition-colors flex items-center gap-1.5"
-            >
-              <span>✦</span> AI Insights
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab("workspace");
-                handleNewCashOut();
-              }}
-              className="rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-2.5 text-xs font-black text-white shadow-sm active:scale-95 transition-all flex items-center gap-1.5"
-            >
-              ＋ Record Transaction
-            </button>
-            <button
-              type="button"
-              onClick={handleExport}
-              className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-1.5"
-            >
-              ⇩ Export
-            </button>
           </div>
         </header>
 
@@ -2669,45 +2646,100 @@ export default function AepsWorkspace({
                 >
                   <span>⚙</span> Setup Rules
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => setInsightsOpen(!insightsOpen)}
+                  className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-bold text-violet-700 hover:bg-violet-100 transition-colors flex items-center gap-1"
+                >
+                  <span>✦</span> AI Insights
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab("workspace");
+                    handleNewCashOut();
+                  }}
+                  className="rounded-xl bg-blue-600 hover:bg-blue-700 px-3.5 py-1.5 text-xs font-black text-white shadow-sm active:scale-95 transition-all flex items-center gap-1"
+                >
+                  ＋ Record Transaction
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleExport}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-1"
+                >
+                  ⇩ Export
+                </button>
               </div>
             </div>
 
             {/* LIVE WATCHER CARD — ALL REGISTERED PORTALS */}
             <section className="rounded-2xl border border-emerald-200 bg-white shadow-sm overflow-hidden">
-              <div className="flex flex-col gap-3 border-b border-emerald-100 bg-gradient-to-r from-emerald-50 via-white to-blue-50 p-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-black uppercase tracking-wide text-slate-950">Live Watcher — All Portals</h3>
-                    <span className={`rounded-full border px-2 py-0.5 text-[9px] font-black ${liveWatcherActive ? "border-emerald-300 bg-emerald-100 text-emerald-800" : "border-slate-200 bg-slate-100 text-slate-600"}`}>
-                      {isVerifyingPortal ? "CHECKING…" : liveWatcherActive ? "LIVE WATCHING" : "IDLE"}
-                    </span>
+              <div className="border-b border-emerald-100 bg-gradient-to-r from-emerald-50 via-white to-blue-50">
+                <button
+                  type="button"
+                  onClick={() => setLiveWatcherOpen((open) => !open)}
+                  aria-expanded={liveWatcherOpen}
+                  className="w-full px-4 py-3.5 flex flex-col gap-2 md:flex-row md:items-center md:justify-between text-left hover:bg-white/60 transition-colors"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-500 text-xs">{liveWatcherOpen ? "▼" : "▶"}</span>
+                      <h3 className="text-sm font-black uppercase tracking-wide text-slate-950">Live Watcher — All Portals</h3>
+                      <span className={`rounded-full border px-2 py-0.5 text-[9px] font-black ${liveWatcherActive ? "border-emerald-300 bg-emerald-100 text-emerald-800" : "border-slate-200 bg-slate-100 text-slate-600"}`}>
+                        {isVerifyingPortal ? "CHECKING…" : liveWatcherActive ? "LIVE WATCHING" : "IDLE"}
+                      </span>
+                      {detectedTransactions.length > 0 && (
+                        <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[9px] font-black text-white">
+                          {detectedTransactions.length} detected
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-0.5 ml-5 text-[11px] text-slate-500">
+                      All registered portals are monitored independently. Portal results are never mixed.
+                    </p>
                   </div>
-                  <p className="mt-0.5 text-[11px] text-slate-500">All registered portals are monitored independently. Portal results are never mixed.</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {liveWatcherActive ? (
-                    <button type="button" onClick={stopLiveWatcher} className="rounded-xl bg-rose-600 px-3.5 py-2 text-xs font-black text-white shadow-sm hover:bg-rose-700">
-                      Stop Live Watcher
-                    </button>
-                  ) : (
-                    <button type="button" onClick={startLiveWatcher} disabled={isVerifyingPortal || liveEnabledCount === 0} className="rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-black text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50">
-                      {isVerifyingPortal ? "Starting…" : "Start Live Watcher"}
-                    </button>
-                  )}
-                  <button type="button" onClick={() => verifyCurrentPortalDetails(true)} disabled={isVerifyingPortal || liveEnabledCount === 0} className="rounded-xl border border-emerald-200 bg-white px-3.5 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-50 disabled:opacity-50">
-                    Verify Selected
-                  </button>
-                  <button type="button" onClick={verifyAllPortalsLive} disabled={isVerifyingPortal || initialPortals.length === 0} className="rounded-xl border border-blue-200 bg-white px-3.5 py-2 text-xs font-bold text-blue-800 hover:bg-blue-50 disabled:opacity-50">
-                    Verify All
-                  </button>
-                  <button type="button" onClick={() => detectedTransactions[0] && reviewDetectedTransaction(detectedTransactions[0])} disabled={detectedTransactions.length === 0} className="rounded-xl border border-blue-200 bg-white px-3.5 py-2 text-xs font-black text-blue-700 hover:bg-blue-50 disabled:opacity-50">
-                    Review Detected{detectedTransactions.length > 0 ? ` (${detectedTransactions.length})` : ""}
-                  </button>
-                  <button type="button" onClick={() => { setSelectedWatcherPortalId(portalId); setActiveTab("watcher"); }} className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">
-                    Open Watcher
-                  </button>
-                </div>
+
+                  <div className="flex items-center gap-3 text-[10px] text-slate-500 shrink-0">
+                    <span><b className="text-slate-700">Detected:</b> {liveWatcherDetectedCount}</span>
+                    <span><b className="text-slate-700">Last:</b> {liveWatcherLastEventAt ? fmtTime(liveWatcherLastEventAt) : "—"}</span>
+                    <span className="font-black text-blue-700">{liveWatcherOpen ? "Hide controls" : "Open controls"}</span>
+                  </div>
+                </button>
+
+                {liveWatcherOpen && (
+                  <div className="border-t border-emerald-100 px-4 py-3">
+                    <div className="flex flex-wrap gap-2">
+                      {liveWatcherActive ? (
+                        <button type="button" onClick={stopLiveWatcher} className="rounded-xl bg-rose-600 px-3.5 py-2 text-xs font-black text-white shadow-sm hover:bg-rose-700">
+                          Stop Live Watcher
+                        </button>
+                      ) : (
+                        <button type="button" onClick={startLiveWatcher} disabled={isVerifyingPortal || liveEnabledCount === 0} className="rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-black text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50">
+                          {isVerifyingPortal ? "Starting…" : "Start Live Watcher"}
+                        </button>
+                      )}
+                      <button type="button" onClick={() => verifyCurrentPortalDetails(true)} disabled={isVerifyingPortal || liveEnabledCount === 0} className="rounded-xl border border-emerald-200 bg-white px-3.5 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-50 disabled:opacity-50">
+                        Verify Selected
+                      </button>
+                      <button type="button" onClick={verifyAllPortalsLive} disabled={isVerifyingPortal || initialPortals.length === 0} className="rounded-xl border border-blue-200 bg-white px-3.5 py-2 text-xs font-bold text-blue-800 hover:bg-blue-50 disabled:opacity-50">
+                        Verify All
+                      </button>
+                      <button type="button" onClick={() => detectedTransactions[0] && reviewDetectedTransaction(detectedTransactions[0])} disabled={detectedTransactions.length === 0} className="rounded-xl border border-blue-200 bg-white px-3.5 py-2 text-xs font-black text-blue-700 hover:bg-blue-50 disabled:opacity-50">
+                        Review Detected{detectedTransactions.length > 0 ? ` (${detectedTransactions.length})` : ""}
+                      </button>
+                      <button type="button" onClick={() => { setSelectedWatcherPortalId(portalId); setActiveTab("watcher"); }} className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">
+                        Open Watcher
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
+
+              {liveWatcherOpen && (
               <div className="border-t border-emerald-100 bg-white px-4 py-3 text-[10px] text-slate-500 flex flex-wrap items-center gap-x-4 gap-y-1">
                 <span><b className="text-slate-700">Mode:</b> {liveWatcherActive ? "Persistent desktop watcher" : "Manual verification"}</span>
                 <span><b className="text-slate-700">Detected:</b> {liveWatcherDetectedCount}</span>
@@ -2737,6 +2769,7 @@ export default function AepsWorkspace({
               <div className="border-t border-slate-100 bg-slate-50/70 px-4 py-3 text-[10px] text-slate-500">
                 <b className="text-slate-700">Selected transaction portal:</b> {portalName || "—"}. Other portal results are monitoring data only and never change this transaction's pricing or bank selection.
               </div>
+              )}
             </section>
 
              {detectedTransactions.length > 0 && (
