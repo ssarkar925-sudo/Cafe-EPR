@@ -21,7 +21,6 @@ const migration = read(migrationPath);
 ok("Next.js build does not ignore TypeScript errors", !nextConfig.includes("ignoreBuildErrors"));
 ok("Next.js build does not skip linting via ignoreDuringBuilds", !nextConfig.includes("ignoreDuringBuilds"));
 ok("Mobile viewport allows user scaling", !layout.includes("userScalable: false") && !layout.includes("maximumScale: 1"));
-void desktopRoleSpan;
 ok("Dashboard role label is data-driven", shell.includes("const roleLabel =") && shell.includes("{roleLabel}") && !shell.includes("Owner • Admin"));
 ok("Quality Gate runs lint", quality.includes("npm run lint"));
 for (const command of [
