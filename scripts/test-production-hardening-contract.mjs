@@ -15,7 +15,7 @@ const layout = read("app/layout.tsx");
 const shell = read("components/dashboard-shell.tsx");
 const quality = read(".github/workflows/quality.yml");
 const restore = read(".github/workflows/test-restore-isolated.yml");
-const migrationPath = "supabase/migrations/20260930_production_hardening.sql";
+const migrationPath = "supabase/migrations/20260930034740_production_hardening.sql";
 const migration = read(migrationPath);
 
 ok("Next.js build does not ignore TypeScript errors", !nextConfig.includes("ignoreBuildErrors"));
