@@ -62,6 +62,10 @@ export default function DashboardShell({
   const [searchOpen, setSearchOpen] = useState(false);
   const pathname = usePathname();
   const isPos = pathname === "/pos";
+  const roleLabel =
+    role === "admin" ? "Admin" :
+    role === "manager" ? "Manager" :
+    role === "staff" ? "Staff" : "User";
 
   useEffect(() => {
     try {
@@ -234,7 +238,7 @@ export default function DashboardShell({
                     {name || "Saikat Sarkar"}
                   </span>
                   <span className="block text-[10px] font-medium text-slate-400 leading-tight">
-                    Owner • Admin
+                    {roleLabel}
                   </span>
                 </div>
                 <svg
