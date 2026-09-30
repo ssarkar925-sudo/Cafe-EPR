@@ -2740,6 +2740,7 @@ export default function AepsWorkspace({
               </div>
 
               {liveWatcherOpen && (
+                <>
               <div className="border-t border-emerald-100 bg-white px-4 py-3 text-[10px] text-slate-500 flex flex-wrap items-center gap-x-4 gap-y-1">
                 <span><b className="text-slate-700">Mode:</b> {liveWatcherActive ? "Persistent desktop watcher" : "Manual verification"}</span>
                 <span><b className="text-slate-700">Detected:</b> {liveWatcherDetectedCount}</span>
@@ -2769,6 +2770,7 @@ export default function AepsWorkspace({
               <div className="border-t border-slate-100 bg-slate-50/70 px-4 py-3 text-[10px] text-slate-500">
                 <b className="text-slate-700">Selected transaction portal:</b> {portalName || "—"}. Other portal results are monitoring data only and never change this transaction's pricing or bank selection.
               </div>
+                </>
               )}
             </section>
 
