@@ -2634,42 +2634,8 @@ export default function AepsWorkspace({
                 >
                   <span>📷</span> Scan / Source Data
                 </button>
-
-                <button
-                  type="button"
-                  onClick={() => setRulesModalOpen(true)}
-                  className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-1"
-                >
-                  <span>⚙</span> Setup Rules
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setInsightsOpen(!insightsOpen)}
-                  className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-bold text-violet-700 hover:bg-violet-100 transition-colors flex items-center gap-1"
-                >
-                  <span>✦</span> AI Insights
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTab("workspace");
-                    handleNewCashOut();
-                  }}
-                  className="rounded-xl bg-blue-600 hover:bg-blue-700 px-3.5 py-1.5 text-xs font-black text-white shadow-sm active:scale-95 transition-all flex items-center gap-1"
-                >
-                  ＋ Record Transaction
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleExport}
-                  className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-1"
-                >
-                  ⇩ Export
-                </button>
               </div>
+
             </div>
 
             {/* LIVE WATCHER CARD — ALL REGISTERED PORTALS */}
