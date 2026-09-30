@@ -1,0 +1,55 @@
+name: V1 Contract Gate
+
+'on':
+  push:
+    branches:
+      - main
+    paths:
+      - 'app/v1/**'
+      - 'components/v1/**'
+      - 'lib/v1/**'
+      - 'greenfield/migrations/V1_*.sql'
+      - 'scripts/test-v1-*.mjs'
+      - 'scripts/test-client-idempotency-contract.mjs'
+  pull_request:
+    paths:
+      - 'app/v1/**'
+      - 'components/v1/**'
+      - 'lib/v1/**'
+      - 'greenfield/migrations/V1_*.sql'
+      - 'scripts/test-v1-*.mjs'
+      - 'scripts/test-client-idempotency-contract.mjs'
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: V1 foundation contract
+        run: npm run test:v1-foundation
+      - name: V1 phase 2 shell
+        run: npm run test:v1-phase2
+      - name: V1 phase 3 admin
+        run: npm run test:v1-phase3
+      - name: V1 services
+        run: npm run test:v1-services
+      - name: V1 day close
+        run: npm run test:v1-day-close
+      - name: V1 back entry
+        run: npm run test:v1-back-entry
+      - name: V1 offline sync
+        run: npm run test:v1-offline-sync
+      - name: V1 returns and refunds
+        run: npm run test:v1-returns-refunds

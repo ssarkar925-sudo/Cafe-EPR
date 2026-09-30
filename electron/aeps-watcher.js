@@ -436,10 +436,41 @@ class AepsWatcher {
     const portalName = this.liveConfig.portalName;
 
     try {
-      const result = await session.win.webContents.executeJavaScript(
+      let result = await session.win.webContents.executeJavaScript(
         "(" + extractVisibleTransactions.toString() + ")()",
         true
       );
+
+      // Transaction/report pages are often client-rendered and do not refresh
+      // their DOM until the portal's refresh control is pressed. If the first
+      // scan finds nothing, refresh the authenticated view once and scan again.
+      // We never refresh while an authentication form is visible.
+      if (
+        source?.purpose === "transaction_info" &&
+        !result?.authRequired &&
+        (!Array.isArray(result?.transactions) || result.transactions.length === 0)
+      ) {
+        const refreshResult = await refreshTransactionView(session.win);
+        if (refreshResult?.refreshed) {
+          if (refreshResult?.reloaded) {
+            await waitForPageLoad(session.win, 8000);
+            // A successful document load does not mean a React/Angular report
+            // has finished rendering its rows. Give the authenticated page a
+            // short settle window before extracting transactions.
+            await session.win.webContents.executeJavaScript(
+              "(" + extractRenderedPage.toString() + ")(2500)",
+              true
+            );
+          } else {
+            await new Promise((resolve) => setTimeout(resolve, 2200));
+          }
+
+          result = await session.win.webContents.executeJavaScript(
+            "(" + extractVisibleTransactions.toString() + ")()",
+            true
+          );
+        }
+      }
 
       this.liveEmit?.({
         type: "source_heartbeat",
@@ -460,12 +491,17 @@ class AepsWatcher {
           portalName,
           sourceId,
           sourceUrl: String(source.url),
-          message: "Portal authentication is required. Sign in manually in this watcher window. CafeERP never enters OTP, PIN, password, or biometric data.",
+          message: "Portal authentication is required. Sign in manually in the watcher window. CafeERP never enters OTP, PIN, password, or biometric data.",
         });
       }
 
       for (const transaction of result?.transactions || []) {
-        const reference = transaction.externalTransactionId || transaction.reference || transaction.externalReference || "";
+        const reference =
+          transaction.externalTransactionId ||
+          transaction.reference ||
+          transaction.externalReference ||
+          "";
+
         const fingerprint = [
           portalId,
           reference,
@@ -475,8 +511,8 @@ class AepsWatcher {
 
         if (!reference || !transaction.amount) continue;
         if (this.liveSeen.has(fingerprint)) continue;
-        this.liveSeen.add(fingerprint);
 
+        this.liveSeen.add(fingerprint);
         if (this.liveSeen.size > 2000) {
           this.liveSeen.delete(this.liveSeen.values().next().value);
         }
@@ -823,6 +859,116 @@ async function waitForAuthenticationCompletion(win, timeoutMs = 300000) {
   return false;
 }
 
+async function waitForPageLoad(win, timeoutMs = 8000) {
+  if (!win || win.isDestroyed()) return false;
+
+  return await new Promise((resolve) => {
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try {
+        win.webContents.removeListener("did-finish-load", onLoad);
+      } catch {}
+      resolve(value);
+    };
+    const onLoad = () => finish(true);
+    const timer = setTimeout(() => finish(false), Math.max(1000, timeoutMs));
+
+    try {
+      win.webContents.once("did-finish-load", onLoad);
+    } catch {
+      finish(false);
+    }
+  });
+}
+
+async function refreshTransactionView(win) {
+  if (!win || win.isDestroyed()) return { refreshed: false, reloaded: false };
+
+  try {
+    const clicked = await win.webContents.executeJavaScript(
+      `(() => {
+        const visible = (el) => {
+          const style = window.getComputedStyle(el);
+          const rect = el.getBoundingClientRect();
+          return style.display !== "none" &&
+            style.visibility !== "hidden" &&
+            rect.width > 0 &&
+            rect.height > 0;
+        };
+
+        const controls = Array.from(
+          document.querySelectorAll("button, [role='button'], input[type='button'], input[type='submit']")
+        ).filter(visible);
+
+        const refresh = controls.find((el) =>
+          /^(refresh|reload|refresh data|reload data|sync|full sync|fullsync|refresh list|refresh report|sync passbook|full sync passbook)$/i.test(
+            String(el.innerText || el.value || el.getAttribute("aria-label") || el.getAttribute("title") || "").trim()
+          )
+        );
+
+        if (!refresh) return false;
+        try {
+          refresh.click();
+          return true;
+        } catch {
+          return false;
+        }
+      })()`,
+      true
+    );
+
+    if (clicked) {
+      return { refreshed: true, reloaded: false };
+    }
+
+    // No safe refresh control was found. Prepare the load listener BEFORE
+    // calling reload so a fast cached navigation cannot race past the listener.
+    // Electron's persistent partition retains portal cookies/session state.
+    const loadPromise = waitForPageLoad(win, 8000);
+    await win.webContents.reload();
+    await loadPromise;
+    return { refreshed: true, reloaded: true };
+  } catch {
+    return { refreshed: false, reloaded: false };
+  }
+}
+
+function extractRenderedAuthSignals(text, url) {
+  const pageText = String(text || "");
+  const href = String(url || "");
+
+  const visibleCredentialForm =
+    /(?:password|passcode|pin|otp|one[- ]time password|verification code)/i.test(pageText) &&
+    /(?:sign[ -]?in|log[ -]?in|login|authenticate|continue)/i.test(pageText);
+
+  // DigiPay/CSC biometric login commonly presents no password field at all.
+  // Its pre-auth page instead asks for a CSC ID, Aadhaar biometrics, and a
+  // Scan/Login action. Treat that combination as a real auth barrier.
+  const cscBiometricLogin =
+    /(?:valid[ \t]+CSC[ \t]+ID|CSC[ \t]+ID)/i.test(pageText) &&
+    /biometric|biometrics/i.test(pageText) &&
+    /(?:scan|login)/i.test(pageText) &&
+    (document.querySelector('input[name*="csc" i], input[id*="csc" i], input[placeholder*="csc" i]') != null ||
+      Array.from(document.querySelectorAll("button, [role='button'], input[type='submit'], a")).some((el) =>
+        /(?:scan|login)/i.test(String(el.innerText || el.value || el.getAttribute("aria-label") || "").trim())
+      ));
+
+  const biometricLogin =
+    /(?:aadhaar|aadhar).{0,80}(?:biometric|authentication)/is.test(pageText) &&
+    /(?:scan|authenticate|login|sign[ -]?in)/i.test(pageText);
+
+  const explicitLogin =
+    /(?:agents+login|retailers+login|authentications+required|enters+otp|verifications+code)/i.test(pageText) &&
+    /(?:login|sign[ -]?in|authenticate)/i.test(pageText);
+
+  const urlLogin = /\/(?:login|signin|sign-in|authenticate)(?:\/|\?|$)/i.test(href);
+
+  return Boolean(visibleCredentialForm || cscBiometricLogin || biometricLogin || explicitLogin || urlLogin);
+}
+
 async function extractRenderedPage(waitMs = 5000) {
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const started = Date.now();
@@ -831,43 +977,41 @@ async function extractRenderedPage(waitMs = 5000) {
     const state = await new Promise((resolve) => {
       try {
         const text = document.body?.innerText || "";
+        const title = document.title || "";
         const visibleField = (selector) =>
           Array.from(document.querySelectorAll(selector)).some((el) => {
             const style = window.getComputedStyle(el);
             const rect = el.getBoundingClientRect();
-            return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+            return (
+              style.display !== "none" &&
+              style.visibility !== "hidden" &&
+              rect.width > 0 &&
+              rect.height > 0
+            );
           });
 
         const passwordField = visibleField('input[type="password"]:not([hidden])');
-        const otpField = visibleField('input[name*="otp" i], input[id*="otp" i], input[name*="pin" i]');
+        const otpField = visibleField(
+          'input[name*="otp" i], input[id*="otp" i], input[name*="pin" i], input[id*="pin" i]'
+        );
         const credentialField = visibleField(
           'input[name*="user" i], input[id*="user" i], input[name*="login" i], input[id*="login" i], input[type="email"]'
         );
 
-        const loginControl = Array.from(document.querySelectorAll('button, input[type="submit"], a')).some((el) =>
-          /(?:sign\s*in|log\s*in|login|authenticate|agent\s+login|retailer\s+login)/i.test(
-            String(el.innerText || el.value || "").trim()
-          )
-        );
+        const pageAuthRequired = extractRenderedAuthSignals(text, location.href);
+        const formAuthRequired =
+          (passwordField || otpField || credentialField) &&
+          Array.from(document.querySelectorAll("button, input[type='submit'], [role='button'], a")).some((el) =>
+            /(?:sign\s*in|log\s*in|login|authenticate|agent\s+login|retailer\s+login|scan)/i.test(
+              String(el.innerText || el.value || el.getAttribute("aria-label") || "").trim()
+            )
+          );
 
-        const loginText = /(?:agent\s+login|retailer\s+login|sign\s*in|log\s*in|login|authentication required|enter otp|verification code|user\s*name|password)/i.test(
-          String(text || "")
-        );
-
-        const passwordAndLoginForm =
-          passwordField &&
-          loginControl;
-
-        const otpOrCredentialLoginForm =
-          (otpField || credentialField) &&
-          loginControl;
-
-        // Generic "login" text can appear in authenticated dashboards,
-        // navigation menus, help text, or logout/session controls. Only
-        // require authentication when a visible credential/OTP/password
-        // field is paired with an actual login/authentication control.
-        const authRequired = Boolean(passwordAndLoginForm || otpOrCredentialLoginForm);
-        resolve({ text, authRequired, title: document.title || "" });
+        resolve({
+          text,
+          authRequired: Boolean(pageAuthRequired || formAuthRequired),
+          title,
+        });
       } catch {
         resolve({ text: "", authRequired: false, title: document.title || "" });
       }
@@ -881,103 +1025,386 @@ async function extractRenderedPage(waitMs = 5000) {
 
   return {
     text: document.body?.innerText || "",
-    authRequired: false,
+    authRequired: extractRenderedAuthSignals(document.body?.innerText || "", location.href),
     title: document.title || "",
   };
 }
 
 function extractVisibleTransactions() {
-  const clean = (value) => String(value || "").replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
-  const money = (value) => {
-    const match = String(value || "").replace(/,/g, "").match(/(?:₹|Rs\.?|INR)?\s*([0-9]+(?:\.[0-9]{1,2})?)/i);
-    return match ? Number(match[1]) : null;
-  };
-  const normalizeHeader = (value) => clean(value).toLowerCase();
-  const findIndex = (headers, patterns) => headers.findIndex((header) => patterns.some((pattern) => pattern.test(header)));
+  const clean = (value) =>
+    String(value || "")
+      .replace(/\u00a0/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
   const visible = (element) => {
-    const style = window.getComputedStyle(element);
-    const rect = element.getBoundingClientRect();
-    return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+    try {
+      const style = window.getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return (
+        style.display !== "none" &&
+        style.visibility !== "hidden" &&
+        rect.width > 0 &&
+        rect.height > 0
+      );
+    } catch {
+      return false;
+    }
   };
 
-  const bodyText = document.body?.innerText || "";
-  const authRequired =
-    /\b(sign[ -]?in|login|log in|authentication|verification code|otp|one time password)\b/i.test(location.href) ||
-    Boolean(document.querySelector('input[type="password"]:not([hidden]), input[name*="otp" i], input[id*="otp" i], input[name*="pin" i], input[id*="pin" i]'));
+  const money = (value) => {
+    const raw = clean(value).replace(/,/g, "");
+    const currency =
+      raw.match(/(?:₹|Rs\.?|INR)\s*([0-9]+(?:\.[0-9]{1,2})?)/i) ||
+      raw.match(/\b([0-9]+(?:\.[0-9]{1,2})?)\b/);
+    if (!currency) return null;
+    const n = Number(currency[1]);
+    return Number.isFinite(n) ? n : null;
+  };
 
-  const tables = Array.from(document.querySelectorAll("table")).filter(visible);
+  const findNumberAfterLabel = (text, patterns) => {
+    const cleanText = clean(text);
+    for (const pattern of patterns) {
+      const match = cleanText.match(pattern);
+      if (match?.[1]) {
+        const n = money(match[1]);
+        if (n != null) return n;
+      }
+    }
+    return null;
+  };
+
+  const firstMatch = (text, patterns) => {
+    const value = String(text || "");
+    for (const pattern of patterns) {
+      const match = value.match(pattern);
+      if (match?.[1]) return clean(match[1]);
+    }
+    return "";
+  };
+
+  const parseCandidate = (rawText, options = {}) => {
+    const full = clean(rawText);
+    if (!full || full.length < 8) return null;
+
+    const headers = Array.isArray(options.headers) ? options.headers : [];
+    const cells = Array.isArray(options.cells) ? options.cells : [];
+    const pageContext = clean(options.pageContext || "");
+    const serviceText = clean(options.serviceText || "");
+    const context = clean(full + " " + pageContext);
+
+    const referenceFromLabel = firstMatch(full, [
+      /\b(?:RRN|UTR|reference(?:\s*(?:id|no|number))?|transaction\s*(?:id|no|number|ref|reference)|txn\s*(?:id|no|number|ref|reference))\s*[:#=\-]?\s*([A-Za-z0-9][A-Za-z0-9._\/-]{5,31})/i,
+    ]);
+
+    const amountFromLabel = findNumberAfterLabel(full, [
+      /\b(?:transaction\s*amount|txn\s*amount|withdrawal\s*amount|cash\s*withdrawal|amount\s*paid|paid\s*amount|debit\s*amount|credit\s*amount|amount|amt)\s*[:#=\-]?\s*(?:₹|Rs\.?|INR)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i,
+    ]);
+
+    let reference = referenceFromLabel;
+    let parsedAmount = amountFromLabel;
+
+    if (headers.length && cells.length) {
+      const normalizeHeader = (value) => clean(value).toLowerCase();
+      const headerIndex = (patterns) =>
+        headers.findIndex((header) => patterns.some((pattern) => pattern.test(normalizeHeader(header))));
+
+      const rrnIndex = headerIndex([
+        /\brrn\b/,
+        /\butr\b/,
+        /transaction\s*(id|no|number|ref|reference)/,
+        /\breference\b/,
+      ]);
+      const amountIndex = headerIndex([
+        /txn\s*amount/,
+        /transaction\s*amount/,
+        /withdrawal\s*amount/,
+        /amount/,
+        /amt/,
+      ]);
+      const serviceIndex = headerIndex([
+        /txn\s*(mode|type)/,
+        /transaction\s*(mode|type)/,
+        /service/,
+        /product/,
+        /operation/,
+      ]);
+      const statusIndex = headerIndex([/^status$/, /txn\s*status/, /transaction\s*status/]);
+      const dateIndex = headerIndex([/date\s*[&/]?\s*time/, /date.*time/, /^date$/, /time/]);
+      const commissionIndex = headerIndex([/commission/, /comm\s*\//, /charges/]);
+      const customerMobileIndex = headerIndex([/mobile/, /phone/, /contact/]);
+      const bankIndex = headerIndex([/bank/]);
+      const nameIndex = headerIndex([/customer\s*name/, /^name$/]);
+
+      if (!reference && rrnIndex >= 0) reference = clean(cells[rrnIndex] || "");
+      if (parsedAmount == null && amountIndex >= 0) parsedAmount = money(cells[amountIndex]);
+      const mappedService = serviceIndex >= 0 ? clean(cells[serviceIndex] || "") : "";
+      const mappedStatus = statusIndex >= 0 ? clean(cells[statusIndex] || "") : "";
+      const occurredAt = dateIndex >= 0 ? clean(cells[dateIndex] || "") : "";
+      const commission = commissionIndex >= 0 ? money(cells[commissionIndex]) : null;
+      const customerMobile = customerMobileIndex >= 0 ? clean(cells[customerMobileIndex] || "") : "";
+      const bankName = bankIndex >= 0 ? clean(cells[bankIndex] || "") : "";
+      const customerName = nameIndex >= 0 ? clean(cells[nameIndex] || "") : "";
+
+      options.mapped = {
+        service: mappedService,
+        status: mappedStatus,
+        occurredAt,
+        commission,
+        customerMobile,
+        bankName,
+        customerName,
+      };
+    }
+
+    if (!reference) {
+      const fallbackRefs = clean(full)
+        .replace(/[,₹]/g, "")
+        .match(/\b\d{8,20}\b/g) || [];
+
+      reference =
+        fallbackRefs.find((value) => {
+          const numeric = Number(value);
+          if (!Number.isFinite(numeric)) return false;
+          if (numeric >= 0 && numeric <= 500000) return false; // likely amount
+          if (/^[6-9]\d{9}$/.test(value)) return false; // likely mobile
+          if (/^20\d{6}$/.test(value)) return false; // likely date
+          return true;
+        }) || "";
+    }
+
+    if (parsedAmount == null) {
+      const currencyMatch =
+        clean(full).match(/(?:₹|Rs\.?|INR)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
+      if (currencyMatch) parsedAmount = money(currencyMatch[1]);
+    }
+
+    if (parsedAmount == null && cells.length) {
+      const numericCandidates = cells
+        .map((cell) => money(cell))
+        .filter((value) => value != null && value > 0 && value <= 500000);
+      parsedAmount = numericCandidates[0] ?? null;
+    }
+
+    const mapped = options.mapped || {};
+    const combinedService = clean(serviceText + " " + mapped.service + " " + full);
+
+    const isPaymentCollection =
+      /payment\s*collection|cash\s*collection|customer\s*payment|aadhaar\s*pay|merchant\s*pay|collection/i.test(
+        combinedService
+      );
+    const isBalanceEnquiry =
+      /balance\s*(enquiry|inquiry)|mini\s*statement/i.test(combinedService);
+    const isCashOut =
+      /cash\s*(?:withdrawal|out)|withdrawal|cashout|biometric\s*withdrawal/i.test(combinedService);
+
+    const pageIsAeps =
+      /aeps|aadhaar\s*(?:enabled|pay)|aadhaar\s*payment/i.test(
+        clean(location.href) + " " + document.title + " " + pageContext
+      );
+
+    if (!reference || parsedAmount == null || parsedAmount <= 0) return null;
+
+    // A transaction row must contain explicit AEPS/service evidence, or be
+    // located on an AEPS transaction page. This prevents unrelated amounts in
+    // headers/widgets from becoming false transaction detections.
+    if (!isPaymentCollection && !isCashOut && !isBalanceEnquiry && !pageIsAeps) {
+      return null;
+    }
+
+    const statusText = clean(mapped.status || full);
+    if (/failed|rejected|declined|cancelled|reversed|refunded|pending\s*failed/i.test(statusText)) {
+      return null;
+    }
+
+    const mobile =
+      (mapped.customerMobile && mapped.customerMobile.match(/[6-9]\d{9}/)?.[0]) ||
+      full.match(/(?:mobile|mob|phone|contact)\s*[:#=\-]?\s*([6-9]\d{9})/i)?.[1] ||
+      "";
+
+    const aadhaar =
+      full.match(/(?:aadhaar|aadhar)\s*(?:last\s*4|no|number)?\s*[:#=\-]?\s*(?:[xX*#\s-]*)(\d{4})\b/i)?.[1] ||
+      "";
+
+    const bank =
+      mapped.bankName ||
+      firstMatch(full, [
+        /(?:issuer\s*bank|customer\s*bank|beneficiary\s*bank|bank\s*name)\s*[:#=\-]?\s*([A-Za-z][A-Za-z .&'-]{2,60})/i,
+        /\b(SBI|HDFC|ICICI|Axis|PNB|Canara|Kotak|Union\s+Bank|Bank\s+of\s+Baroda|Indian\s+Bank)\b/i,
+      ]);
+
+    const customerName =
+      mapped.customerName ||
+      firstMatch(full, [
+        /customer\s*name\s*[:#=\-]\s*([A-Za-z][A-Za-z .'-]{2,80})/i,
+      ]);
+
+    const fee =
+      findNumberAfterLabel(full, [
+        /\b(?:customer\s*)?(?:fee|charge|surcharge)\s*[:#=\-]?\s*(?:₹|Rs\.?|INR)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i,
+      ]);
+
+    const commission =
+      mapped.commission != null
+        ? mapped.commission
+        : findNumberAfterLabel(full, [
+            /\b(?:portal\s*)?commission\s*[:#=\-]?\s*(?:₹|Rs\.?|INR)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i,
+          ]);
+
+    const transactionType = isPaymentCollection
+      ? "payment_collection"
+      : isBalanceEnquiry
+      ? "balance_enquiry"
+      : /mini\s*statement/i.test(combinedService)
+      ? "mini_statement"
+      : "cash_out";
+
+    const externalReference = reference;
+    const occurredAt =
+      mapped.occurredAt ||
+      firstMatch(full, [
+        /(?:date\s*&?\s*time|transaction\s*date|date|time)\s*[:#=\-]?\s*([^|]+)/i,
+      ]);
+
+    return {
+      externalTransactionId: externalReference,
+      externalReference,
+      reference: externalReference,
+      status: "success",
+      transactionType,
+      amount: Number(parsedAmount).toFixed(2),
+      fee: fee == null ? null : Number(fee).toFixed(2),
+      commission: commission == null ? "0" : Number(commission).toFixed(2),
+      occurredAt,
+      customerName,
+      customerMobile: mobile,
+      aadhaarLast4: aadhaar,
+      bankName: bank,
+      rawText: full,
+    };
+  };
+
+  const pageText = document.body?.innerText || "";
+  const authRequired = extractRenderedAuthSignals(pageText, location.href);
+
+  if (authRequired) {
+    return { authRequired: true, transactions: [] };
+  }
+
   const candidates = [];
+  const seenElements = new Set();
 
+  const add = (candidate) => {
+    if (!candidate) return;
+    const key = [
+      candidate.externalTransactionId || candidate.reference || "",
+      candidate.amount || "",
+      candidate.transactionType || "",
+    ].join("|");
+    if (!key || candidates.some((item) =>
+      [
+        item.externalTransactionId || item.reference || "",
+        item.amount || "",
+        item.transactionType || "",
+      ].join("|") === key
+    )) return;
+    candidates.push(candidate);
+  };
+
+  // Strategy 1: conventional HTML tables with header mapping.
+  const tables = Array.from(document.querySelectorAll("table")).filter(visible);
   for (const table of tables) {
     const headerRow = table.querySelector("thead tr") || table.querySelector("tr");
     const headerCells = headerRow ? Array.from(headerRow.querySelectorAll("th,td")) : [];
-    const headers = headerCells.map((cell) => normalizeHeader(cell.innerText));
+    const headers = headerCells.map((cell) => clean(cell.innerText));
     if (!headers.length) continue;
-
-    const rrn = findIndex(headers, [/\brrn\b/, /transaction\s*(id|ref|reference)/, /reference/]);
-    const amount = findIndex(headers, [/txn\s*amount/, /transaction\s*amount/, /^amount$/, /withdrawal/]);
-    const service = findIndex(headers, [/txn\s*mode/, /transaction\s*mode/, /service/, /product/]);
-    const status = findIndex(headers, [/^status$/, /txn\s*status/]);
-    const date = findIndex(headers, [/date\s*[&/]?\s*time/, /date.*time/, /^date$/, /time/]);
-    const commission = findIndex(headers, [/comm\s*\/\s*charges/, /commission/, /comm/, /charges/]);
-
-    const score =
-      (rrn >= 0 ? 4 : 0) +
-      (amount >= 0 ? 4 : 0) +
-      (service >= 0 ? 3 : 0);
-
-    if (score < 8) continue;
 
     const rows = Array.from(table.querySelectorAll("tbody tr")).filter(visible);
     for (const row of rows) {
-      const cells = Array.from(row.querySelectorAll(":scope > td")).map((cell) => clean(cell.innerText));
+      const cells = Array.from(row.querySelectorAll(":scope > td, :scope > th")).map((cell) => clean(cell.innerText));
       if (!cells.length) continue;
 
-      const full = cells.join(" | ");
-      const serviceText = service >= 0 ? cells[service] || "" : "";
-      const isCashOut =
-        /aeps.*cash\s*withdrawal|cash\s*withdrawal.*aeps|cash\s*out|withdrawal/i.test(serviceText + " " + full) &&
-        /aeps|aadhaar/i.test(serviceText + " " + full);
-      const isPaymentCollection =
-        /payment\s*collection|cash\s*collection|customer\s*payment|aadhaar\s*pay/i.test(serviceText + " " + full) &&
-        /aeps|aadhaar/i.test(serviceText + " " + full);
-
-      if (!isCashOut && !isPaymentCollection) continue;
-
-      const parsedAmount = amount >= 0 ? money(cells[amount]) : money(full);
-      const reference = rrn >= 0 ? cells[rrn] : "";
-      if (!parsedAmount || parsedAmount <= 0 || !/\d{8,}/.test(reference)) continue;
-
-      const statusText = status >= 0 ? cells[status] || "" : full;
-      if (/failed|rejected|declined|cancelled|reversed|refunded/i.test(statusText)) continue;
-
-      const mobile = full.match(/(?:Mobile|Mob|Phone|Contact)\s*[:#=-]?\s*([6-9]\d{9})/i)?.[1] || "";
-      const aadhaar = full.match(/(?:Aadhaar|Aadhar|Customer\s*(?:ID|No|Number))\s*[:#=-]?\s*(?:[xX*#\s-]*)(\d{4})\b/i)?.[1] || "";
-      const bank =
-        full.match(/(?:Bank\s*Name|Customer\s*Bank|Beneficiary\s*Bank)\s*[:#=-]?\s*([A-Za-z][A-Za-z ]{2,40})/i)?.[1]?.trim() ||
-        full.match(/\b(SBI|HDFC|ICICI|Axis|PNB|Canara|Kotak|Union Bank|Bank of Baroda|Indian Bank)\b/i)?.[1] ||
-        "";
-      const occurredAt = date >= 0 ? cells[date] || "" : "";
-
-      candidates.push({
-        externalTransactionId: reference,
-        externalReference: reference,
-        status: "success",
-        transactionType: isPaymentCollection ? "payment_collection" : "cash_out",
-        amount: parsedAmount.toFixed(2),
-        fee: null,
-        commission: commission >= 0 ? String(money(cells[commission]) || 0) : "0",
-        occurredAt,
-        customerName: "",
-        customerMobile: mobile,
-        aadhaarLast4: aadhaar,
-        bankName: bank,
-        rawText: full,
-      });
+      const labeled = headers.map((header, index) => `${header}: ${cells[index] || ""}`).join(" | ");
+      add(
+        parseCandidate(labeled, {
+          headers,
+          cells,
+          pageContext: pageText.slice(0, 8000),
+        })
+      );
     }
   }
 
-  return { authRequired, transactions: candidates.slice(0, 25) };
+  // Strategy 2: ARIA grids and virtualized data tables.
+  const gridRows = Array.from(
+    document.querySelectorAll(
+      '[role="row"], [data-rowindex], [data-index][role="gridcell"], [class*="table-row"], [class*="grid-row"], [class*="transaction-row"], [class*="txn-row"]'
+    )
+  ).filter(visible);
+
+  for (const row of gridRows) {
+    if (seenElements.has(row)) continue;
+    seenElements.add(row);
+
+    const cells = Array.from(
+      row.querySelectorAll('[role="gridcell"], [role="cell"], [data-field], [class*="cell"]')
+    )
+      .filter(visible)
+      .map((cell) => clean(cell.innerText))
+      .filter(Boolean);
+
+    const text = clean(row.innerText);
+    if (!text || text.length < 8 || text.length > 3000) continue;
+
+    add(
+      parseCandidate(
+        cells.length > 1 ? cells.join(" | ") + " | " + text : text,
+        {
+          cells,
+          pageContext: pageText.slice(0, 8000),
+        }
+      )
+    );
+  }
+
+  // Strategy 3: list/card based transaction layouts.
+  const cards = Array.from(
+    document.querySelectorAll(
+      "li, article, [data-transaction-id], [data-transaction], [class*='transaction-card'], [class*='txn-card'], [class*='passbook-row'], [class*='report-row']"
+    )
+  ).filter(visible);
+
+  for (const card of cards) {
+    if (seenElements.has(card)) continue;
+    seenElements.add(card);
+
+    const text = clean(card.innerText);
+    if (!text || text.length < 8 || text.length > 2500) continue;
+
+    add(parseCandidate(text, { pageContext: pageText.slice(0, 8000) }));
+  }
+
+  // Strategy 4: a conservative page-level fallback for portal pages that
+  // render each transaction without semantic row elements. Only accept text
+  // blocks that contain a labeled reference and amount.
+  if (candidates.length === 0) {
+    const blocks = Array.from(document.querySelectorAll("div, section")).filter(visible);
+    const limited = blocks.filter((el) => {
+      const text = clean(el.innerText);
+      return text.length >= 20 && text.length <= 800 && /(?:RRN|UTR|Reference|Transaction\s*(?:ID|Ref)|Txn\s*(?:ID|Ref))/i.test(text);
+    });
+
+    for (const block of limited.slice(0, 100)) {
+      const text = clean(block.innerText);
+      add(parseCandidate(text, { pageContext: pageText.slice(0, 8000) }));
+      if (candidates.length >= 25) break;
+    }
+  }
+
+  return {
+    authRequired: false,
+    transactions: candidates.slice(0, 25),
+  };
 }
 
 module.exports = { AepsWatcher };

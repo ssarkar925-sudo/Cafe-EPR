@@ -135,7 +135,7 @@ check("only documented V1 RPCs are called", unknownCalls.length === 0, unknownCa
 // --- 7. future workflows remain disabled ------------------------------------------------------
 const nav = read("components/v1/v1-nav.ts");
 const liveHrefs = [...nav.matchAll(/href:\s*"([^"]+)"/g)].map((m) => m[1]);
-const allowedLive = ["/v1", "/v1/masters", "/v1/admin"];
+const allowedLive = ["/v1", "/v1/masters", "/v1/admin", "/v1/returns"];
 const extraLive = liveHrefs.filter((h) => !allowedLive.includes(h));
 check("only phase-2/3 destinations are live", extraLive.length === 0, extraLive.join(","));
 const futureLabels = (nav.match(/phase: 4/g) ?? []).length;
