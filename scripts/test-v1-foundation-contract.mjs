@@ -3,7 +3,7 @@
  *
  * Enforces the V1/legacy boundary established in Phase 1:
  *  1. The financial-RPC proxy allowlist is a superset of V1_MUTATION_RPCS.
- *  2. The browser idempotency set covers every V1 RPC that accepts
+ *  2. The V1 browser mutation wrapper covers every V1 RPC that accepts
  *     p_idempotency_key (unknown-arg injection is rejected by the DB).
  *  3. lib/v1/** (except legacy-boundary.ts itself) references no legacy
  *     tables, legacy-only RPCs, or legacy behaviors.
@@ -61,11 +61,34 @@ if (proxyAllow && v1Mutations) {
 const clientSrc = read("lib/supabase/client.ts");
 const clientSet = extractStringSet(clientSrc, "FINANCIAL_IDEMPOTENT_RPCS");
 const v1Idem = extractConstArray(rpcSrc, "V1_IDEMPOTENT_RPCS");
-check("V1_IDEMPOTENT_RPCS parsed", Array.isArray(v1Idem) && v1Idem.length === 12);
-if (clientSet && v1Idem) {
-  const missing = v1Idem.filter((n) => !clientSet.has(n));
-  check("browser idempotency set covers V1 key-accepting RPCs", missing.length === 0, `missing: ${missing.join(",")}`);
-}
+const expectedV1Idempotent = [
+  "create_purchase",
+  "create_sale",
+  "cancel_invoice",
+  "edit_invoice",
+  "record_claim",
+  "recognize_claim",
+  "record_service_txn",
+  "reverse_service_txn",
+  "reverse_journal_entry",
+  "record_day_counts",
+  "close_day_close",
+  "approve_day_close",
+  "request_return",
+  "execute_return",
+  "cancel_return",
+];
+check(
+  "V1_IDEMPOTENT_RPCS parsed",
+  Array.isArray(v1Idem) &&
+    v1Idem.length === expectedV1Idempotent.length &&
+    expectedV1Idempotent.every((name) => v1Idem.includes(name)),
+);
+check(
+  "V1 browser mutation wrapper injects keys for every idempotent V1 RPC",
+  v1RpcSource.includes("V1_IDEMPOTENT_RPCS.has(functionName)") &&
+    v1RpcSource.includes("finalArgs.p_idempotency_key"),
+);
 
 // --- 3. no legacy leakage into lib/v1 (except the boundary file) ------------
 const boundarySrc = read("lib/v1/legacy-boundary.ts");
