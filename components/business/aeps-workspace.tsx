@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
 import { useToast } from "@/components/ui/use-toast";
 import { downloadCsv } from "@/components/ui/csv";
-import { createCustomerRecord } from "@/lib/customers";
+import { createCustomerRecord, DuplicateCustomerError } from "@/lib/customers";
 import ScanFillModal from "@/components/scan-fill/scan-fill-modal";
 import { extractForMode, type ScanFields } from "@/lib/scan/extract";
 import {
@@ -198,6 +198,14 @@ export default function AepsWorkspace({
   const [searchHasQueried, setSearchHasQueried] = useState(false);
   const [selectedCustomerRecord, setSelectedCustomerRecord] = useState<any | null>(null);
   const searchAbortRef = useRef<AbortController | null>(null);
+
+  // Inline customer creation for the AEPS operator workflow.
+  // The canonical customer service/database owns Customer ID generation.
+  const [createCustomerOpen, setCreateCustomerOpen] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState("");
+  const [newCustomerMobile, setNewCustomerMobile] = useState("");
+  const [createCustomerBusy, setCreateCustomerBusy] = useState(false);
+  const [createCustomerError, setCreateCustomerError] = useState<string | null>(null);
 
   // Drafts
   const [drafts, setDrafts] = useState<DraftRecord[]>([]);
@@ -837,6 +845,59 @@ export default function AepsWorkspace({
     setCustomerSearchError(null);
     showToast("success", `Customer ${c.name} selected and linked from CafeERP directory.`);
   };
+
+  const handleCreateCustomer = useCallback(async () => {
+    const nextName = newCustomerName.trim();
+    const nextMobile = newCustomerMobile.replace(/\D/g, "");
+    if (!nextName) {
+      setCreateCustomerError("Customer name is required.");
+      return;
+    }
+    if (nextMobile && nextMobile.length !== 10) {
+      setCreateCustomerError("Mobile number must be exactly 10 digits.");
+      return;
+    }
+
+    setCreateCustomerBusy(true);
+    setCreateCustomerError(null);
+    try {
+      const newCust = await createCustomerRecord(supabase, {
+        name: nextName,
+        phone: nextMobile || null,
+      });
+
+      setCustomerId(newCust.id);
+      setName(newCust.name);
+      setMobile(String(newCust.phone || nextMobile || "").replace(/\D/g, "").slice(0, 10));
+      setSelectedCustomerRecord({
+        id: newCust.id,
+        customerId: newCust.code,
+        customerCode: newCust.code,
+        name: newCust.name,
+        mobile: newCust.phone || nextMobile,
+      });
+      setCustomerSearchQuery("");
+      setCustomerSearchResults([]);
+      setSearchHasQueried(false);
+      setCreateCustomerOpen(false);
+      setNewCustomerName("");
+      setNewCustomerMobile("");
+      showToast("success", "Customer created and selected for AEPS.");
+    } catch (error) {
+      if (error instanceof DuplicateCustomerError) {
+        handleSelectCustomer(error.existing);
+        setCreateCustomerOpen(false);
+        setNewCustomerName("");
+        setNewCustomerMobile("");
+        setCreateCustomerError(null);
+        return;
+      }
+      const message = error instanceof Error ? error.message : "Failed to create customer.";
+      setCreateCustomerError(message);
+    } finally {
+      setCreateCustomerBusy(false);
+    }
+  }, [newCustomerName, newCustomerMobile, showToast]);
 
   const handleUnlinkCustomer = useCallback(() => {
     setCustomerId("");
@@ -2917,9 +2978,24 @@ export default function AepsWorkspace({
                     <label className="block text-[10px] font-black text-slate-700">
                       Universal Customer Search
                     </label>
-                    <span className="text-[9px] font-semibold text-slate-400">
-                      Name · Mobile · ID · Aadhaar
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] font-semibold text-slate-400">
+                        Name · Mobile · ID · Aadhaar
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCreateCustomerError(null);
+                          setCreateCustomerOpen(true);
+                          setNewCustomerName(name || "");
+                          setNewCustomerMobile(cleanMobile);
+                        }}
+                        className="rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-[9px] font-black text-blue-700 hover:bg-blue-100 transition-colors"
+                        title="Create a new customer and select them for this AEPS transaction"
+                      >
+                        + New
+                      </button>
+                    </div>
                   </div>
                   <div className="relative">
                     <input
@@ -5510,6 +5586,81 @@ export default function AepsWorkspace({
           </div>
         )}
 
+        {/* CREATE CUSTOMER MODAL */}
+        {createCustomerOpen && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
+            <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl border border-slate-200 text-slate-900">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-black">Create Customer</h3>
+                  <p className="mt-1 text-xs text-slate-500">The database assigns the permanent Customer ID. Duplicate mobile numbers reuse the existing customer.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!createCustomerBusy) {
+                      setCreateCustomerOpen(false);
+                      setCreateCustomerError(null);
+                    }
+                  }}
+                  className="rounded-lg px-2 py-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                  aria-label="Close customer creation"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="mt-4 space-y-3">
+                <label className="block text-xs font-bold">
+                  Customer Name
+                  <input
+                    autoFocus
+                    value={newCustomerName}
+                    onChange={(e) => setNewCustomerName(e.target.value)}
+                    placeholder="Full customer name"
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                </label>
+                <label className="block text-xs font-bold">
+                  Mobile Number
+                  <input
+                    inputMode="numeric"
+                    maxLength={10}
+                    value={newCustomerMobile}
+                    onChange={(e) => setNewCustomerMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                    placeholder="10-digit mobile (optional)"
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-mono outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                </label>
+                {createCustomerError && (
+                  <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs font-semibold text-rose-700">
+                    {createCustomerError}
+                  </p>
+                )}
+              </div>
+              <div className="mt-5 flex justify-end gap-2 border-t border-slate-100 pt-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreateCustomerOpen(false);
+                    setCreateCustomerError(null);
+                  }}
+                  disabled={createCustomerBusy}
+                  className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateCustomer}
+                  disabled={createCustomerBusy}
+                  className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {createCustomerBusy ? "Creating…" : "Create & Select"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {/* SCAN / FILL MODAL */}
         <ScanFillModal
           open={scanModalOpen}
