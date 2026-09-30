@@ -164,8 +164,8 @@ jobs:
           docker run --rm --network host -v /tmp:/tmp:ro \
             -e PGPASSWORD="$PGPASSWORD" \
             postgres:18 pg_restore -h 127.0.0.1 -p 5433 -U "$PGUSER" -d "$PGDATABASE" \
-            --clean --if-exists --no-owner --no-privileges "$DUMP_PATH" || true
-          echo "Restore execution completed."
+            --clean --if-exists --no-owner --no-privileges --exit-on-error --single-transaction "$DUMP_PATH"
+          echo "Restore execution completed without pg_restore errors."
 
       - name: Verify restored tables and representative data
         shell: bash
