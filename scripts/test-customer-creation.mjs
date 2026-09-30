@@ -228,7 +228,7 @@ console.log("E. Response contract + UI propagation (static)");
   ok("CRM stores returned row (with code)", crm.includes("setCustomers((prev) => [data as Customer, ...prev])"));
   for (const f of flows.slice(2)) {
     const src = read(f);
-    ok(`${f} selects created row into workflow`, /setSelectedCustomerId\(newCust\.id\)|setFormCustomerId\(newCust\.id\)/.test(src));
+    ok(`${f} selects created row into workflow`, /setSelectedCustomerId\(newCust\.id\)|setFormCustomerId\(newCust\.id\)|setCustomerId\(newCust\.id\)/.test(src));
   }
 }
 
