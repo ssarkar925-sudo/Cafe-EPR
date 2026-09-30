@@ -62,6 +62,10 @@ export default function DashboardShell({
   const [searchOpen, setSearchOpen] = useState(false);
   const pathname = usePathname();
   const isPos = pathname === "/pos";
+  const roleLabel =
+    role === "admin" ? "Admin" :
+    role === "manager" ? "Manager" :
+    role === "staff" ? "Staff" : "User";
 
   useEffect(() => {
     try {
@@ -179,7 +183,7 @@ export default function DashboardShell({
             collapsed ? "lg:pl-[72px]" : "lg:pl-60 xl:pl-64"
           } ${isPos ? "is-pos flex flex-col h-screen overflow-hidden" : "min-h-screen"} transition-all duration-300`}
         >
-          {/* DESKTOP HEADER (Reference: Left hamburger, POS Live badge, Wide search, WhatsApp dot, red bell, modern AI copilot, theme toggle, Saikat Sarkar Owner • Admin) */}
+          {/* DESKTOP HEADER: navigation, search, notifications, theme and authenticated-user menu. */}
           <header className="erp-desktop-header sticky top-0 z-30 hidden lg:flex h-16 w-full items-center justify-between border-b border-slate-200/80 bg-white/80 px-6 backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/80 transition-all duration-300">
             <div className="flex items-center gap-3 sm:gap-4 flex-1 max-w-2xl min-w-0">
               <button
@@ -234,7 +238,7 @@ export default function DashboardShell({
                     {name || "Saikat Sarkar"}
                   </span>
                   <span className="block text-[10px] font-medium text-slate-400 leading-tight">
-                    Owner • Admin
+                    {roleLabel}
                   </span>
                 </div>
                 <svg

@@ -17,6 +17,7 @@
     "test:theme": "node scripts/test-theme-display-options.mjs",
     "test:invariants": "node scripts/test-financial-invariants.mjs",
     "test:qa": "node scripts/test-comprehensive-qa-suite.mjs",
+    "test:production-hardening": "node scripts/test-production-hardening-contract.mjs",
     "test:reconciliation": "node scripts/test-cross-module-reconciliation.mjs",
     "test:idempotency-client": "node scripts/test-client-idempotency-contract.mjs",
     "test:v1-foundation": "node scripts/test-v1-foundation-contract.mjs",
