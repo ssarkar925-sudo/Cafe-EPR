@@ -2,6 +2,8 @@ name: Test Staging Backup Restore (Isolated)
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "30 3 * * 0" # weekly restore certification at 03:30 UTC
 
 permissions:
   contents: read
@@ -110,7 +112,11 @@ jobs:
           # Verify MD5 of downloaded file against remote MD5
           LOCAL_MD5="$(md5sum "$DOWNLOADED_ENC_PATH" | cut -d' ' -f1)"
           echo "Downloaded file MD5: $LOCAL_MD5"
-          if [ -n "${REMOTE_MD5:-}" ] && [ "$LOCAL_MD5" != "$REMOTE_MD5" ]; then
+          if [ -z "${REMOTE_MD5:-}" ]; then
+            echo "::error::Backup object has no remote MD5 checksum; refusing restore certification."
+            exit 1
+          fi
+          if [ "$LOCAL_MD5" != "$REMOTE_MD5" ]; then
             echo "::error::MD5 checksum mismatch: remote $REMOTE_MD5 vs local $LOCAL_MD5"
             exit 1
           fi
