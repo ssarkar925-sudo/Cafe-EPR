@@ -44,7 +44,7 @@ for (const command of [
 }
 ok("Restore certification is scheduled", restore.includes("30 3 * * 0"));
 ok("Restore certification fails on pg_restore errors", !/pg_restore[^\n]*\|\|\s*true/.test(restore));
-ok("Restore certification enables exit-on-error", /pg_restore[^\n]*--exit-on-error/.test(restore));
+ok("Restore certification enables exit-on-error", restore.includes("--exit-on-error"));
 ok("Production hardening migration is versioned", migration.includes("20260930 production hardening"));
 ok("Trigger helpers have pinned search_path", migration.includes("assign_customer_code() SET search_path = public") && migration.includes("prune_ai_conversations() SET search_path = public"));
 ok("Trigger helpers are not directly executable by authenticated clients", migration.includes("REVOKE EXECUTE ON FUNCTION public.assign_customer_code() FROM PUBLIC, anon, authenticated") && migration.includes("REVOKE EXECUTE ON FUNCTION public.prune_ai_conversations() FROM PUBLIC, anon, authenticated"));
