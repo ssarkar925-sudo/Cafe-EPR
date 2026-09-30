@@ -111,7 +111,7 @@ check("39. no legacy", !/legacy|quick_sales|WAC|GST|whatsapp/i.test(allCode) && 
 // --- migration unchanged --------------------------------------------------------------------------------------------------------------------------------------------------
 const migDir = join(root, "greenfield", "migrations");
 const migs = readdirSync(migDir).filter((f) => /^V1_\d+__.*\.sql$/.test(f));
-check("migration unchanged (still V1_001-V1_014)", migs.length === 14 && !migs.some((f) => /015/.test(f)), `${migs.length} migration files`);
+check("migration baseline includes approved V1_001-V1_015", migs.length === 15 && migs.some((f) => /^V1_015__/.test(f)), `${migs.length} migration files`);
 
 if (failures > 0) {
   console.log(`V1_BACK_ENTRY_CONTRACT_FAILED (${failures})`);
