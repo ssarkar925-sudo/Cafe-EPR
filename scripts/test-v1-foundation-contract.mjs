@@ -86,8 +86,8 @@ check(
 );
 check(
   "V1 browser mutation wrapper injects keys for every idempotent V1 RPC",
-  v1RpcSource.includes("V1_IDEMPOTENT_RPCS.has(functionName)") &&
-    v1RpcSource.includes("finalArgs.p_idempotency_key"),
+  rpcSrc.includes("V1_IDEMPOTENT_RPCS.has(functionName)") &&
+    rpcSrc.includes("finalArgs.p_idempotency_key"),
 );
 
 // --- 3. no legacy leakage into lib/v1 (except the boundary file) ------------
