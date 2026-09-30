@@ -2430,26 +2430,21 @@ export default function AepsWorkspace({
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => setActiveTab("watcher")}
-              className={`rounded-xl border px-3.5 py-2.5 text-xs font-bold transition-all flex items-center gap-1.5 ${
-                activeTab === "watcher"
-                  ? "border-blue-600 bg-blue-50 text-blue-700 shadow-sm"
-                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-              }`}
+              onClick={() => {
+                setActiveTab("workspace");
+                handleNewCashOut();
+              }}
+              className="rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-2.5 text-xs font-black text-white shadow-sm active:scale-95 transition-all flex items-center gap-1.5"
             >
-              <span>◷</span> Multi-Source Watcher
-              {pendingReviewCount > 0 && (
-                <span className="rounded-full bg-amber-500 text-white text-[9px] px-1.5 py-0.2 font-black">
-                  {pendingReviewCount}
-                </span>
-              )}
+              ＋ Record Transaction
             </button>
             <button
               type="button"
-              onClick={() => setRulesModalOpen(true)}
-              className="rounded-xl border border-indigo-200 bg-indigo-50 px-3.5 py-2.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition-colors flex items-center gap-1.5"
+              onClick={handleExport}
+              className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-1.5"
             >
-              <span>⚙</span> Setup Rules
+              ⇩ Export
+
             </button>
           </div>
         </header>
@@ -2513,13 +2508,24 @@ export default function AepsWorkspace({
           </div>
 
           {activeTab === "workspace" && (
-            <button
-              type="button"
-              onClick={() => setWorkspaceOpen(!workspaceOpen)}
-              className="text-xs font-bold text-slate-500 hover:text-slate-800"
-            >
-              {workspaceOpen ? "▲ Minimize Terminal" : "▼ Expand Terminal"}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => verifyCurrentPortalDetails(true)}
+                disabled={isVerifyingPortal}
+                className="rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-1.5 text-xs font-black text-emerald-800 hover:bg-emerald-100 transition-all flex items-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50"
+              >
+                <span className={isVerifyingPortal ? "animate-spin" : ""}>🔄</span>
+                {isVerifyingPortal ? (verificationProgressStep || "Verifying…") : "Verify Current Details"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setInsightsOpen(!insightsOpen)}
+                className="rounded-xl border border-violet-200 bg-violet-50 px-3.5 py-1.5 text-xs font-black text-violet-700 hover:bg-violet-100 transition-colors flex items-center gap-1.5"
+              >
+                <span>✦</span> AI Insights
+              </button>
+            </div>
           )}
         </div>
 
@@ -2588,18 +2594,8 @@ export default function AepsWorkspace({
                 </p>
               </div>
 
-              {/* PRIMARY CONTROLS: VERIFY ALL, MODE SWITCH, SETUP RULES */}
+              {/* PRIMARY CONTROLS: MODE SWITCH, SETUP RULES */}
               <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => verifyCurrentPortalDetails(true)}
-                  disabled={isVerifyingPortal}
-                  className="rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-2 text-xs font-black text-emerald-800 hover:bg-emerald-100 transition-all flex items-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50"
-                >
-                  <span className={isVerifyingPortal ? "animate-spin" : ""}>🔄</span>
-                  {isVerifyingPortal ? (verificationProgressStep || "Verifying Sources…") : "Verify Current Details"}
-                </button>
-
                 <div className="flex rounded-xl bg-slate-100 p-1 text-xs font-bold">
                   <button
                     type="button"
