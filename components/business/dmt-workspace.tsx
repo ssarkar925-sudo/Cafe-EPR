@@ -214,6 +214,60 @@ export default function DmtWorkspace({
     portalCharge?: string;
   } | null>(null);
 
+  // Electron SAI Journey & Network Interceptor listener for DMT
+  useEffect(() => {
+    if (typeof window === "undefined" || !(window as any).electronAPI?.onAepsWatcherEvent) return;
+
+    const cleanup = (window as any).electronAPI.onAepsWatcherEvent((event: any) => {
+      if (!event) return;
+
+      if (event.type === "transaction_journey") {
+        const session = event.session;
+        const fields = session?.fields || event.fields;
+        if (!fields) return;
+
+        // Check if observation relates to DMT or general money remittance
+        const sType = String(fields.serviceType || "").toLowerCase();
+        const isDmt = sType === "dmt" || (!sType && (fields.beneficiaryName || fields.beneficiaryAccount || fields.beneficiaryIfsc));
+
+        if (isDmt || session?.status === "RECONCILED" || session?.status === "FINAL_CONFIRMED") {
+          if (fields.amount != null && Number(fields.amount) > 0) {
+            setAmount(String(fields.amount));
+          }
+          if (fields.customerMobile && /^\d{10}$/.test(fields.customerMobile)) {
+            setSenderMobile(fields.customerMobile);
+          }
+          if (fields.reference) {
+            setReference(fields.reference);
+          }
+          if (fields.portalFee != null && Number(fields.portalFee) >= 0) {
+            setServiceFee(String(fields.portalFee));
+          }
+          if (fields.portalCommission != null && Number(fields.portalCommission) >= 0) {
+            setPortalCommission(String(fields.portalCommission));
+          }
+          if (fields.beneficiaryName) {
+            setBeneficiaryName(fields.beneficiaryName);
+          }
+          if (fields.bank) {
+            const matched = matchBank(fields.bank, banks);
+            if (matched) setBeneficiaryBank(matched.name);
+          }
+
+          showToast(
+            "success",
+            `⚡ SAI DMT Interceptor: Remittance captured (${fields.reference ? `Ref: ${fields.reference}` : "In-flight"}). Review and complete transfer.`
+          );
+        }
+      }
+    });
+
+    return () => {
+      if (typeof cleanup === "function") cleanup();
+    };
+  }, [banks]);
+
+
   // Modals & UI Lifecycle
   const [lastCompletedTxn, setLastCompletedTxn] = useState<Txn | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1215,6 +1269,9 @@ export default function DmtWorkspace({
               </span>
               <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-xs text-slate-300">
                 IMPS / NEFT / UPI PAYOUT GATEWAY ACTIVE
+              </span>
+              <span className="rounded-full border border-indigo-400/40 bg-indigo-500/20 px-2.5 py-0.5 text-xs font-bold text-indigo-300">
+                ⚡ SAI CDP INTERCEPTOR READY
               </span>
             </div>
             <h1 className="text-2xl font-black tracking-tight sm:text-3xl text-white">

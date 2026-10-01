@@ -6,14 +6,17 @@
 /**
  * Common keys used by Indian AEPS gateways and B2B portals (DigiPay, Spice Money, Payworld, RNFI, etc.)
  */
-const RRN_KEYS = ["rrn", "bankrrn", "externalref", "refno", "stan", "utr", "txnreference", "externalreference"];
-const TXN_ID_KEYS = ["txnid", "transactionid", "transid", "orderid", "externalid", "clientrefid"];
-const AMOUNT_KEYS = ["amount", "txnamount", "transactionamount", "transamount", "withdrawamount"];
-const STATUS_KEYS = ["status", "statuscode", "responsecode", "txnstatus", "result", "msg"];
-const BANK_KEYS = ["bank", "bankname", "issuerbank"];
-const BALANCE_KEYS = ["balance", "accountbalance", "customerbalance", "ledgerbalance", "availablebalance"];
-const COMM_KEYS = ["commission", "retailercommission", "margin", "tds"];
-const FEE_KEYS = ["fee", "charge", "servicecharge", "customerfee"];
+const RRN_KEYS = ["rrn", "bankrrn", "externalref", "refno", "stan", "utr", "txnreference", "externalreference", "bankreference", "operatorref", "billerref", "operatorid", "bbpsref", "ackno"];
+const TXN_ID_KEYS = ["txnid", "transactionid", "transid", "orderid", "externalid", "clientrefid", "requestid"];
+const AMOUNT_KEYS = ["amount", "txnamount", "transactionamount", "transamount", "withdrawamount", "billamount", "rechargeamount", "transferamount"];
+const STATUS_KEYS = ["status", "statuscode", "responsecode", "txnstatus", "result", "msg", "message"];
+const BANK_KEYS = ["bank", "bankname", "issuerbank", "remitterbank", "beneficiarybank"];
+const BALANCE_KEYS = ["balance", "accountbalance", "customerbalance", "ledgerbalance", "availablebalance", "walletbalance"];
+const COMM_KEYS = ["commission", "retailercommission", "margin", "tds", "retailerearning"];
+const FEE_KEYS = ["fee", "charge", "servicecharge", "customerfee", "convfee", "conveniencefee"];
+const SENDER_MOBILE_KEYS = ["sendermobile", "remittermobile", "customermobile", "mobile", "custmobile", "phone"];
+const BENEFICIARY_KEYS = ["beneficiaryname", "beneName", "receivername", "accountnumber", "accountno", "beneaccount", "ifsc", "ifsccode", "upiid", "vpa"];
+const CONSUMER_KEYS = ["consumerno", "canumber", "consumernumber", "kno", "accountid", "billerid", "billername", "operator"];
 
 function findValueInObject(obj, targetKeys) {
   if (!obj || typeof obj !== "object") return null;
@@ -51,6 +54,9 @@ function parseAepsNetworkPayload(json, url) {
   const rawBalance = findValueInObject(json, BALANCE_KEYS);
   const rawCommission = findValueInObject(json, COMM_KEYS);
   const rawFee = findValueInObject(json, FEE_KEYS);
+  const rawMobile = findValueInObject(json, SENDER_MOBILE_KEYS);
+  const rawBeneficiary = findValueInObject(json, BENEFICIARY_KEYS);
+  const rawConsumer = findValueInObject(json, CONSUMER_KEYS);
 
   // Parse amount strictly as number
   let amount = null;
@@ -62,7 +68,7 @@ function parseAepsNetworkPayload(json, url) {
     }
   }
 
-  // Determine stage based on URL or payload traits
+  // Determine stage and serviceType based on URL or payload traits
   const urlLower = String(url || "").toLowerCase();
   let stage = "FINAL";
   if (
@@ -74,6 +80,15 @@ function parseAepsNetworkPayload(json, url) {
     urlLower.includes("ledger")
   ) {
     stage = "PASSBOOK";
+  }
+
+  let serviceType = "aeps";
+  if (urlLower.includes("dmt") || urlLower.includes("remit") || urlLower.includes("payout") || urlLower.includes("moneytransfer")) {
+    serviceType = "dmt";
+  } else if (urlLower.includes("bbps") || urlLower.includes("bill") || urlLower.includes("utility") || urlLower.includes("electricity")) {
+    serviceType = "bbps";
+  } else if (urlLower.includes("recharge") || urlLower.includes("dth") || urlLower.includes("prepaid")) {
+    serviceType = "recharge";
   }
 
   // Parse status
@@ -107,6 +122,7 @@ function parseAepsNetworkPayload(json, url) {
   }
 
   const fields = {
+    serviceType,
     rrn: rawRrn ? String(rawRrn).trim() : null,
     reference: rawRrn ? String(rawRrn).trim() : rawTxnId ? String(rawTxnId).trim() : null,
     transactionId: rawTxnId ? String(rawTxnId).trim() : null,
@@ -115,12 +131,16 @@ function parseAepsNetworkPayload(json, url) {
     accountBalance: rawBalance !== null ? String(rawBalance).trim() : null,
     portalCommission: rawCommission !== null ? Number(rawCommission) || null : null,
     portalFee: rawFee !== null ? Number(rawFee) || null : null,
+    customerMobile: rawMobile ? String(rawMobile).trim().replace(/\D/g, "").slice(-10) : null,
+    beneficiaryName: rawBeneficiary ? String(rawBeneficiary).trim() : null,
+    consumerNumber: rawConsumer ? String(rawConsumer).trim() : null,
     status,
     observedVia: "cdp_network_interception",
   };
 
   return {
     stage,
+    serviceType,
     fields,
   };
 }
@@ -153,6 +173,13 @@ class AepsNetworkInterceptor {
           const isLikelyApi =
             url.includes("/api/") ||
             url.includes("aeps") ||
+            url.includes("dmt") ||
+            url.includes("remit") ||
+            url.includes("payout") ||
+            url.includes("bbps") ||
+            url.includes("bill") ||
+            url.includes("utility") ||
+            url.includes("recharge") ||
             url.includes("transaction") ||
             url.includes("withdraw") ||
             url.includes("passbook") ||

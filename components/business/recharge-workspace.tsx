@@ -258,6 +258,46 @@ export default function RechargeWorkspace({
   const [amount, setAmount] = useState("");
   const [serviceFee, setServiceFee] = useState("0");
   const [selectedPlan, setSelectedPlan] = useState<PlanItem | null>(null);
+
+  // Electron SAI Journey & Network Interceptor listener for Recharge
+  useEffect(() => {
+    if (typeof window === "undefined" || !(window as any).electronAPI?.onAepsWatcherEvent) return;
+
+    const cleanup = (window as any).electronAPI.onAepsWatcherEvent((event: any) => {
+      if (!event) return;
+
+      if (event.type === "transaction_journey") {
+        const session = event.session;
+        const fields = session?.fields || event.fields;
+        if (!fields) return;
+
+        const sType = String(fields.serviceType || "").toLowerCase();
+        const isRecharge = sType === "recharge";
+
+        if (isRecharge || session?.status === "RECONCILED" || session?.status === "FINAL_CONFIRMED") {
+          if (fields.amount != null && Number(fields.amount) > 0) {
+            setAmount(String(fields.amount));
+          }
+          if (fields.customerMobile && /^\d{10}$/.test(fields.customerMobile)) {
+            setMobileNumber(fields.customerMobile);
+          }
+          if (fields.portalFee != null && Number(fields.portalFee) >= 0) {
+            setServiceFee(String(fields.portalFee));
+          }
+
+          showToast(
+            "success",
+            `⚡ SAI Recharge Interceptor: Transaction captured (${fields.reference ? `Ref: ${fields.reference}` : "In-flight"}). Review and complete recharge.`
+          );
+        }
+      }
+    });
+
+    return () => {
+      if (typeof cleanup === "function") cleanup();
+    };
+  }, []);
+
   const [planCategory, setPlanCategory] = useState("Popular Plans");
   const [customerPayMethod, setCustomerPayMethod] = useState<"cash" | "upi" | "bank" | "wallet" | "card" | "due">("cash");
   const [customerPayInstId, setCustomerPayInstId] = useState("");
