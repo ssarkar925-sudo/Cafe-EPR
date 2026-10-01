@@ -2282,10 +2282,26 @@ export default function AepsWorkspace({
   // ---------------------------------------------------------------------------
   // APPROVE & SAVE WITH STRICT FINANCIAL PERSISTENCE CONFIRMATION
   // ---------------------------------------------------------------------------
+  const selectedDetectedRecord = selectedDetectedTransactionId
+    ? detectedTransactions.find((item) => item.id === selectedDetectedTransactionId) || null
+    : null;
+  const detectedJourneyApprovalBlocked = Boolean(
+    selectedDetectedRecord &&
+      selectedDetectedRecord.journeyStatus &&
+      selectedDetectedRecord.journeyStatus !== "RECONCILED"
+  );
+
   const idempotencyKeyRef = useRef<string | null>(null);
 
   const recordTransaction = async () => {
     if (busy || !isFormValid) return;
+    if (detectedJourneyApprovalBlocked) {
+      showToast(
+        "info",
+        "This detected AEPS transaction is awaiting passbook reconciliation. Approval unlocks after the journey is reconciled."
+      );
+      return;
+    }
     setBusy(true);
     try {
       const isCollection = transactionType === "payment_collection";
@@ -3865,7 +3881,11 @@ export default function AepsWorkspace({
             <div className="sticky bottom-0 z-20 -mx-5 -mb-5 lg:-mx-6 lg:-mb-6 mt-6 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-200 bg-white/95 px-6 py-4 backdrop-blur shadow-lg rounded-b-2xl">
               <div className="flex items-center gap-2 text-xs text-slate-500">
                 <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>Final recording stays under operator review.</span>
+                <span>
+                  {detectedJourneyApprovalBlocked
+                    ? "Waiting for passbook reconciliation before final approval."
+                    : "Final recording stays under operator review."}
+                </span>
                 {draftSavedAt && (
                   <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
                     Draft saved at {draftSavedAt}
@@ -3891,7 +3911,7 @@ export default function AepsWorkspace({
                 </button>
                 <button
                   type="button"
-                  disabled={!isFormValid || busy}
+                  disabled={!isFormValid || busy || detectedJourneyApprovalBlocked}
                   onClick={() => setReviewOpen(true)}
                   className="rounded-xl bg-blue-600 hover:bg-blue-700 px-6 py-2.5 text-xs font-black text-white shadow-md shadow-blue-600/20 active:scale-95 transition-all disabled:cursor-not-allowed disabled:opacity-50 flex items-center gap-2"
                 >
@@ -5485,7 +5505,7 @@ export default function AepsWorkspace({
                 <button
                   type="button"
                   onClick={recordTransaction}
-                  disabled={!isFormValid || busy}
+                  disabled={!isFormValid || busy || detectedJourneyApprovalBlocked}
                   className="rounded-xl bg-blue-600 hover:bg-blue-700 px-5 py-2 text-xs font-black text-white shadow-sm transition-all disabled:opacity-50"
                 >
                   {busy ? "Processing…" : "Approve & Record"}
