@@ -1,8 +1,10 @@
-const { app, BrowserWindow, ipcMain, Notification } = require("electron");
+const { app, BrowserWindow, ipcMain, Notification, clipboard } = require("electron");
 const path = require("path");
 const { AepsWatcher } = require("./aeps-watcher");
 
 let mainWindow = null;
+let clipboardTimer = null;
+let lastClipboardText = "";
 const aepsWatcher = new AepsWatcher();
 
 const DEFAULT_CLOUD_URL = "https://cafeerp.ssarkar925.workers.dev";
@@ -118,8 +120,84 @@ function createWindow() {
 
   mainWindow.on("closed", () => {
     mainWindow = null;
+    if (clipboardTimer) {
+      clearInterval(clipboardTimer);
+      clipboardTimer = null;
+    }
     void aepsWatcher.stop();
   });
+
+  // Background Smart Clipboard Automation:
+  // Detects any copied AEPS / DigiPay / Spice Money slip text from ANY external window or app.
+  // Sends a transaction event directly to the ERP workspace to auto-fill the form instantly.
+  startClipboardWatcher();
+}
+
+function startClipboardWatcher() {
+  if (clipboardTimer) clearInterval(clipboardTimer);
+  clipboardTimer = setInterval(() => {
+    try {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      const text = String(clipboard.readText() || "").trim();
+      if (!text || text === lastClipboardText || text.length < 20 || text.length > 5000) return;
+
+      const isAepsSlip =
+        /\b(?:rrn|bank\s*ref|utr|transaction\s*id|txn\s*id)\b/i.test(text) &&
+        /\b(?:₹|rs\.?|inr|amount|withdrawal|balance)\b/i.test(text);
+
+      if (isAepsSlip) {
+        lastClipboardText = text;
+        const refMatch =
+          text.match(/\b(?:rrn|bank\s*ref(?:\.?\s*(?:no|number))?)\s*[:#=\-]?\s*([0-9A-Za-z]{6,35})/i) ||
+          text.match(/\b(?:transaction\s*id|txn\s*id)\s*[:#=\-]?\s*([0-9A-Za-z]{6,35})/i);
+        const amtMatch = text.match(
+          /\b(?:amount|amt|withdrawal\s*amount)\s*[:#=\-]?\s*(?:₹|Rs\.?|INR)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i
+        ) || text.match(/(?:₹|Rs\.?|INR)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
+        const bankMatch = text.match(
+          /\b(?:bank\s*name|issuer\s*bank|customer\s*bank)\s*[:#=\-]?\s*([A-Za-z][A-Za-z .&'-]{2,60})/i
+        ) || text.match(/\b(State\s+Bank\s+of\s+India|SBI|Bank\s+of\s+India|Bank\s+of\s+Baroda|Punjab\s+National\s+Bank|PNB|Canara\s+Bank|HDFC|ICICI|Axis|Union\s+Bank)\b/i);
+        const aadhaarMatch = text.match(
+          /\b(?:customer\s*id|aadhaar|aadhar)\s*(?:last\s*4|no|number)?\s*[:#=\-]?\s*(?:[xX*#\s-]*)(\d{4})\b/i
+        );
+        const mobileMatch = text.match(/\b(?:mobile|phone|contact)\s*[:#=\-]?\s*([6-9]\d{9})/i) ||
+          text.match(/\b([6-9]\d{9})\b/);
+
+        const ref = refMatch ? refMatch[1].trim() : "";
+        const rawAmt = amtMatch ? amtMatch[1].replace(/,/g, "") : "";
+        const amountNum = rawAmt ? Number(rawAmt) : null;
+
+        if (ref && amountNum && amountNum > 0) {
+          const transaction = {
+            externalTransactionId: ref,
+            externalReference: ref,
+            reference: ref,
+            amount: amountNum.toFixed(2),
+            bankName: bankMatch ? bankMatch[1].trim() : null,
+            aadhaarLast4: aadhaarMatch ? aadhaarMatch[1].trim() : null,
+            customerMobile: mobileMatch ? mobileMatch[1].trim() : null,
+            transactionType: "cash_out",
+            status: "success",
+            rawText: text,
+          };
+
+          mainWindow.webContents.send("aeps-watcher-event", {
+            type: "transaction",
+            portalId: "clipboard-auto",
+            portalName: "Automated Clipboard Capture",
+            sourceId: "clipboard",
+            sourceUrl: "clipboard://live",
+            fingerprint: `clipboard|${ref}|${transaction.amount}`,
+            transaction,
+            detectedAt: new Date().toISOString(),
+          });
+
+          // Focus main window to show populated transaction
+          if (mainWindow.isMinimized()) mainWindow.restore();
+          mainWindow.focus();
+        }
+      }
+    } catch {}
+  }, 1000);
 }
 
 // IPC Handlers for native hardware printing

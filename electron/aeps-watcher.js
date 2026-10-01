@@ -1721,6 +1721,17 @@ function extractVisibleTransactions() {
     }
   }
 
+  // Strategy 5: Full receipt / confirmation document scan fallback
+  if (candidates.length === 0 && pageText.length >= 20) {
+    const isSuccessSlip =
+      /\b(?:transaction\s*receipt|payment\s*receipt|receipt|payment\s*status\s*[:#=\-]?\s*success|withdrawal\s*successful)\b/i.test(pageText) &&
+      /\b(?:bank\s*ref|rrn|utr|transaction\s*id)\b/i.test(pageText);
+
+    if (isSuccessSlip) {
+      add(parseCandidate(pageText.slice(0, 5000), { pageContext: pageText.slice(0, 8000) }));
+    }
+  }
+
   return {
     authRequired: false,
     transactions: candidates.slice(0, 25),

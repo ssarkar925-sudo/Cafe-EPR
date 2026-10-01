@@ -575,8 +575,8 @@ export default function AepsWorkspace({
         ].slice(0, 25));
 
         // Every detection is now placed in a visible review queue.
-        // Other portals remain isolated until the operator explicitly reviews them.
-        if (detectedPortal !== portalId) {
+        // Other portals remain isolated unless it is an automated direct capture or current portal.
+        if (detectedPortal !== portalId && detectedPortal !== "clipboard-auto") {
           showToast(
             "info",
             `New AEPS transaction detected in ${event.portalName || "another portal"}. Open the review queue to inspect it.`
