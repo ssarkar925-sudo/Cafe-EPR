@@ -1,10 +1,12 @@
 const { BrowserWindow } = require("electron");
+const { AepsNetworkInterceptor } = require("./aeps-network-interceptor.js");
 
 class AepsWatcher {
   constructor() {
     this.window = null;
     this.sourceWindows = new Map();
     this.sourceSessions = new Map();
+    this.networkInterceptors = new Map();
     this.timer = null;
     this.config = null;
     this.emit = null;
@@ -13,6 +15,7 @@ class AepsWatcher {
     this.liveConfig = null;
     this.liveEmit = null;
     this.liveSeen = new Set();
+    this.activeSessions = new Map();
   }
 
   isValidSource(url) {
@@ -80,6 +83,32 @@ class AepsWatcher {
         message: "Portal page failed to load (" + errorCode + "): " + (errorDescription || validatedURL),
       });
     });
+
+    // Attach CDP Passive Network Interceptor to capture raw JSON banking responses in-flight
+    try {
+      const interceptor = new AepsNetworkInterceptor(this.window.webContents, (obs) => {
+        const session = this.processJourneyObservation({
+          portalId: this.config?.portalId,
+          portalName: this.config?.portalName,
+          sourceUrl: this.config?.sourceUrl,
+          stage: obs.stage,
+          fields: obs.fields,
+          evidence: obs.evidence,
+        });
+        this.emit({
+          type: "transaction_journey",
+          portalId: this.config?.portalId,
+          portalName: this.config?.portalName,
+          stage: obs.stage,
+          session,
+          observedVia: "network_interception",
+        });
+      });
+      interceptor.attach();
+      this.networkInterceptors.set("main", interceptor);
+    } catch (e) {
+      console.warn("[AepsWatcher] Failed to attach network interceptor to main window:", e.message);
+    }
 
     await this.window.loadURL(this.config.sourceUrl);
     this.scheduleNext(0);
@@ -158,7 +187,82 @@ class AepsWatcher {
           fingerprint,
           transaction,
         });
+
+        // Journey observation for FINAL stage
+        const journeySession = this.processJourneyObservation({
+          portalId: this.config.portalId,
+          portalName: this.config.portalName,
+          stage: "FINAL",
+          fields: {
+            rrn: transaction.externalTransactionId || transaction.reference,
+            reference: transaction.externalTransactionId || transaction.reference,
+            transactionId: transaction.externalTransactionId || transaction.reference,
+            amount: Number(transaction.amount) || null,
+            transactionType: transaction.transactionType || "cash_out",
+            bank: transaction.bankName || null,
+            customerMobile: transaction.customerMobile || null,
+            aadhaarLast4: transaction.aadhaarLast4 || null,
+            status: "SUCCESS",
+          },
+          evidence: { rawTextSnippet: transaction.rawText || "" },
+        });
+
+        this.emit({
+          type: "transaction_journey",
+          portalId: this.config.portalId,
+          portalName: this.config.portalName,
+          stage: "FINAL",
+          session: journeySession,
+        });
       }
+
+      // Also inspect page for ENTRY or PASSBOOK journey stages
+      try {
+        const journeyScan = await this.window.webContents.executeJavaScript(
+          "(" + extractJourneyObservations.toString() + ")()",
+          true
+        );
+        if (journeyScan && (journeyScan.stage === "ENTRY" || journeyScan.stage === "PASSBOOK")) {
+          if (journeyScan.stage === "PASSBOOK" && Array.isArray(journeyScan.passbookRecords)) {
+            for (const pb of journeyScan.passbookRecords) {
+              const session = this.processJourneyObservation({
+                portalId: this.config.portalId,
+                portalName: this.config.portalName,
+                stage: "PASSBOOK",
+                fields: {
+                  rrn: pb.rrn || pb.reference,
+                  reference: pb.reference,
+                  amount: pb.amount,
+                  status: pb.status || "SUCCESS",
+                },
+                evidence: { rawTextSnippet: pb.rawTextSnippet, url: journeyScan.pageUrl },
+              });
+              this.emit({
+                type: "transaction_journey",
+                portalId: this.config.portalId,
+                portalName: this.config.portalName,
+                stage: "PASSBOOK",
+                session,
+              });
+            }
+          } else if (journeyScan.stage === "ENTRY" && journeyScan.fields) {
+            const session = this.processJourneyObservation({
+              portalId: this.config.portalId,
+              portalName: this.config.portalName,
+              stage: "ENTRY",
+              fields: journeyScan.fields,
+              evidence: { url: journeyScan.pageUrl, title: journeyScan.pageTitle },
+            });
+            this.emit({
+              type: "transaction_journey",
+              portalId: this.config.portalId,
+              portalName: this.config.portalName,
+              stage: "ENTRY",
+              session,
+            });
+          }
+        }
+      } catch {}
 
       this.emit({
         type: "success",
@@ -329,6 +433,35 @@ class AepsWatcher {
           error: "Portal page failed to load (" + errorCode + "): " + (errorDescription || validatedURL),
         });
       });
+
+      // Attach CDP Passive Network Interceptor to each source window
+      try {
+        const interceptor = new AepsNetworkInterceptor(win.webContents, (obs) => {
+          const session = this.processJourneyObservation({
+            portalId,
+            portalName,
+            sourceId,
+            sourceUrl,
+            stage: obs.stage,
+            fields: obs.fields,
+            evidence: obs.evidence,
+          });
+          this.liveEmit?.({
+            type: "transaction_journey",
+            portalId,
+            portalName,
+            sourceId,
+            sourceUrl,
+            stage: obs.stage,
+            session,
+            observedVia: "network_interception",
+          });
+        });
+        interceptor.attach();
+        this.networkInterceptors.set(sourceId, interceptor);
+      } catch (e) {
+        console.warn(`[AepsWatcher] Failed to attach network interceptor to source ${sourceId}:`, e.message);
+      }
 
       await win.loadURL(sourceUrl);
 
@@ -527,7 +660,93 @@ class AepsWatcher {
           transaction,
           detectedAt: new Date().toISOString(),
         });
+
+        const journeySession = this.processJourneyObservation({
+          portalId,
+          portalName,
+          sourceId,
+          sourceUrl: String(source.url),
+          stage: "FINAL",
+          fields: {
+            rrn: reference,
+            reference,
+            transactionId: reference,
+            amount: Number(transaction.amount) || null,
+            transactionType: transaction.transactionType || "cash_out",
+            bank: transaction.bankName || null,
+            customerMobile: transaction.customerMobile || null,
+            aadhaarLast4: transaction.aadhaarLast4 || null,
+            status: "SUCCESS",
+          },
+          evidence: { rawTextSnippet: transaction.rawText || "", url: String(source.url) },
+        });
+
+        this.liveEmit?.({
+          type: "transaction_journey",
+          portalId,
+          portalName,
+          sourceId,
+          sourceUrl: String(source.url),
+          stage: "FINAL",
+          session: journeySession,
+        });
       }
+
+      // Check for ENTRY and PASSBOOK stages on this source window
+      try {
+        const journeyScan = await session.win.webContents.executeJavaScript(
+          "(" + extractJourneyObservations.toString() + ")()",
+          true
+        );
+        if (journeyScan && (journeyScan.stage === "ENTRY" || journeyScan.stage === "PASSBOOK")) {
+          if (journeyScan.stage === "PASSBOOK" && Array.isArray(journeyScan.passbookRecords)) {
+            for (const pb of journeyScan.passbookRecords) {
+              const sessionPb = this.processJourneyObservation({
+                portalId,
+                portalName,
+                sourceId,
+                sourceUrl: String(source.url),
+                stage: "PASSBOOK",
+                fields: {
+                  rrn: pb.rrn || pb.reference,
+                  reference: pb.reference,
+                  amount: pb.amount,
+                  status: pb.status || "SUCCESS",
+                },
+                evidence: { rawTextSnippet: pb.rawTextSnippet, url: journeyScan.pageUrl },
+              });
+              this.liveEmit?.({
+                type: "transaction_journey",
+                portalId,
+                portalName,
+                sourceId,
+                sourceUrl: String(source.url),
+                stage: "PASSBOOK",
+                session: sessionPb,
+              });
+            }
+          } else if (journeyScan.stage === "ENTRY" && journeyScan.fields) {
+            const sessionEntry = this.processJourneyObservation({
+              portalId,
+              portalName,
+              sourceId,
+              sourceUrl: String(source.url),
+              stage: "ENTRY",
+              fields: journeyScan.fields,
+              evidence: { url: journeyScan.pageUrl, title: journeyScan.pageTitle },
+            });
+            this.liveEmit?.({
+              type: "transaction_journey",
+              portalId,
+              portalName,
+              sourceId,
+              sourceUrl: String(source.url),
+              stage: "ENTRY",
+              session: sessionEntry,
+            });
+          }
+        }
+      } catch {}
 
       this.liveEmit?.({
         type: "source_success",
@@ -767,6 +986,7 @@ class AepsWatcher {
       intervalSeconds: this.liveConfig?.intervalSeconds || null,
       sourceCount: sessions.length,
       sessions,
+      journeySessions: Array.from(this.activeSessions.values()),
     };
   }
 
@@ -777,6 +997,12 @@ class AepsWatcher {
     if (this.window && !this.window.isDestroyed()) {
       this.window.destroy();
     }
+    for (const interceptor of this.networkInterceptors.values()) {
+      try {
+        interceptor.detach();
+      } catch {}
+    }
+    this.networkInterceptors.clear();
     for (const sourceWindow of this.sourceWindows.values()) {
       if (sourceWindow && !sourceWindow.isDestroyed()) sourceWindow.destroy();
     }
@@ -788,6 +1014,7 @@ class AepsWatcher {
     this.window = null;
     this.config = null;
     this.seen.clear();
+    this.activeSessions.clear();
     if (current) this.emit?.({ type: "stopped", portalId: current, reason: "manual_stop" });
   }
 }
@@ -1407,4 +1634,394 @@ function extractVisibleTransactions() {
   };
 }
 
-module.exports = { AepsWatcher };
+function extractJourneyObservations() {
+  const clean = (val) =>
+    String(val || "")
+      .replace(/\u00a0/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const visible = (element) => {
+    try {
+      const style = window.getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return (
+        style.display !== "none" &&
+        style.visibility !== "hidden" &&
+        rect.width > 0 &&
+        rect.height > 0
+      );
+    } catch {
+      return false;
+    }
+  };
+
+  const isSecretControl = (el) => {
+    const text = clean(
+      (el.name || "") + " " +
+      (el.id || "") + " " +
+      (el.getAttribute("aria-label") || "") + " " +
+      (el.placeholder || "")
+    ).toLowerCase();
+    const type = String(el.type || "").toLowerCase();
+    return (
+      type === "password" ||
+      /\b(password|passcode|otp|pin|cvv|secret|biometric|fingerprint)\b/i.test(text)
+    );
+  };
+
+  const money = (value) => {
+    const raw = clean(value).replace(/,/g, "");
+    const currency =
+      raw.match(/(?:₹|Rs\.?|INR)\s*([0-9]+(?:\.[0-9]{1,2})?)/i) ||
+      raw.match(/\b([0-9]+(?:\.[0-9]{1,2})?)\b/);
+    if (!currency) return null;
+    const n = Number(currency[1]);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
+
+  const pageText = clean(document.body?.innerText || "");
+  const pageUrl = clean(location.href);
+  const pageTitle = clean(document.title);
+
+  // 1. STAGE: PASSBOOK / HISTORY
+  const isPassbookSignal =
+    /\b(passbook|transaction\s*history|txn\s*history|account\s*statement|statement|mini\s*statement|aeps\s*history|aeps\s*report|daily\s*report)\b/i.test(
+      pageUrl + " " + pageTitle + " " + pageText.slice(0, 500)
+    );
+
+  const tables = Array.from(document.querySelectorAll("table, [role='grid'], [role='table']")).filter(visible);
+  if (isPassbookSignal && tables.length > 0) {
+    const candidates = [];
+    const rows = Array.from(document.querySelectorAll("tbody tr, [role='row']")).filter(visible);
+    for (const row of rows.slice(0, 15)) {
+      const text = clean(row.innerText);
+      if (text.length < 15) continue;
+      const ref = text.match(/\b(?:RRN|UTR|Ref|Txn|ID)?[:#=\-\s]*([A-Za-z0-9]{8,24})\b/i)?.[1] || "";
+      const amtMatch = text.match(/(?:₹|Rs\.?|INR)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
+      const amt = amtMatch ? money(amtMatch[1]) : null;
+      if (amt && amt > 0) {
+        candidates.push({
+          reference: ref || null,
+          rrn: ref || null,
+          amount: amt,
+          status: /success|completed|credit|debit/i.test(text) ? "SUCCESS" : "RECORDED",
+          rawTextSnippet: text.slice(0, 200),
+        });
+      }
+    }
+
+    if (candidates.length > 0) {
+      return {
+        stage: "PASSBOOK",
+        passbookRecords: candidates,
+        pageUrl,
+        pageTitle,
+      };
+    }
+  }
+
+  // 2. STAGE: ENTRY FORM (detect input fields being typed or filled)
+  const inputElements = Array.from(
+    document.querySelectorAll("input:not([type='hidden']):not([type='submit']):not([type='button']), select, textarea")
+  ).filter(visible);
+
+  const nonSecretInputs = inputElements.filter((el) => !isSecretControl(el));
+  let detectedMobile = "";
+  let detectedAadhaarLast4 = "";
+  let detectedAmount = null;
+  let detectedBank = "";
+  let detectedType = "";
+
+  for (const el of nonSecretInputs) {
+    const val = clean(el.value || el.innerText || "");
+    const desc = clean(
+      (el.name || "") + " " +
+      (el.id || "") + " " +
+      (el.getAttribute("aria-label") || "") + " " +
+      (el.placeholder || "") + " " +
+      (el.labels?.[0]?.innerText || "")
+    ).toLowerCase();
+
+    // Customer mobile
+    if (/\b(mobile|phone|contact)\b/i.test(desc)) {
+      const m = val.replace(/\D/g, "");
+      if (m.length === 10) detectedMobile = m;
+    }
+
+    // Aadhaar last 4
+    if (/\b(aadhaar|aadhar)\b/i.test(desc)) {
+      const a = val.replace(/\D/g, "");
+      if (a.length === 4) detectedAadhaarLast4 = a;
+      else if (a.length === 12) detectedAadhaarLast4 = a.slice(-4);
+    }
+
+    // Amount
+    if (/\b(amount|amt)\b/i.test(desc)) {
+      const n = money(val);
+      if (n != null && n > 0 && n <= 50000) detectedAmount = n;
+    }
+
+    // Bank
+    if (/\b(bank|issuer)\b/i.test(desc) && val.length >= 3) {
+      detectedBank = val;
+    }
+
+    // Transaction type
+    if (/\b(type|mode|service)\b/i.test(desc) && val.length >= 3) {
+      detectedType = val;
+    }
+  }
+
+  if (detectedMobile || detectedAadhaarLast4 || detectedAmount) {
+    return {
+      stage: "ENTRY",
+      fields: {
+        customerMobile: detectedMobile || null,
+        aadhaarLast4: detectedAadhaarLast4 || null,
+        amount: detectedAmount,
+        bank: detectedBank || null,
+        transactionType: detectedType || null,
+      },
+      pageUrl,
+      pageTitle,
+    };
+  }
+
+  return { stage: "INTERMEDIATE", fields: {}, pageUrl, pageTitle };
+}
+
+// Attach journey methods to AepsWatcher prototype
+AepsWatcher.prototype.getOrCreateJourneySession = function (portalId, portalName, fields, stage) {
+  const cleanFields = sanitizeFields(fields);
+  const primaryRef = computePrimaryReference(cleanFields);
+  const fallback = computeFallbackKey(portalId, cleanFields);
+
+  if (primaryRef) {
+    for (const s of this.activeSessions.values()) {
+      if (s.portalId === portalId && s.primaryReference === primaryRef) {
+        return s;
+      }
+    }
+  }
+
+  if (fallback) {
+    for (const s of this.activeSessions.values()) {
+      if (s.portalId === portalId && s.status !== "EXPIRED") {
+        if (s.fallbackKey === fallback) return s;
+        if (
+          cleanFields.customerMobile &&
+          s.fields.customerMobile === cleanFields.customerMobile &&
+          cleanFields.amount != null &&
+          s.fields.amount === cleanFields.amount
+        ) {
+          return s;
+        }
+      }
+    }
+  }
+
+  const sessionId = "aeps-journey-" + portalId + "-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7);
+  const now = new Date().toISOString();
+  const session = {
+    sessionId,
+    portalId,
+    portalName,
+    createdAt: now,
+    updatedAt: now,
+    status: "COLLECTING",
+    currentStage: stage,
+    fields: { ...cleanFields },
+    observations: [],
+    conflicts: [],
+    verification: {
+      customer: false,
+      amount: false,
+      bank: false,
+      reference: false,
+      transactionType: false,
+      passbook: false,
+    },
+    primaryReference: primaryRef,
+    fallbackKey: fallback,
+    passbookRecord: null,
+    passbookMatchedAt: null,
+  };
+
+  this.activeSessions.set(sessionId, session);
+  if (this.activeSessions.size > 200) {
+    const oldestKey = this.activeSessions.keys().next().value;
+    if (oldestKey) this.activeSessions.delete(oldestKey);
+  }
+
+  return session;
+};
+
+AepsWatcher.prototype.processJourneyObservation = function (rawObs) {
+  const sanitized = sanitizeFields(rawObs.fields || {});
+  const session = this.getOrCreateJourneySession(
+    rawObs.portalId,
+    rawObs.portalName,
+    sanitized,
+    rawObs.stage
+  );
+
+  const observation = {
+    id: "obs-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8),
+    sessionId: session.sessionId,
+    portalId: rawObs.portalId,
+    portalName: rawObs.portalName,
+    sourceId: rawObs.sourceId,
+    sourceUrl: rawObs.sourceUrl,
+    stage: rawObs.stage,
+    capturedAt: new Date().toISOString(),
+    fields: sanitized,
+    evidence: rawObs.evidence || {},
+  };
+
+  session.observations.push(observation);
+  session.updatedAt = new Date().toISOString();
+  session.currentStage = rawObs.stage;
+
+  // Conflict Detection
+  const existing = session.fields;
+  if (existing.amount != null && sanitized.amount != null) {
+    if (Math.abs(Number(existing.amount) - Number(sanitized.amount)) >= 0.01) {
+      const conflictMsg = "Amount mismatch: previously ₹" + existing.amount + ", now ₹" + sanitized.amount + " in " + rawObs.stage;
+      if (!session.conflicts.some((c) => c.field === "amount")) {
+        session.conflicts.push({
+          field: "amount",
+          message: conflictMsg,
+          entryValue: existing.amount,
+          finalValue: rawObs.stage === "FINAL" ? sanitized.amount : undefined,
+          passbookValue: rawObs.stage === "PASSBOOK" ? sanitized.amount : undefined,
+          sourceVariants: [{ sourceUrl: rawObs.sourceUrl, value: sanitized.amount, stage: rawObs.stage }],
+        });
+      }
+      session.status = "CONFLICT";
+    }
+  }
+
+  const existRef = computePrimaryReference(existing);
+  const newRef = computePrimaryReference(sanitized);
+  if (existRef && newRef && existRef !== newRef) {
+    if (!session.conflicts.some((c) => c.field === "reference")) {
+      session.conflicts.push({
+        field: "reference",
+        message: "Reference mismatch: previously " + existRef + ", now " + newRef,
+        entryValue: existRef,
+        sourceVariants: [{ sourceUrl: rawObs.sourceUrl, value: newRef, stage: rawObs.stage }],
+      });
+    }
+    session.status = "CONFLICT";
+  }
+
+  // Merge fields
+  if (rawObs.stage === "PASSBOOK") {
+    session.passbookRecord = { ...sanitized };
+    session.passbookMatchedAt = new Date().toISOString();
+  }
+
+  for (const [k, v] of Object.entries(sanitized)) {
+    if (v == null || v === "") continue;
+    if (session.fields[k] == null || session.fields[k] === "") {
+      session.fields[k] = v;
+    }
+  }
+
+  const finalRef = computePrimaryReference(session.fields);
+  if (finalRef && !session.primaryReference) {
+    session.primaryReference = finalRef;
+  }
+
+  // Evaluate status
+  if (session.conflicts.length > 0) {
+    session.status = "CONFLICT";
+  } else {
+    const stagesSeen = new Set(session.observations.map((o) => o.stage));
+    session.verification.customer = Boolean(session.fields.customerMobile || session.fields.customerName || session.fields.aadhaarLast4);
+    session.verification.amount = Boolean(session.fields.amount != null && Number(session.fields.amount) > 0);
+    session.verification.bank = Boolean(session.fields.bank);
+    session.verification.reference = Boolean(session.fields.rrn || session.fields.reference || session.fields.transactionId);
+    session.verification.transactionType = Boolean(session.fields.transactionType);
+    session.verification.passbook = Boolean(stagesSeen.has("PASSBOOK") && session.passbookRecord);
+
+    const hasFinal = stagesSeen.has("FINAL");
+    const hasPassbook = stagesSeen.has("PASSBOOK");
+    const isSuccess = /success|completed|approved/i.test(session.fields.status || "success");
+
+    if (hasFinal && isSuccess) {
+      if (hasPassbook) {
+        const pb = session.passbookRecord;
+        const refMatch = !pb?.reference || !session.fields.reference || pb.reference.toLowerCase() === session.fields.reference.toLowerCase();
+        const amtMatch = pb?.amount == null || session.fields.amount == null || Math.abs(Number(pb.amount) - Number(session.fields.amount)) < 0.01;
+        session.status = (refMatch && amtMatch) ? "RECONCILED" : "CONFLICT";
+      } else {
+        session.status = "FINAL_CONFIRMED";
+      }
+    } else {
+      session.status = "COLLECTING";
+    }
+  }
+
+  return session;
+};
+
+// Pure sanitizeFields and reference computation for Electron CJS
+function sanitizeFields(raw) {
+  const SENSITIVE = [/\botp\b/i, /\bpin\b/i, /pass(?:word|code)?/i, /biometric/i, /finger(?:print)?/i, /secret/i, /cvv/i];
+  const clean = {};
+  for (const [k, v] of Object.entries(raw || {})) {
+    if (SENSITIVE.some((p) => p.test(k))) continue;
+    if (typeof v === "string") {
+      const a = v.replace(/\D/g, "");
+      if (a.length === 12 && k.toLowerCase().includes("aadhaar")) {
+        clean.aadhaarLast4 = a.slice(-4);
+        continue;
+      }
+    }
+    clean[k] = v;
+  }
+  const ref = clean.reference || clean.rrn || clean.transactionId || clean.utr || null;
+  if (ref) {
+    clean.reference = String(ref).trim();
+    if (!clean.rrn) clean.rrn = clean.reference;
+    if (!clean.transactionId) clean.transactionId = clean.reference;
+  }
+  if (clean.amount != null) {
+    const num = Number(clean.amount);
+    clean.amount = Number.isFinite(num) && num > 0 ? num : null;
+  }
+  if (clean.customerMobile) {
+    const m = String(clean.customerMobile).replace(/\D/g, "").slice(-10);
+    clean.customerMobile = m.length === 10 ? m : null;
+  }
+  if (clean.aadhaarLast4) {
+    const a = String(clean.aadhaarLast4).replace(/\D/g, "").slice(-4);
+    clean.aadhaarLast4 = a.length === 4 ? a : null;
+  }
+  return clean;
+}
+
+function computePrimaryReference(fields) {
+  const ref = fields?.rrn || fields?.transactionId || fields?.reference || fields?.utr;
+  return ref ? String(ref).trim() : null;
+}
+
+function computeFallbackKey(portalId, fields) {
+  const mobile = fields?.customerMobile || "";
+  const aadhaar = fields?.aadhaarLast4 || "";
+  const amount = fields?.amount != null ? Number(fields.amount).toFixed(2) : "";
+  const type = fields?.transactionType || "cash_out";
+  if (!mobile && !aadhaar && !amount) return null;
+  return (portalId + "|" + mobile + "|" + aadhaar + "|" + amount + "|" + type).toLowerCase();
+}
+
+module.exports = {
+  AepsWatcher,
+  sanitizeFields,
+  computePrimaryReference,
+  computeFallbackKey,
+  extractJourneyObservations,
+};
+

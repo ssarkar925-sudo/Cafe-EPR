@@ -20,7 +20,9 @@ import {
   matchBankExactName,
   validatePortalSourceUrl,
   VALID_PORTAL_PURPOSES,
+  DEFAULT_INDIAN_PORTAL_PROFILES,
 } from "@/lib/aeps/portal-watcher";
+import { globalJourneyEngine, type JourneyStage } from "@/lib/aeps/journey-engine";
 
 export const runtime = "nodejs";
 export const maxDuration = 45;
@@ -279,6 +281,25 @@ export async function GET(request: Request) {
       });
     }
 
+    if (actionParam === "get_journey_sessions") {
+      const portalIdParam = searchParams.get("portalId");
+      let all = globalJourneyEngine.getAllSessions();
+      if (portalIdParam) {
+        all = all.filter((s) => s.portalId === portalIdParam);
+      }
+      return NextResponse.json({
+        success: true,
+        sessions: all,
+      });
+    }
+
+    if (actionParam === "get_portal_presets") {
+      return NextResponse.json({
+        success: true,
+        presets: DEFAULT_INDIAN_PORTAL_PROFILES,
+      });
+    }
+
     const portalId = searchParams.get("portalId");
 
     let query = supabase
@@ -348,6 +369,43 @@ export async function POST(request: Request) {
     }
 
     const action = String(body.action || "test").toLowerCase();
+
+    // -----------------------------------------------------------------------
+    // ACTION: INGEST_JOURNEY_OBSERVATION (Ingest journey observation into engine)
+    // -----------------------------------------------------------------------
+    if (action === "ingest_journey_observation") {
+      const portalId = String(body.portalId || "").trim();
+      const portalName = String(body.portalName || "AEPS Portal").trim();
+      const stage = (String(body.stage || "INTERMEDIATE").toUpperCase()) as JourneyStage;
+      const fields = typeof body.fields === "object" && body.fields ? body.fields : {};
+      const evidence = typeof body.evidence === "object" && body.evidence ? body.evidence : {};
+      const sourceId = body.sourceId ? String(body.sourceId) : undefined;
+      const sourceUrl = body.sourceUrl ? String(body.sourceUrl) : undefined;
+
+      if (!portalId) {
+        return NextResponse.json({ error: "Portal ID is required." }, { status: 400 });
+      }
+
+      const result = globalJourneyEngine.ingestObservation({
+        portalId,
+        portalName,
+        stage,
+        capturedAt: new Date().toISOString(),
+        sourceId,
+        sourceUrl,
+        fields,
+        evidence,
+      });
+
+      return NextResponse.json({
+        success: true,
+        action: "ingest_journey_observation",
+        session: result.session,
+        observation: result.observation,
+        hasConflict: result.hasConflict,
+        reconciled: result.reconciled,
+      });
+    }
 
     // -----------------------------------------------------------------------
     // ACTION: COLLECT_ALL (Checks ALL enabled URLs for portal together)

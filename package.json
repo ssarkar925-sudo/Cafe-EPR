@@ -6,7 +6,7 @@
   "main": "electron/main.js",
   "scripts": {
     "dev": "next dev -p 3000 -H 0.0.0.0",
-    "build": "next build && npx @opennextjs/cloudflare@1.20.6 build --skipNextBuild",
+    "build": "node --max-old-space-size=4096 node_modules/next/dist/bin/next build && npx @opennextjs/cloudflare@1.20.6 build --skipNextBuild",
     "build:worker": "npx @opennextjs/cloudflare@1.20.6 build",
     "deploy": "npx @opennextjs/cloudflare@1.20.6 deploy -- --keep-vars",
     "preview": "npx @opennextjs/cloudflare@1.20.6 build && npx @opennextjs/cloudflare@1.20.6 preview",
@@ -21,6 +21,8 @@
     "test:qa": "node scripts/test-comprehensive-qa-suite.mjs",
     "test:production-hardening": "node scripts/test-production-hardening-contract.mjs",
     "test:aeps-watcher": "node scripts/test-aeps-watcher-contract.mjs",
+    "test:aeps-journey": "node --import ./scripts/ts-test-hooks.mjs scripts/test-aeps-journey-journey.mjs",
+    "test:aeps-network": "node --import ./scripts/ts-test-hooks.mjs scripts/test-aeps-network-interception.mjs",
     "test:reconciliation": "node scripts/test-cross-module-reconciliation.mjs",
     "test:idempotency-client": "node scripts/test-client-idempotency-contract.mjs",
     "test:v1-foundation": "node scripts/test-v1-foundation-contract.mjs",

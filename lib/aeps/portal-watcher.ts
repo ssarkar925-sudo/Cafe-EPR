@@ -1260,3 +1260,133 @@ export function getDefaultAepsPricingRules(portals: { id: string; name: string }
 
   return rules;
 }
+
+// ---------------------------------------------------------------------------
+// Pre-Configured Indian B2B AEPS Portal Profiles (Option 2)
+// ---------------------------------------------------------------------------
+
+export interface IndianPortalPreset {
+  key: string;
+  name: string;
+  loginUrl: string;
+  sources: {
+    purpose: PortalSourcePurpose;
+    url: string;
+    description: string;
+  }[];
+}
+
+export const DEFAULT_INDIAN_PORTAL_PROFILES: IndianPortalPreset[] = [
+  {
+    key: "csc_digipay",
+    name: "CSC DigiPay Web",
+    loginUrl: "https://digipay.csccloud.in/",
+    sources: [
+      {
+        purpose: "transaction_info",
+        url: "https://digipay.csccloud.in/aeps",
+        description: "Main Cash Withdrawal & Balance Enquiry Terminal",
+      },
+      {
+        purpose: "commission",
+        url: "https://digipay.csccloud.in/reports/passbook",
+        description: "DigiPay Passbook & Transaction Settlement History",
+      },
+      {
+        purpose: "service_status",
+        url: "https://digipay.csccloud.in/dashboard",
+        description: "DigiPay Agent Live Dashboard & Wallet Float Status",
+      },
+    ],
+  },
+  {
+    key: "spice_money",
+    name: "Spice Money B2B",
+    loginUrl: "https://b2b.spicemoney.com/",
+    sources: [
+      {
+        purpose: "transaction_info",
+        url: "https://b2b.spicemoney.com/aeps",
+        description: "Spice Money AEPS Cash Out & Mini-Statement Terminal",
+      },
+      {
+        purpose: "commission",
+        url: "https://b2b.spicemoney.com/reports/aepsHistory",
+        description: "Spice Money AEPS Real-Time History & Commission Report",
+      },
+      {
+        purpose: "service_status",
+        url: "https://b2b.spicemoney.com/wallet",
+        description: "Spice Money Main Wallet & Settlement Balance",
+      },
+    ],
+  },
+  {
+    key: "payworld",
+    name: "Payworld India",
+    loginUrl: "https://portal.payworldindia.com/",
+    sources: [
+      {
+        purpose: "transaction_info",
+        url: "https://portal.payworldindia.com/aeps/transaction",
+        description: "Payworld AEPS Terminal Interface",
+      },
+      {
+        purpose: "commission",
+        url: "https://portal.payworldindia.com/reports/statement",
+        description: "Payworld Passbook & Transaction Ledger",
+      },
+    ],
+  },
+  {
+    key: "rnfi_relipay",
+    name: "RNFI Relipay",
+    loginUrl: "https://rnfi.in/",
+    sources: [
+      {
+        purpose: "transaction_info",
+        url: "https://rnfi.in/aeps/service",
+        description: "RNFI AEPS Withdrawal & Enquiry Portal",
+      },
+      {
+        purpose: "commission",
+        url: "https://rnfi.in/reports/passbook",
+        description: "RNFI Real-Time Commission & Passbook Statement",
+      },
+    ],
+  },
+  {
+    key: "fino_merchant",
+    name: "Fino Payments Bank Merchant",
+    loginUrl: "https://partner.finopaytech.com/",
+    sources: [
+      {
+        purpose: "transaction_info",
+        url: "https://partner.finopaytech.com/aeps",
+        description: "Fino AEPS Banking Point Terminal",
+      },
+      {
+        purpose: "commission",
+        url: "https://partner.finopaytech.com/reports/statement",
+        description: "Fino Passbook & Ledger Statement",
+      },
+    ],
+  },
+  {
+    key: "airtel_tejas",
+    name: "Airtel Payments Bank (Tejas)",
+    loginUrl: "https://portal.airtelbank.com/",
+    sources: [
+      {
+        purpose: "transaction_info",
+        url: "https://portal.airtelbank.com/aeps",
+        description: "Airtel Merchant AEPS Transaction Terminal",
+      },
+      {
+        purpose: "commission",
+        url: "https://portal.airtelbank.com/reports/passbook",
+        description: "Airtel Tejas Agent Transaction Passbook",
+      },
+    ],
+  },
+];

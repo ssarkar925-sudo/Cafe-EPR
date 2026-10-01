@@ -33,7 +33,14 @@ import {
   type AepsTxnType,
   validatePortalSourceUrl,
   VALID_PORTAL_PURPOSES,
+  DEFAULT_INDIAN_PORTAL_PROFILES,
+  type IndianPortalPreset,
 } from "@/lib/aeps/portal-watcher";
+import {
+  type AepsTransactionJourneySession,
+  type JourneyStage,
+  type JourneyReconciliationStatus,
+} from "@/lib/aeps/journey-engine";
 import type { CustomerRow, Master, Txn } from "./business-client";
 
 export { normalizeBankName, matchBank, TOP_INDIAN_BANKS };
@@ -236,6 +243,8 @@ export default function AepsWorkspace({
   const [liveWatcherError, setLiveWatcherError] = useState<string | null>(null);
   const [detectedTransactions, setDetectedTransactions] = useState<any[]>([]);
   const [selectedDetectedTransactionId, setSelectedDetectedTransactionId] = useState<string | null>(null);
+  const [journeySessions, setJourneySessions] = useState<AepsTransactionJourneySession[]>([]);
+  const [activeJourneySession, setActiveJourneySession] = useState<AepsTransactionJourneySession | null>(null);
   const liveSnapshotBusyRef = useRef(false);
   const [newSourceUrl, setNewSourceUrl] = useState("");
   const [newSourcePurpose, setNewSourcePurpose] = useState<PortalSourcePurpose>("commission");
@@ -405,8 +414,41 @@ export default function AepsWorkspace({
     const ref = String(tx.externalReference || tx.externalTransactionId || tx.reference || "").trim();
     if (ref) handleTransactionRefChange(ref);
 
-    if (tx.fee != null && Number.isFinite(Number(tx.fee))) setFee(String(tx.fee));
-    if (tx.commission != null && Number.isFinite(Number(tx.commission))) setCommission(String(tx.commission));
+    if (record.journeySession) {
+      setActiveJourneySession(record.journeySession);
+    } else {
+      // Create or map a temporary session if raw record
+      const tempSession: AepsTransactionJourneySession = {
+        sessionId: String(record.id || `sess-${Date.now()}`),
+        portalId: detectedPortalId,
+        portalName: record.portalName || "AEPS Portal",
+        createdAt: record.detectedAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        status: "FINAL_CONFIRMED",
+        currentStage: "FINAL",
+        fields: {
+          customerMobile: tx.customerMobile || null,
+          aadhaarLast4: tx.aadhaarLast4 || null,
+          amount: Number(tx.amount) || null,
+          bank: tx.bankName || null,
+          transactionType: nextType,
+          reference: ref || null,
+          rrn: ref || null,
+          status: "SUCCESS",
+        },
+        observations: [],
+        conflicts: [],
+        verification: {
+          customer: Boolean(tx.customerMobile || tx.aadhaarLast4),
+          amount: Boolean(tx.amount),
+          bank: Boolean(tx.bankName),
+          reference: Boolean(ref),
+          transactionType: Boolean(nextType),
+          passbook: false,
+        },
+      };
+      setActiveJourneySession(tempSession);
+    }
 
     setEntryMode("ai");
     setSourceSectionOpen(true);
@@ -533,6 +575,64 @@ export default function AepsWorkspace({
           "success",
           `New AEPS transaction detected from ${event.portalName || "portal"} — review opened with captured details.`
         );
+      }
+
+      if (event.type === "transaction_journey") {
+        const jSession = event.session as AepsTransactionJourneySession;
+        if (jSession) {
+          setJourneySessions((prev) => [
+            jSession,
+            ...prev.filter((s) => s.sessionId !== jSession.sessionId),
+          ].slice(0, 50));
+
+          // If current session or newly reconciled, update activeJourneySession
+          if (
+            !activeJourneySession ||
+            activeJourneySession.sessionId === jSession.sessionId ||
+            jSession.status === "RECONCILED"
+          ) {
+            setActiveJourneySession(jSession);
+
+            if (jSession.status === "RECONCILED") {
+              // Automatically fill fields into workspace
+              const f = jSession.fields;
+              if (f.amount != null && Number(f.amount) > 0) setAmount(String(f.amount));
+              if (f.customerMobile && /^\d{10}$/.test(f.customerMobile)) setMobile(f.customerMobile);
+              if (f.aadhaarLast4 && /^\d{4}$/.test(f.aadhaarLast4)) setAadhaar(f.aadhaarLast4);
+              if (f.reference) handleTransactionRefChange(f.reference);
+              if (f.bank) {
+                const exact = matchBankExactName(f.bank, bankOptions);
+                if (exact) {
+                  setBankId(exact.id);
+                  setUnmatchedBankName(null);
+                } else {
+                  setUnmatchedBankName(f.bank);
+                }
+              }
+              if (f.transactionType) {
+                const normType = normalizeRuleTransactionType(f.transactionType);
+                if (
+                  normType === "cash_out" ||
+                  normType === "payment_collection" ||
+                  normType === "balance_enquiry" ||
+                  normType === "mini_statement"
+                ) {
+                  setTransactionType(normType as AepsTxnType);
+                }
+              }
+
+              showToast(
+                "success",
+                `Transaction ${jSession.primaryReference || "detected"} RECONCILED with Passbook. Approve & Save is now enabled.`
+              );
+            } else if (jSession.status === "CONFLICT") {
+              showToast(
+                "warning",
+                `⚠ CONFLICT detected in transaction journey: ${jSession.conflicts[0]?.message || "Discrepancy detected"}. Approval is disabled until resolved.`
+              );
+            }
+          }
+        }
       }
 
       if (event.type === "stopped") {
@@ -2056,6 +2156,76 @@ export default function AepsWorkspace({
       showToast("error", err?.message || "Failed to persist source to server.");
     }
   };
+
+  const [loadingPresetKey, setLoadingPresetKey] = useState<string | null>(null);
+
+  const handleApplyPreset = async (preset: IndianPortalPreset) => {
+    const targetPortal = initialPortals.find((p) => p.id === selectedWatcherPortalId);
+    if (!targetPortal) {
+      showToast("error", "Please select a portal first.");
+      return;
+    }
+
+    setLoadingPresetKey(preset.key);
+    let addedCount = 0;
+    let skippedCount = 0;
+
+    try {
+      for (const src of preset.sources) {
+        const urlValidation = validatePortalSourceUrl(src.url);
+        if (!urlValidation.valid) continue;
+        const normalizedUrl = urlValidation.normalizedUrl!;
+
+        const isDuplicate = watcherSources.some(
+          (s) =>
+            !s.isArchived &&
+            s.portalId === selectedWatcherPortalId &&
+            s.url.trim().toLowerCase() === normalizedUrl.toLowerCase()
+        );
+
+        if (isDuplicate) {
+          skippedCount++;
+          continue;
+        }
+
+        const newId = `src-${selectedWatcherPortalId}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        const res = await fetch("/api/ai/portal-watcher", {
+          method: "POST",
+          cache: "no-store",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({
+            action: "create_source",
+            id: newId,
+            portalId: selectedWatcherPortalId,
+            portalName: targetPortal.name,
+            url: normalizedUrl,
+            purpose: src.purpose,
+            isEnabled: true,
+          }),
+        });
+
+        const data = await parseWatcherResponse(res, `Add preset ${src.purpose}`);
+        if (data?.success && data?.source) {
+          setWatcherSources((prev) => [...prev, data.source]);
+          addedCount++;
+        }
+      }
+
+      if (addedCount > 0) {
+        showToast(
+          "success",
+          `Imported ${addedCount} live journey endpoints for ${preset.name}${skippedCount > 0 ? ` (${skippedCount} already existed)` : ""}.`
+        );
+      } else if (skippedCount > 0) {
+        showToast("info", `All endpoints for ${preset.name} are already configured.`);
+      }
+    } catch (err: any) {
+      showToast("error", err?.message || "Failed to import portal preset.");
+    } finally {
+      setLoadingPresetKey(null);
+    }
+  };
   // Rules Manager Actions
   const handleSaveRule = async (rule: AepsPricingRule) => {
     const cleanRule: AepsPricingRule = {
@@ -2278,6 +2448,7 @@ export default function AepsWorkspace({
           : prev
       );
       setSelectedDetectedTransactionId(null);
+      setActiveJourneySession(null);
       handleNewCashOut();
       setReviewOpen(false);
       idempotencyKeyRef.current = null;
@@ -2400,6 +2571,14 @@ export default function AepsWorkspace({
     return cleanMobile.length === 10 && cleanAadhaar.length === 4 && !!bankId && !!portalId;
   }, [cleanMobile, cleanAadhaar, amount, transactionType, bankId, portalId]);
 
+  // Approval Gate: Automatically detected SAI AEPS transactions must reach RECONCILED state.
+  // Manual transactions that were never captured by SAI retain standard manual workflow.
+  const approvalGatePassed = useMemo(() => {
+    if (!isFormValid) return false;
+    if (!activeJourneySession) return true; // manual transaction
+    return activeJourneySession.status === "RECONCILED";
+  }, [isFormValid, activeJourneySession]);
+
   const pendingReviewCount = changeRecords.filter((r) => r.status === "pending").length;
 
   return (
@@ -2419,6 +2598,9 @@ export default function AepsWorkspace({
                 </h1>
                 <span className="rounded-full bg-blue-50 border border-blue-200 px-2.5 py-0.5 text-[10px] font-black text-blue-700">
                   LIVE WATCHER READY
+                </span>
+                <span className="rounded-full bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 text-[10px] font-black text-indigo-700">
+                  ⚡ HYBRID NETWORK (CDP) ACTIVE
                 </span>
               </div>
               <p className="text-xs text-slate-500">
@@ -2753,24 +2935,53 @@ export default function AepsWorkspace({
                    {detectedTransactions.slice(0, 10).map((record) => {
                      const tx = record.transaction || {};
                      const isSelected = selectedDetectedTransactionId === record.id;
+                     const jSession = record.journeySession || activeJourneySession;
+                     const jStatus = jSession?.status || "FINAL_CONFIRMED";
+                     const isConflict = jStatus === "CONFLICT";
+                     const isReconciled = jStatus === "RECONCILED";
+
                      return (
-                       <div key={record.id} className={"rounded-xl border p-3 bg-white flex flex-col gap-3 md:flex-row md:items-center md:justify-between " + (isSelected ? "border-blue-400 ring-2 ring-blue-100" : "border-slate-200")}>
-                         <div className="min-w-0">
+                       <div key={record.id} className={"rounded-xl border p-3.5 bg-white flex flex-col gap-3 md:flex-row md:items-center md:justify-between " + (isSelected ? "border-blue-400 ring-2 ring-blue-100" : isConflict ? "border-rose-300 bg-rose-50/40" : "border-slate-200")}>
+                         <div className="min-w-0 flex-1 space-y-1.5">
                            <div className="flex flex-wrap items-center gap-2">
                              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-700">{record.portalName}</span>
                              <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-emerald-700">{formatRuleTransactionType(tx.transactionType || "cash_out")}</span>
                              <span className="font-mono text-sm font-black text-slate-950">{tx.amount != null ? inr(Number(tx.amount)) : "Amount not captured"}</span>
+                             <span className={"rounded-full px-2 py-0.5 text-[9px] font-black " + (
+                               isReconciled
+                                 ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                                 : isConflict
+                                 ? "bg-rose-100 text-rose-800 border border-rose-300"
+                                 : "bg-blue-100 text-blue-800 border border-blue-200"
+                             )}>
+                               {isConflict ? "⚠ CONFLICT" : jStatus.replace(/_/g, " ")}
+                             </span>
                            </div>
-                           <div className="mt-1 text-[10px] text-slate-500 flex flex-wrap gap-x-3 gap-y-1">
+                           <div className="text-[10px] text-slate-500 flex flex-wrap gap-x-3 gap-y-1">
                              <span>Ref: <b className="font-mono text-slate-700">{tx.externalReference || tx.externalTransactionId || tx.reference || "—"}</b></span>
                              <span>Bank: <b className="text-slate-700">{tx.bankName || "Not captured"}</b></span>
+                             <span>Customer: <b className="text-slate-700">{tx.customerMobile ? maskMobile(tx.customerMobile) : tx.customerName || "—"}</b></span>
                              <span>Detected: <b className="text-slate-700">{fmtTime(record.detectedAt)}</b></span>
                            </div>
+
+                           {/* Journey Stage Indicators */}
+                           <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-[9px]">
+                             <span className="font-bold text-slate-400">Journey:</span>
+                             <span className={"rounded px-1.5 py-0.5 font-bold " + (jSession?.observations?.some((o: any) => o.stage === "ENTRY") ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-500")}>ENTRY {jSession?.observations?.some((o: any) => o.stage === "ENTRY") ? "✓" : "—"}</span>
+                             <span className={"rounded px-1.5 py-0.5 font-bold " + (jSession?.observations?.some((o: any) => o.stage === "FINAL") || tx.amount ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-500")}>FINAL ✓</span>
+                             <span className={"rounded px-1.5 py-0.5 font-bold " + (jSession?.passbookRecord ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800")}>PASSBOOK {jSession?.passbookRecord ? "✓" : "WAITING"}</span>
+                           </div>
+
+                           {isConflict && jSession?.conflicts?.[0] && (
+                             <div className="rounded-lg bg-rose-100 border border-rose-200 px-2.5 py-1 text-[10px] font-bold text-rose-800">
+                               ⚠ {jSession.conflicts[0].message}
+                             </div>
+                           )}
                          </div>
                          <button
                            type="button"
                            onClick={() => reviewDetectedTransaction(record)}
-                           className="shrink-0 rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white hover:bg-blue-700"
+                           className="shrink-0 rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white hover:bg-blue-700 shadow-sm"
                          >
                            Review &amp; Fill
                          </button>
@@ -2840,6 +3051,93 @@ export default function AepsWorkspace({
                 </div>
               </div>
             </div>
+
+            {/* SAI TRANSACTION JOURNEY STATUS & RECONCILIATION GATE */}
+            {activeJourneySession && (
+              <div className={"rounded-2xl border p-4 space-y-3 animate-fadeIn " + (
+                activeJourneySession.status === "RECONCILED"
+                  ? "border-emerald-300 bg-emerald-50/80"
+                  : activeJourneySession.status === "CONFLICT"
+                  ? "border-rose-300 bg-rose-50/80"
+                  : "border-blue-300 bg-blue-50/80"
+              )}>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className={"flex h-3 w-3 rounded-full " + (
+                      activeJourneySession.status === "RECONCILED"
+                        ? "bg-emerald-600"
+                        : activeJourneySession.status === "CONFLICT"
+                        ? "bg-rose-600"
+                        : "bg-blue-600 animate-pulse"
+                    )} />
+                    <span className="text-xs font-black uppercase tracking-wide text-slate-900">
+                      SAI AEPS Journey:
+                    </span>
+                    <span className={"rounded-full px-2.5 py-0.5 text-[10px] font-black " + (
+                      activeJourneySession.status === "RECONCILED"
+                        ? "bg-emerald-200 text-emerald-900 border border-emerald-300"
+                        : activeJourneySession.status === "CONFLICT"
+                        ? "bg-rose-200 text-rose-900 border border-rose-300"
+                        : "bg-blue-200 text-blue-900 border border-blue-300"
+                    )}>
+                      {activeJourneySession.status === "CONFLICT" ? "⚠ CONFLICT DETECTED" : activeJourneySession.status.replace(/_/g, " ")}
+                    </span>
+                    {activeJourneySession.observations.some((o: any) => o.evidence?.source === "network_interception_cdp" || o.fields?.observedVia === "cdp_network_interception") && (
+                      <span className="rounded-full bg-indigo-100 border border-indigo-300 px-2 py-0.5 text-[9px] font-black text-indigo-800 flex items-center gap-1">
+                        <span>⚡</span> Network JSON Verified (CDP)
+                      </span>
+                    )}
+                    {activeJourneySession.primaryReference && (
+                      <span className="font-mono text-xs font-bold text-slate-700">
+                        ({activeJourneySession.primaryReference})
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="text-[11px] font-bold">
+                    {activeJourneySession.status === "RECONCILED" ? (
+                      <span className="text-emerald-700">✓ Approval Enabled — Ready for Final Human Operator Sign-Off</span>
+                    ) : activeJourneySession.status === "CONFLICT" ? (
+                      <span className="text-rose-700">⚠ Approval Blocked — Human Intervention Required</span>
+                    ) : (
+                      <span className="text-blue-700">Waiting for Passbook Confirmation before Approval unlocks…</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Journey Stage Timeline */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-center">
+                  <div className={"rounded-xl p-2 border " + (activeJourneySession.observations.some((o: any) => o.stage === "ENTRY") ? "bg-white border-emerald-200 text-emerald-900" : "bg-slate-50 border-slate-200 text-slate-400")}>
+                    <div className="text-[9px] font-bold uppercase">1. Entry</div>
+                    <div className="text-xs font-black mt-0.5">{activeJourneySession.observations.some((o: any) => o.stage === "ENTRY") ? "✓ Captured" : "—"}</div>
+                  </div>
+                  <div className={"rounded-xl p-2 border " + (activeJourneySession.observations.some((o: any) => o.stage === "INTERMEDIATE") ? "bg-white border-emerald-200 text-emerald-900" : "bg-slate-50 border-slate-200 text-slate-400")}>
+                    <div className="text-[9px] font-bold uppercase">2. Intermediate</div>
+                    <div className="text-xs font-black mt-0.5">{activeJourneySession.observations.some((o: any) => o.stage === "INTERMEDIATE") ? "✓ Captured" : "—"}</div>
+                  </div>
+                  <div className={"rounded-xl p-2 border " + (activeJourneySession.observations.some((o: any) => o.stage === "FINAL") || activeJourneySession.fields.amount ? "bg-white border-emerald-200 text-emerald-900" : "bg-slate-50 border-slate-200 text-slate-400")}>
+                    <div className="text-[9px] font-bold uppercase">3. Final</div>
+                    <div className="text-xs font-black mt-0.5">{activeJourneySession.observations.some((o: any) => o.stage === "FINAL") || activeJourneySession.fields.amount ? "✓ Success" : "—"}</div>
+                  </div>
+                  <div className={"rounded-xl p-2 border " + (activeJourneySession.passbookRecord ? "bg-white border-emerald-200 text-emerald-900" : "bg-amber-50 border-amber-200 text-amber-800")}>
+                    <div className="text-[9px] font-bold uppercase">4. Passbook</div>
+                    <div className="text-xs font-black mt-0.5">{activeJourneySession.passbookRecord ? "✓ Reconciled" : "Waiting…"}</div>
+                  </div>
+                </div>
+
+                {/* Conflict Detail if any */}
+                {activeJourneySession.conflicts.length > 0 && (
+                  <div className="rounded-xl bg-white border border-rose-200 p-3 space-y-1">
+                    <div className="text-xs font-black text-rose-900">Discrepancy Details:</div>
+                    {activeJourneySession.conflicts.map((c, i) => (
+                      <div key={i} className="text-xs text-rose-700 flex items-center justify-between">
+                        <span>• <b>{c.field.toUpperCase()}</b>: {c.message}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* DEDICATED SOURCE / WATCHER / AI DATA SECTION */}
             {sourceSectionOpen && (
@@ -3767,7 +4065,13 @@ export default function AepsWorkspace({
                 <button
                   type="button"
                   disabled={!isFormValid || busy}
-                  onClick={() => setReviewOpen(true)}
+                  onClick={() => {
+                    if (!approvalGatePassed) {
+                      showToast("error", activeJourneySession?.status === "CONFLICT" ? "Cannot approve: Transaction has journey conflicts." : "Cannot approve: Awaiting passbook reconciliation.");
+                      return;
+                    }
+                    setReviewOpen(true);
+                  }}
                   className="rounded-xl bg-blue-600 hover:bg-blue-700 px-6 py-2.5 text-xs font-black text-white shadow-md shadow-blue-600/20 active:scale-95 transition-all disabled:cursor-not-allowed disabled:opacity-50 flex items-center gap-2"
                 >
                   {busy ? "Processing…" : "✓ Approve & Save"}
@@ -4089,6 +4393,49 @@ export default function AepsWorkspace({
                     No source URLs configured for this portal yet.
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* QUICK-LOAD PRESET INDIAN B2B PORTAL PROFILES */}
+            <div className="rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50/70 via-blue-50/50 to-slate-50 p-4 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                <div>
+                  <h4 className="text-xs font-black uppercase tracking-wider text-indigo-950 flex items-center gap-1.5">
+                    <span>⚡ Quick-Load Portal Profiles</span>
+                    <span className="rounded-full bg-indigo-200/70 px-2 py-0.5 text-[9px] font-black text-indigo-800">
+                      1-CLICK JOURNEY SETUP
+                    </span>
+                  </h4>
+                  <p className="text-[11px] text-slate-500">
+                    Instantly load verified cash-out terminal &amp; passbook endpoints with zero typing.
+                  </p>
+                </div>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {DEFAULT_INDIAN_PORTAL_PROFILES.map((preset) => {
+                  const isApplying = loadingPresetKey === preset.key;
+                  return (
+                    <button
+                      key={preset.key}
+                      type="button"
+                      disabled={isApplying}
+                      onClick={() => handleApplyPreset(preset)}
+                      className="group flex flex-col items-start gap-1 rounded-xl border border-indigo-200/80 bg-white/95 p-3 text-left shadow-sm hover:border-indigo-400 hover:shadow transition-all disabled:opacity-50"
+                    >
+                      <div className="flex w-full items-center justify-between">
+                        <span className="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                          {preset.name}
+                        </span>
+                        <span className="text-[10px] font-mono text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">
+                          {isApplying ? "Loading…" : `${preset.sources.length} URLs`}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-mono truncate w-full">
+                        {preset.loginUrl}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -5360,7 +5707,7 @@ export default function AepsWorkspace({
                 <button
                   type="button"
                   onClick={recordTransaction}
-                  disabled={!isFormValid || busy}
+                  disabled={!approvalGatePassed || busy}
                   className="rounded-xl bg-blue-600 hover:bg-blue-700 px-5 py-2 text-xs font-black text-white shadow-sm transition-all disabled:opacity-50"
                 >
                   {busy ? "Processing…" : "Approve & Record"}
