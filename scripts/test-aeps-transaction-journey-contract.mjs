@@ -9,6 +9,11 @@ const watcherSource = fs.readFileSync(path.join(root, "electron", "aeps-watcher.
 const sessionPath = path.join(root, "electron", "aeps-transaction-session.js");
 const sessionSource = fs.readFileSync(sessionPath, "utf8");
 
+const requiredApproval = [
+  ["approval blocks before reconciliation", "detectedJourneyApprovalBlocked"],
+  ["approval requires reconciled status", 'selectedDetectedRecord.journeyStatus !== "RECONCILED"'],
+];
+
 const requiredWatcher = [
   ["transaction journey memory import", 'require("./aeps-transaction-session")'],
   ["transaction journey state", "this.journeyMemory = new AepsTransactionJourneyMemory()"],
@@ -40,6 +45,14 @@ const requiredSession = [
 ];
 
 let failed = 0;
+
+for (const [label, needle] of requiredApproval) {
+  if (watcherSource.includes(needle) || sessionSource.includes(needle)) console.log("PASS:", label);
+  else {
+    console.error("FAIL:", label, "missing:", needle);
+    failed++;
+  }
+}
 
 for (const [label, needle] of requiredWatcher) {
   if (watcherSource.includes(needle)) console.log("PASS:", label);
