@@ -250,8 +250,23 @@ class AepsWatcher {
           "(" + extractJourneyObservations.toString() + ")()",
           true
         );
-        if (journeyScan && (journeyScan.stage === "ENTRY" || journeyScan.stage === "PASSBOOK")) {
-          if (journeyScan.stage === "PASSBOOK" && Array.isArray(journeyScan.passbookRecords)) {
+        if (journeyScan && (journeyScan.stage === "FINAL" || journeyScan.stage === "ENTRY" || journeyScan.stage === "PASSBOOK")) {
+          if (journeyScan.stage === "FINAL" && journeyScan.fields) {
+            const session = this.processJourneyObservation({
+              portalId: this.config.portalId,
+              portalName: this.config.portalName,
+              stage: "FINAL",
+              fields: journeyScan.fields,
+              evidence: journeyScan.evidence || { url: journeyScan.pageUrl, title: journeyScan.pageTitle },
+            });
+            this.emit({
+              type: "transaction_journey",
+              portalId: this.config.portalId,
+              portalName: this.config.portalName,
+              stage: "FINAL",
+              session,
+            });
+          } else if (journeyScan.stage === "PASSBOOK" && Array.isArray(journeyScan.passbookRecords)) {
             for (const pb of journeyScan.passbookRecords) {
               const session = this.processJourneyObservation({
                 portalId: this.config.portalId,
@@ -754,8 +769,27 @@ class AepsWatcher {
           "(" + extractJourneyObservations.toString() + ")()",
           true
         );
-        if (journeyScan && (journeyScan.stage === "ENTRY" || journeyScan.stage === "PASSBOOK")) {
-          if (journeyScan.stage === "PASSBOOK" && Array.isArray(journeyScan.passbookRecords)) {
+        if (journeyScan && (journeyScan.stage === "FINAL" || journeyScan.stage === "ENTRY" || journeyScan.stage === "PASSBOOK")) {
+          if (journeyScan.stage === "FINAL" && journeyScan.fields) {
+            const sessionFinal = this.processJourneyObservation({
+              portalId,
+              portalName,
+              sourceId,
+              sourceUrl: String(source.url),
+              stage: "FINAL",
+              fields: journeyScan.fields,
+              evidence: journeyScan.evidence || { url: journeyScan.pageUrl, title: journeyScan.pageTitle },
+            });
+            this.liveEmit?.({
+              type: "transaction_journey",
+              portalId,
+              portalName,
+              sourceId,
+              sourceUrl: String(source.url),
+              stage: "FINAL",
+              session: sessionFinal,
+            });
+          } else if (journeyScan.stage === "PASSBOOK" && Array.isArray(journeyScan.passbookRecords)) {
             for (const pb of journeyScan.passbookRecords) {
               const sessionPb = this.processJourneyObservation({
                 portalId,
@@ -1377,7 +1411,7 @@ function extractVisibleTransactions() {
     const context = clean(full + " " + pageContext);
 
     const referenceFromLabel = firstMatch(full, [
-      /\b(?:RRN|UTR|reference(?:\s*(?:id|no|number))?|transaction\s*(?:id|no|number|ref|reference)|txn\s*(?:id|no|number|ref|reference))\s*[:#=\-]?\s*([A-Za-z0-9][A-Za-z0-9._\/-]{5,31})/i,
+      /\b(?:bank\s*ref(?:\.?\s*(?:no|num|number))?|rrn|utr|reference(?:\s*(?:id|no|number))?|transaction\s*(?:id|no|number|ref|reference)|txn\s*(?:id|no|number|ref|reference))\s*[:#=\-]?\s*([A-Za-z0-9][A-Za-z0-9._\/-]{5,35})/i,
     ]);
 
     const amountFromLabel = findNumberAfterLabel(full, [
@@ -1393,8 +1427,7 @@ function extractVisibleTransactions() {
         headers.findIndex((header) => patterns.some((pattern) => pattern.test(normalizeHeader(header))));
 
       const rrnIndex = headerIndex([
-        /\brrn\b/,
-        /\butr\b/,
+        /\b(?:bank\s*ref|rrn|utr)\b/,
         /transaction\s*(id|no|number|ref|reference)/,
         /\breference\b/,
       ]);
@@ -1506,7 +1539,7 @@ function extractVisibleTransactions() {
       "";
 
     const aadhaar =
-      full.match(/(?:aadhaar|aadhar)\s*(?:last\s*4|no|number)?\s*[:#=\-]?\s*(?:[xX*#\s-]*)(\d{4})\b/i)?.[1] ||
+      full.match(/(?:aadhaar|aadhar|customer\s*id)\s*(?:last\s*4|no|number)?\s*[:#=\-]?\s*(?:[xX*#\s-]*)(\d{4})\b/i)?.[1] ||
       "";
 
     const bank =
@@ -1650,10 +1683,10 @@ function extractVisibleTransactions() {
     );
   }
 
-  // Strategy 3: list/card based transaction layouts.
+  // Strategy 3: list/card based transaction layouts and modal/receipt views.
   const cards = Array.from(
     document.querySelectorAll(
-      "li, article, [data-transaction-id], [data-transaction], [class*='transaction-card'], [class*='txn-card'], [class*='passbook-row'], [class*='report-row']"
+      "li, article, [data-transaction-id], [data-transaction], [class*='transaction-card'], [class*='txn-card'], [class*='passbook-row'], [class*='report-row'], [class*='receipt'], [id*='receipt'], [class*='modal-content'], [class*='modal-body'], [role='dialog'], .swal2-popup"
     )
   ).filter(visible);
 
@@ -1662,7 +1695,7 @@ function extractVisibleTransactions() {
     seenElements.add(card);
 
     const text = clean(card.innerText);
-    if (!text || text.length < 8 || text.length > 2500) continue;
+    if (!text || text.length < 8 || text.length > 3500) continue;
 
     add(parseCandidate(text, { pageContext: pageText.slice(0, 8000) }));
   }
@@ -1671,10 +1704,14 @@ function extractVisibleTransactions() {
   // render each transaction without semantic row elements. Only accept text
   // blocks that contain a labeled reference and amount.
   if (candidates.length === 0) {
-    const blocks = Array.from(document.querySelectorAll("div, section")).filter(visible);
+    const blocks = Array.from(document.querySelectorAll("div, section, main")).filter(visible);
     const limited = blocks.filter((el) => {
       const text = clean(el.innerText);
-      return text.length >= 20 && text.length <= 800 && /(?:RRN|UTR|Reference|Transaction\s*(?:ID|Ref)|Txn\s*(?:ID|Ref))/i.test(text);
+      return (
+        text.length >= 20 &&
+        text.length <= 3000 &&
+        /(?:bank\s*ref|rrn|utr|reference|transaction\s*(?:id|ref)|txn\s*(?:id|ref))/i.test(text)
+      );
     });
 
     for (const block of limited.slice(0, 100)) {
@@ -1739,6 +1776,58 @@ function extractJourneyObservations() {
   const pageText = clean(document.body?.innerText || "");
   const pageUrl = clean(location.href);
   const pageTitle = clean(document.title);
+
+  // 0. STAGE: FINAL / RECEIPT (Success slips, receipt modals, confirmation screens)
+  const isFinalReceipt =
+    /\b(?:transaction\s*receipt|payment\s*receipt|receipt)\b/i.test(pageText) ||
+    (/\b(?:payment\s*status\s*[:#=\-]?\s*success|withdrawal\s*successful|transaction\s*successful)\b/i.test(pageText) &&
+      /\b(?:rrn|bank\s*ref|transaction\s*id)\b/i.test(pageText));
+
+  if (isFinalReceipt) {
+    const rrnMatch =
+      pageText.match(/\b(?:rrn|bank\s*ref(?:\.?\s*(?:no|number))?)\s*[:#=\-]?\s*([0-9A-Za-z]{6,35})/i) ||
+      pageText.match(/\b(?:transaction\s*id|txn\s*id)\s*[:#=\-]?\s*([0-9A-Za-z]{6,35})/i);
+    const amtMatch = pageText.match(
+      /\b(?:amount|amt|withdrawal\s*amount)\s*[:#=\-]?\s*(?:₹|Rs\.?|INR)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i
+    );
+    const bankMatch = pageText.match(
+      /\b(?:bank\s*name|issuer\s*bank|customer\s*bank)\s*[:#=\-]?\s*([A-Za-z][A-Za-z .&'-]{2,60})/i
+    );
+    const aadhaarMatch = pageText.match(
+      /\b(?:customer\s*id|aadhaar|aadhar)\s*(?:last\s*4|no|number)?\s*[:#=\-]?\s*(?:[xX*#\s-]*)(\d{4})\b/i
+    );
+    const mobileMatch = pageText.match(/\b(?:mobile|phone|contact)\s*[:#=\-]?\s*([6-9]\d{9})/i);
+    const txnTypeMatch = pageText.match(
+      /\b(?:transaction\s*type|service\s*type|type)\s*[:#=\-]?\s*([^|\n\r]+)/i
+    );
+
+    const parsedAmt = amtMatch ? money(amtMatch[1]) : null;
+    const ref = rrnMatch ? clean(rrnMatch[1]) : "";
+
+    if (ref && parsedAmt) {
+      return {
+        stage: "FINAL",
+        fields: {
+          rrn: ref,
+          reference: ref,
+          transactionId: ref,
+          amount: parsedAmt,
+          bank: bankMatch ? clean(bankMatch[1]) : null,
+          aadhaarLast4: aadhaarMatch ? clean(aadhaarMatch[1]) : null,
+          customerMobile: mobileMatch ? clean(mobileMatch[1]) : null,
+          transactionType: txnTypeMatch ? clean(txnTypeMatch[1]) : "cash_out",
+          status: "SUCCESS",
+        },
+        evidence: {
+          rawTextSnippet: pageText.slice(0, 1500),
+          url: pageUrl,
+          title: pageTitle,
+        },
+        pageUrl,
+        pageTitle,
+      };
+    }
+  }
 
   // 1. STAGE: PASSBOOK / HISTORY
   const isPassbookSignal =

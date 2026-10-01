@@ -2866,7 +2866,7 @@ export default function AepsWorkspace({
         {/* VIEW 1: FULL-WIDTH OPERATOR TRANSACTION WORKSPACE                         */}
         {/* ========================================================================= */}
         {activeTab === "workspace" && workspaceOpen && (
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 lg:p-6 shadow-md space-y-5">
+          <div className="rounded-3xl border border-slate-200/90 bg-white/95 backdrop-blur-xl p-5 lg:p-7 shadow-xl shadow-slate-200/50 ring-1 ring-slate-900/5 space-y-6">
 
             {/* WORKSPACE HEADER BAR WITH PRIMARY MODE SWITCH & REFRESH */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-4">
