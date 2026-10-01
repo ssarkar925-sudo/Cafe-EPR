@@ -235,6 +235,7 @@ export default function AepsWorkspace({
   const [liveWatcherDetectedCount, setLiveWatcherDetectedCount] = useState(0);
   const [liveWatcherError, setLiveWatcherError] = useState<string | null>(null);
   const [detectedTransactions, setDetectedTransactions] = useState<any[]>([]);
+  const [journeySessions, setJourneySessions] = useState<Record<string, any>>({});
   const [selectedDetectedTransactionId, setSelectedDetectedTransactionId] = useState<string | null>(null);
   const liveSnapshotBusyRef = useRef(false);
   const [newSourceUrl, setNewSourceUrl] = useState("");
@@ -497,6 +498,110 @@ export default function AepsWorkspace({
         return;
       }
 
+      if (event.type === "transaction_journey") {
+        const sessionId = String(event.sessionId || "").trim();
+        if (sessionId) {
+          setJourneySessions((prev) => ({
+            ...prev,
+            [sessionId]: {
+              sessionId,
+              stage: String(event.stage || "intermediate"),
+              status: String(event.status || "COLLECTING"),
+              stageSummary: event.stageSummary || {},
+              observationCount: Number(event.observationCount || 0),
+              fields: event.fields || {},
+              updatedAt: event.detectedAt || new Date().toISOString(),
+            },
+          }));
+
+          setDetectedTransactions((prev) =>
+            prev.map((item) =>
+              item.sessionId === sessionId
+                ? {
+                    ...item,
+                    journeyStatus: String(event.status || item.journeyStatus || "COLLECTING"),
+                    journeyStage: String(event.stage || "intermediate"),
+                    passbookMatched: Boolean(event.stageSummary?.passbook),
+                    verification: event.verification || item.verification || null,
+                  }
+                : item
+            )
+          );
+        }
+        return;
+      }
+
+      if (event.type === "transaction_reconciled") {
+        const sessionId = String(event.sessionId || "").trim();
+        if (sessionId) {
+          setJourneySessions((prev) => ({
+            ...prev,
+            [sessionId]: {
+              ...(prev[sessionId] || {}),
+              sessionId,
+              status: "RECONCILED",
+              stage: "passbook",
+              stageSummary: {
+                ...(prev[sessionId]?.stageSummary || {}),
+                passbook: true,
+              },
+              verification: event.verification || null,
+              fields: event.fields || prev[sessionId]?.fields || {},
+              updatedAt: event.reconciledAt || new Date().toISOString(),
+            },
+          }));
+
+          setDetectedTransactions((prev) =>
+            prev.map((item) =>
+              item.sessionId === sessionId
+                ? {
+                    ...item,
+                    journeyStatus: "RECONCILED",
+                    journeyStage: "passbook",
+                    passbookMatched: true,
+                    verification: event.verification || item.verification || null,
+                  }
+                : item
+            )
+          );
+
+          showToast("success", "AEPS final transaction matched with passbook data.");
+        }
+        return;
+      }
+
+      if (event.type === "transaction_conflict") {
+        const sessionId = String(event.sessionId || "").trim();
+        if (sessionId) {
+          setJourneySessions((prev) => ({
+            ...prev,
+            [sessionId]: {
+              ...(prev[sessionId] || {}),
+              sessionId,
+              status: "CONFLICT",
+              verification: event.verification || null,
+              fields: event.fields || prev[sessionId]?.fields || {},
+              updatedAt: event.detectedAt || new Date().toISOString(),
+            },
+          }));
+
+          setDetectedTransactions((prev) =>
+            prev.map((item) =>
+              item.sessionId === sessionId
+                ? {
+                    ...item,
+                    journeyStatus: "CONFLICT",
+                    verification: event.verification || item.verification || null,
+                  }
+                : item
+            )
+          );
+
+          showToast("error", "AEPS journey data conflicts with the final transaction. Review before approval.");
+        }
+        return;
+      }
+
       if (event.type === "transaction") {
         const tx = event.transaction || {};
         const detectedPortal = eventPortalId;
@@ -508,6 +613,10 @@ export default function AepsWorkspace({
           sourceUrl: String(event.sourceUrl || ""),
           fingerprint: String(event.fingerprint || ""),
           detectedAt: event.detectedAt || new Date().toISOString(),
+          sessionId: String(event.sessionId || ""),
+          journeyStatus: String(event.journeyStatus || "FINAL_CONFIRMED"),
+          passbookMatched: Boolean(event.passbookMatched),
+          verification: event.verification || null,
           transaction: tx,
         };
 
@@ -2278,6 +2387,17 @@ export default function AepsWorkspace({
           : prev
       );
       setSelectedDetectedTransactionId(null);
+      if (selectedDetectedTransactionId) {
+        const selected = detectedTransactions.find((item) => item.id === selectedDetectedTransactionId);
+        const sessionId = String(selected?.sessionId || "");
+        if (sessionId) {
+          setJourneySessions((prev) => {
+            const next = { ...prev };
+            delete next[sessionId];
+            return next;
+          });
+        }
+      }
       handleNewCashOut();
       setReviewOpen(false);
       idempotencyKeyRef.current = null;
