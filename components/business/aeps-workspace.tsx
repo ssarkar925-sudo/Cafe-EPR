@@ -236,6 +236,7 @@ export default function AepsWorkspace({
   const [liveWatcherError, setLiveWatcherError] = useState<string | null>(null);
   const [detectedTransactions, setDetectedTransactions] = useState<any[]>([]);
   const [journeySessions, setJourneySessions] = useState<Record<string, any>>({});
+  const journeySessionCount = Object.keys(journeySessions).length;
   const [selectedDetectedTransactionId, setSelectedDetectedTransactionId] = useState<string | null>(null);
   const liveSnapshotBusyRef = useRef(false);
   const [newSourceUrl, setNewSourceUrl] = useState("");
@@ -425,6 +426,8 @@ export default function AepsWorkspace({
       if (!eventPortalId) return;
 
       if (event.type === "multi_started") {
+        setJourneySessions({});
+        setDetectedTransactions([]);
         setLiveWatcherActive(true);
         setLiveWatcherPortalId(eventPortalId);
         setLiveWatcherError(null);
@@ -645,6 +648,7 @@ export default function AepsWorkspace({
       }
 
       if (event.type === "stopped") {
+        setJourneySessions({});
         setLiveWatcherActive(false);
         setLiveWatcherPortalId(null);
         setLiveWatcherLastEventAt(new Date().toISOString());
@@ -2826,6 +2830,7 @@ export default function AepsWorkspace({
               <div className="border-t border-emerald-100 bg-white px-4 py-3 text-[10px] text-slate-500 flex flex-wrap items-center gap-x-4 gap-y-1">
                 <span><b className="text-slate-700">Mode:</b> {liveWatcherActive ? "Persistent desktop watcher" : "Manual verification"}</span>
                 <span><b className="text-slate-700">Detected:</b> {liveWatcherDetectedCount}</span>
+                <span><b className="text-slate-700">Journey memory:</b> {journeySessionCount}</span>
                 <span><b className="text-slate-700">Last event:</b> {liveWatcherLastEventAt ? fmtTime(liveWatcherLastEventAt) : "—"}</span>
                 {liveWatcherError && <span className="font-bold text-amber-700">{liveWatcherError}</span>}
               </div>
