@@ -8,6 +8,10 @@
     "nodejs_compat_populate_process_env"
   ],
   "keep_vars": true,
+  "vars": {
+    "NEXT_PUBLIC_SUPABASE_URL": "https://tvxehxnvuwojjbhysajp.supabase.co",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_u5-0p1SChKVIyI5qjPnMhg_bhrbzytQ"
+  },
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
