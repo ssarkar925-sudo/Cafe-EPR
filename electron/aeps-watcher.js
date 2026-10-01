@@ -1283,9 +1283,13 @@ function extractTransactionJourneySnapshot() {
       firstMatch([/(?:portal\s*)?commission\s*[:#=\-]?\s*(?:₹|Rs\.?|INR)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i])
   );
 
-  const isPassbook =
-    /passbook|statement|transaction\s*history|transaction\s*report|history|mini\s*statement/i.test(
-      [url, title, bodyText.slice(0, 12000)].join(" ")
+  const explicitPassbookLocation =
+    /passbook|statement|transaction\s*history|transaction\s*report|mini\s*statement/i.test(
+      [url, title].join(" ")
+    );
+  const passbookHeadingSignal =
+    /^(?:passbook|transaction\s*history|transaction\s*report|statement|mini\s*statement)\b/im.test(
+      bodyText.slice(0, 2500)
     );
   const hasFinalSignal =
     Boolean(reference && amount != null) &&
@@ -1296,6 +1300,7 @@ function extractTransactionJourneySnapshot() {
     controls.length > 0 &&
     Boolean(mobile || aadhaar || amount != null || bankName || transactionTypeRaw);
 
+  const isPassbook = (explicitPassbookLocation || passbookHeadingSignal) && !hasFinalSignal;
   const stage = isPassbook
     ? "passbook"
     : hasFinalSignal
