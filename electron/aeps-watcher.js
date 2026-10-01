@@ -1,4 +1,5 @@
 const { BrowserWindow } = require("electron");
+const { AepsTransactionJourneyMemory } = require("./aeps-transaction-session");
 
 class AepsWatcher {
   constructor() {
@@ -13,6 +14,8 @@ class AepsWatcher {
     this.liveConfig = null;
     this.liveEmit = null;
     this.liveSeen = new Set();
+    this.journeyMemory = new AepsTransactionJourneyMemory();
+    this.journeyFinalEmitted = new Set();
   }
 
   isValidSource(url) {
@@ -196,6 +199,8 @@ class AepsWatcher {
 
     this.liveConfig = { portalId, portalName, intervalSeconds };
     this.liveEmit = typeof emit === "function" ? emit : () => {};
+    this.journeyMemory = new AepsTransactionJourneyMemory();
+    this.journeyFinalEmitted.clear();
 
     // Sources from the same website must authenticate through ONE browser
     // session before we fan out to the other URLs. Starting every URL in
@@ -495,8 +500,65 @@ class AepsWatcher {
         });
       }
 
+      // Transaction journey capture: remember safe fields from the
+      // beginning of data entry, then correlate the final result and passbook.
+      // Authentication secrets are never read or stored.
+      const journeyPage = await session.win.webContents.executeJavaScript(
+        "(" + extractTransactionJourneySnapshot.toString() + ")()",
+        true
+      );
+
+      const journeySnapshots = [];
+
+      if (journeyPage?.shouldRemember && journeyPage?.fields) {
+        const snapshot = this.journeyMemory.record({
+          portalId,
+          portalName,
+          sourceId,
+          sourceUrl: String(source.url),
+          stage: journeyPage.stage || "intermediate",
+          fields: journeyPage.fields,
+          capturedAt: new Date().toISOString(),
+          evidence: journeyPage.evidence || "",
+        });
+        if (snapshot) journeySnapshots.push(snapshot);
+      }
+
       for (const transaction of result?.transactions || []) {
+        const stage = journeyPage?.stage === "passbook" ? "passbook" : "final";
+        const snapshot = this.journeyMemory.record({
+          portalId,
+          portalName,
+          sourceId,
+          sourceUrl: String(source.url),
+          stage,
+          fields: transaction,
+          capturedAt: new Date().toISOString(),
+          evidence: stage === "passbook"
+            ? "Passbook/statement transaction observed."
+            : "Final AEPS transaction result observed.",
+        });
+
+        if (!snapshot) continue;
+        journeySnapshots.push(snapshot);
+
+        this.liveEmit?.({
+          type: "transaction_journey",
+          portalId,
+          portalName,
+          sourceId,
+          sourceUrl: String(source.url),
+          sessionId: snapshot.id,
+          stage,
+          status: snapshot.status,
+          stageSummary: snapshot.stageSummary,
+          fields: snapshot.fields,
+          observationCount: snapshot.observationCount,
+          detectedAt: new Date().toISOString(),
+        });
+
         const reference =
+          snapshot.fields.reference ||
           transaction.externalTransactionId ||
           transaction.reference ||
           transaction.externalReference ||
@@ -505,29 +567,77 @@ class AepsWatcher {
         const fingerprint = [
           portalId,
           reference,
-          transaction.amount || "",
-          transaction.transactionType || "cash_out",
+          snapshot.fields.amount || transaction.amount || "",
+          snapshot.fields.transactionType || transaction.transactionType || "cash_out",
         ].join("|").toLowerCase();
 
-        if (!reference || !transaction.amount) continue;
-        if (this.liveSeen.has(fingerprint)) continue;
-
-        this.liveSeen.add(fingerprint);
-        if (this.liveSeen.size > 2000) {
-          this.liveSeen.delete(this.liveSeen.values().next().value);
+        if (snapshot.status === "FINAL_CONFIRMED" || snapshot.status === "RECONCILED") {
+          if (!this.journeyFinalEmitted.has(snapshot.id)) {
+            this.journeyFinalEmitted.add(snapshot.id);
+            this.liveEmit?.({
+              type: "transaction",
+              portalId,
+              portalName,
+              sourceId,
+              sourceUrl: String(source.url),
+              sessionId: snapshot.id,
+              fingerprint,
+              journeyStatus: snapshot.status,
+              passbookMatched: Boolean(snapshot.stageSummary?.passbook),
+              verification: snapshot.verification,
+              transaction: {
+                ...transaction,
+                ...snapshot.fields,
+                externalTransactionId: snapshot.fields.reference || transaction.externalTransactionId || "",
+                externalReference: snapshot.fields.reference || transaction.externalReference || "",
+                reference: snapshot.fields.reference || transaction.reference || "",
+                status: snapshot.fields.status || "success",
+                amount: snapshot.fields.amount ?? transaction.amount,
+                customerMobile: snapshot.fields.customerMobile || transaction.customerMobile || "",
+                aadhaarLast4: snapshot.fields.aadhaarLast4 || transaction.aadhaarLast4 || "",
+                customerName: snapshot.fields.customerName || transaction.customerName || "",
+                bankName: snapshot.fields.bankName || transaction.bankName || "",
+                transactionType: snapshot.fields.transactionType || transaction.transactionType || "cash_out",
+                fee: snapshot.fields.fee ?? transaction.fee ?? null,
+                commission: snapshot.fields.commission ?? transaction.commission ?? "0",
+              },
+              detectedAt: new Date().toISOString(),
+            });
+          }
         }
 
-        this.liveEmit?.({
-          type: "transaction",
-          portalId,
-          portalName,
-          sourceId,
-          sourceUrl: String(source.url),
-          fingerprint,
-          transaction,
-          detectedAt: new Date().toISOString(),
-        });
+        if (snapshot.status === "RECONCILED" && snapshot.stageSummary?.passbook) {
+          this.liveEmit?.({
+            type: "transaction_reconciled",
+            portalId,
+            portalName,
+            sourceId,
+            sourceUrl: String(source.url),
+            sessionId: snapshot.id,
+            fingerprint,
+            verification: snapshot.verification,
+            fields: snapshot.fields,
+            reconciledAt: new Date().toISOString(),
+          });
+        } else if (snapshot.status === "CONFLICT") {
+          this.liveEmit?.({
+            type: "transaction_conflict",
+            portalId,
+            portalName,
+            sourceId,
+            sourceUrl: String(source.url),
+            sessionId: snapshot.id,
+            fingerprint,
+            verification: snapshot.verification,
+            fields: snapshot.fields,
+            detectedAt: new Date().toISOString(),
+          });
+        }
       }
+
+      // Keep the old de-duplication set for compatibility with existing
+      // diagnostics and contracts. The journey session id is the authoritative
+      // transaction correlation key for new detections.
 
       this.liveEmit?.({
         type: "source_success",
@@ -785,6 +895,8 @@ class AepsWatcher {
     this.liveConfig = null;
     this.liveEmit = null;
     this.liveSeen.clear();
+    this.journeyMemory = new AepsTransactionJourneyMemory();
+    this.journeyFinalEmitted.clear();
     this.window = null;
     this.config = null;
     this.seen.clear();
@@ -1027,6 +1139,206 @@ async function extractRenderedPage(waitMs = 5000) {
     text: document.body?.innerText || "",
     authRequired: extractRenderedAuthSignals(document.body?.innerText || "", location.href),
     title: document.title || "",
+  };
+}
+
+function extractTransactionJourneySnapshot() {
+  const clean = (value) =>
+    String(value || "")
+      .replace(/\u00a0/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const visible = (el) => {
+    try {
+      const style = window.getComputedStyle(el);
+      const rect = el.getBoundingClientRect();
+      return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+    } catch {
+      return false;
+    }
+  };
+
+  const textOf = (el) => clean(el?.innerText || el?.textContent || el?.value || "");
+  const bodyText = clean(document.body?.innerText || "");
+  const title = clean(document.title || "");
+  const url = clean(location.href || "");
+
+  const isSecretControl = (el) => {
+    const type = String(el?.type || "").toLowerCase();
+    const meta = [
+      el?.name,
+      el?.id,
+      el?.placeholder,
+      el?.getAttribute?.("aria-label"),
+      el?.getAttribute?.("autocomplete"),
+    ].map(clean).join(" ").toLowerCase();
+    return type === "password" || /otp|one[- ]time|pin|password|passcode|biometric|fingerprint/.test(meta);
+  };
+
+  const controls = Array.from(document.querySelectorAll("input, select, textarea"))
+    .filter(visible)
+    .filter((el) => !isSecretControl(el));
+
+  const fieldValue = (patterns) => {
+    const control = controls.find((el) => {
+      const meta = [
+        el?.name,
+        el?.id,
+        el?.placeholder,
+        el?.getAttribute?.("aria-label"),
+        el?.getAttribute?.("title"),
+      ].map(clean).join(" ").toLowerCase();
+      return patterns.some((pattern) => pattern.test(meta));
+    });
+    return control ? clean(control.value || textOf(control)) : "";
+  };
+
+  const firstMatch = (patterns, source = bodyText) => {
+    for (const pattern of patterns) {
+      const match = String(source || "").match(pattern);
+      if (match?.[1]) return clean(match[1]);
+    }
+    return "";
+  };
+
+  const money = (value) => {
+    const raw = clean(value).replace(/,/g, "");
+    const match =
+      raw.match(/(?:₹|Rs\.?|INR)\s*([0-9]+(?:\.[0-9]{1,2})?)/i) ||
+      raw.match(/^([0-9]+(?:\.[0-9]{1,2})?)$/);
+    if (!match) return null;
+    const n = Number(match[1]);
+    return Number.isFinite(n) && n > 0 ? Number(n.toFixed(2)) : null;
+  };
+
+  const mobile =
+    fieldValue([/mobile/, /phone/, /contact/]).match(/[6-9]\d{9}/)?.[0] ||
+    firstMatch([/(?:mobile|mob|phone|contact)\s*[:#=\-]?\s*([6-9]\d{9})/i]);
+
+  const aadhaar =
+    fieldValue([/aadhaar/, /aadhar/]).replace(/\D/g, "").slice(-4) ||
+    firstMatch([/(?:aadhaar|aadhar)\s*(?:last\s*4|number|no\.?|id)?\s*[:#=\-]?\s*[xX*#\s-]*(\d{4})\b/i]);
+
+  const customerName =
+    fieldValue([/customer\s*name/, /^name$/]) ||
+    firstMatch([/(?:customer\s*name|customer|name)\s*[:#=\-]\s*([A-Za-z][A-Za-z .'-]{2,80})/i]);
+
+  const bankName =
+    fieldValue([/bank\s*name/, /customer\s*bank/, /issuer\s*bank/, /^bank$/]) ||
+    firstMatch([
+      /(?:issuer\s*bank|customer\s*bank|beneficiary\s*bank|bank\s*name)\s*[:#=\-]\s*([A-Za-z][A-Za-z .&'-]{2,60})/i,
+      /\b(SBI|HDFC|ICICI|Axis|PNB|Canara|Kotak|Union\s+Bank|Bank\s+of\s+Baroda|Indian\s+Bank)\b/i,
+    ]);
+
+  const rawAmount =
+    fieldValue([/transaction\s*amount/, /withdrawal\s*amount/, /amount/, /amt/]) ||
+    firstMatch([
+      /(?:transaction\s*amount|txn\s*amount|withdrawal\s*amount|cash\s*withdrawal|amount\s*paid|paid\s*amount|amount|amt)\s*[:#=\-]?\s*(?:₹|Rs\.?|INR)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i,
+    ]);
+  const amount = money(rawAmount);
+
+  const reference =
+    fieldValue([/^rrn$/, /rrn/, /utr/, /transaction\s*(id|no|number|ref|reference)/, /reference/]) ||
+    firstMatch([
+      /\b(?:RRN|UTR|reference(?:\s*(?:id|no|number))?|transaction\s*(?:id|no|number|ref|reference)|txn\s*(?:id|no|number|ref|reference))\s*[:#=\-]?\s*([A-Za-z0-9][A-Za-z0-9._\/-]{5,31})/i,
+    ]);
+
+  const transactionTypeRaw =
+    fieldValue([/transaction\s*(type|mode)/, /service/, /product/, /operation/]) ||
+    firstMatch([
+      /(?:transaction\s*(?:type|mode)|service|product|operation)\s*[:#=\-]\s*([^|]+)/i,
+    ]);
+
+  const transactionType = (() => {
+    const s = clean(transactionTypeRaw + " " + bodyText).toLowerCase().replace(/[-_]/g, " ");
+    if (/payment\s*collection|cash\s*collection|aadhaar\s*pay|merchant\s*pay/.test(s)) return "payment_collection";
+    if (/balance\s*(enquiry|inquiry)/.test(s)) return "balance_enquiry";
+    if (/mini\s*statement/.test(s)) return "mini_statement";
+    if (/cash\s*(withdrawal|out)|withdrawal|cashout|biometric\s*withdrawal/.test(s)) return "cash_out";
+    return "";
+  })();
+
+  const statusRaw =
+    fieldValue([/^status$/, /transaction\s*status/, /txn\s*status/]) ||
+    firstMatch([
+      /(?:transaction\s*status|txn\s*status|status)\s*[:#=\-]\s*([^|]+)/i,
+    ]) ||
+    bodyText;
+  const status = /failed|rejected|declined|cancelled|reversed|refunded/i.test(statusRaw)
+    ? "failed"
+    : /pending|processing|initiated|in progress/i.test(statusRaw)
+    ? "pending"
+    : /success|successful|completed|approved|confirmed/i.test(statusRaw)
+    ? "success"
+    : "";
+
+  const fee = money(
+    fieldValue([/customer\s*fee/, /^fee$/, /charge/, /surcharge/]) ||
+      firstMatch([/(?:customer\s*)?(?:fee|charge|surcharge)\s*[:#=\-]?\s*(?:₹|Rs\.?|INR)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i])
+  );
+
+  const commission = money(
+    fieldValue([/commission/, /comm/]) ||
+      firstMatch([/(?:portal\s*)?commission\s*[:#=\-]?\s*(?:₹|Rs\.?|INR)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i])
+  );
+
+  const isPassbook =
+    /passbook|statement|transaction\s*history|transaction\s*report|history|mini\s*statement/i.test(
+      [url, title, bodyText.slice(0, 12000)].join(" ")
+    );
+  const hasFinalSignal =
+    Boolean(reference && amount != null) &&
+    /success|successful|completed|approved|confirmed|transaction\s*successful/i.test(
+      [title, bodyText.slice(0, 12000)].join(" ")
+    );
+  const hasEntrySignals =
+    controls.length > 0 &&
+    Boolean(mobile || aadhaar || amount != null || bankName || transactionTypeRaw);
+
+  const stage = isPassbook
+    ? "passbook"
+    : hasFinalSignal
+    ? "final"
+    : hasEntrySignals
+    ? "entry"
+    : (mobile || aadhaar || amount != null || bankName || transactionTypeRaw)
+    ? "intermediate"
+    : "unknown";
+
+  const safeFieldCount = [customerName, mobile, aadhaar, bankName, transactionType, amount, fee, commission, reference, status]
+    .filter((value) => value !== "" && value !== null && value !== undefined).length;
+
+  if (stage === "unknown" || safeFieldCount < 2) {
+    return {
+      shouldRemember: false,
+      stage: "unknown",
+      fields: {},
+      evidence: "",
+    };
+  }
+
+  return {
+    shouldRemember: true,
+    stage,
+    fields: {
+      customerName,
+      customerMobile: mobile,
+      aadhaarLast4: aadhaar,
+      bankName,
+      transactionType,
+      amount,
+      fee,
+      commission,
+      reference,
+      status,
+    },
+    evidence: [
+      "stage=" + stage,
+      isPassbook ? "passbook-view=true" : "passbook-view=false",
+      hasFinalSignal ? "final-signal=true" : "final-signal=false",
+      "source=" + url.slice(0, 240),
+    ].join("; "),
   };
 }
 
