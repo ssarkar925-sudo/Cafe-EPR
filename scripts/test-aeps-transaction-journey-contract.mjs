@@ -21,6 +21,11 @@ const requiredWatcher = [
   ["session reset on stop", "this.journeyFinalEmitted.clear()"],
 ];
 
+const requiredSecurity = [
+  ["secret control exclusion", "isSecretControl"],
+  ["secret-keyword exclusion", "/otp|one[- ]time|pin|password|passcode|biometric|fingerprint/"],
+];
+
 const requiredSession = [
   ["entry stage", '"entry"'],
   ["intermediate stage", '"intermediate"'],
@@ -31,13 +36,20 @@ const requiredSession = [
   ["temporary in-memory store", "this.sessions = new Map()"],
   ["transaction scoped observations", "session.observations"],
   ["field conflict comparison", "fieldAgreement(a, b)"],
-  ["secret control exclusion", "isSecretControl"],
-  ["secret-keyword exclusion", "/otp|one[- ]time|pin|password|passcode|biometric|fingerprint/"],
+  
 ];
 
 let failed = 0;
 
 for (const [label, needle] of requiredWatcher) {
+  if (watcherSource.includes(needle)) console.log("PASS:", label);
+  else {
+    console.error("FAIL:", label, "missing:", needle);
+    failed++;
+  }
+}
+
+for (const [label, needle] of requiredSecurity) {
   if (watcherSource.includes(needle)) console.log("PASS:", label);
   else {
     console.error("FAIL:", label, "missing:", needle);
