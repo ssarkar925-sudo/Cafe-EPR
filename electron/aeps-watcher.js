@@ -252,6 +252,38 @@ class AepsWatcher {
         );
         if (journeyScan && (journeyScan.stage === "FINAL" || journeyScan.stage === "ENTRY" || journeyScan.stage === "PASSBOOK")) {
           if (journeyScan.stage === "FINAL" && journeyScan.fields) {
+            const f = journeyScan.fields;
+            const ref = f.rrn || f.reference || f.transactionId || "";
+            const amt = f.amount ? String(f.amount) : "";
+            const fingerprint = [
+              this.config.portalId,
+              ref,
+              amt,
+              f.transactionType || "cash_out",
+            ].join("|").toLowerCase();
+
+            if (ref && amt && !this.seen.has(fingerprint)) {
+              this.seen.add(fingerprint);
+              this.emit({
+                type: "transaction",
+                portalId: this.config.portalId,
+                portalName: this.config.portalName,
+                fingerprint,
+                transaction: {
+                  externalTransactionId: ref,
+                  externalReference: ref,
+                  reference: ref,
+                  amount: Number(amt).toFixed(2),
+                  transactionType: f.transactionType || "cash_out",
+                  bankName: f.bank || null,
+                  customerMobile: f.customerMobile || null,
+                  aadhaarLast4: f.aadhaarLast4 || null,
+                  status: "success",
+                  rawText: journeyScan.evidence?.rawTextSnippet || "",
+                },
+              });
+            }
+
             const session = this.processJourneyObservation({
               portalId: this.config.portalId,
               portalName: this.config.portalName,
@@ -771,6 +803,41 @@ class AepsWatcher {
         );
         if (journeyScan && (journeyScan.stage === "FINAL" || journeyScan.stage === "ENTRY" || journeyScan.stage === "PASSBOOK")) {
           if (journeyScan.stage === "FINAL" && journeyScan.fields) {
+            const f = journeyScan.fields;
+            const ref = f.rrn || f.reference || f.transactionId || "";
+            const amt = f.amount ? String(f.amount) : "";
+            const fingerprint = [
+              portalId,
+              ref,
+              amt,
+              f.transactionType || "cash_out",
+            ].join("|").toLowerCase();
+
+            if (ref && amt && !this.liveSeen.has(fingerprint)) {
+              this.liveSeen.add(fingerprint);
+              this.liveEmit?.({
+                type: "transaction",
+                portalId,
+                portalName,
+                sourceId,
+                sourceUrl: String(source.url),
+                fingerprint,
+                transaction: {
+                  externalTransactionId: ref,
+                  externalReference: ref,
+                  reference: ref,
+                  amount: Number(amt).toFixed(2),
+                  transactionType: f.transactionType || "cash_out",
+                  bankName: f.bank || null,
+                  customerMobile: f.customerMobile || null,
+                  aadhaarLast4: f.aadhaarLast4 || null,
+                  status: "success",
+                  rawText: journeyScan.evidence?.rawTextSnippet || "",
+                },
+                detectedAt: new Date().toISOString(),
+              });
+            }
+
             const sessionFinal = this.processJourneyObservation({
               portalId,
               portalName,
