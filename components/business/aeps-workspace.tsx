@@ -599,15 +599,26 @@ export default function AepsWorkspace({
             ...prev.filter((s) => s.sessionId !== jSession.sessionId),
           ].slice(0, 50));
 
-          // If current session or newly reconciled, update activeJourneySession
-          if (
+          // If current session, newly reconciled, or final confirmed transaction detected
+          const isEligibleToPopulate =
             !activeJourneySession ||
             activeJourneySession.sessionId === jSession.sessionId ||
-            jSession.status === "RECONCILED"
-          ) {
+            jSession.status === "RECONCILED" ||
+            jSession.status === "FINAL_CONFIRMED";
+
+          if (isEligibleToPopulate) {
             setActiveJourneySession(jSession);
 
-            if (jSession.status === "RECONCILED") {
+            // Auto-switch portal if detected transaction comes from another configured portal
+            if (jSession.portalId && jSession.portalId !== portalId) {
+              const matchedPortal = initialPortals.find((p) => p.id === jSession.portalId);
+              if (matchedPortal) {
+                setPortalId(matchedPortal.id);
+                setSelectedWatcherPortalId(matchedPortal.id);
+              }
+            }
+
+            if (jSession.status === "RECONCILED" || jSession.status === "FINAL_CONFIRMED") {
               // Automatically fill fields into workspace
               const f = jSession.fields;
               if (f.amount != null && Number(f.amount) > 0) setAmount(String(f.amount));
@@ -635,12 +646,17 @@ export default function AepsWorkspace({
                 }
               }
 
+              const isFullyReconciled = jSession.status === "RECONCILED";
               showToast(
                 "success",
-                `Transaction ${jSession.primaryReference || "detected"} RECONCILED with Passbook. Approve & Save is now enabled.`
+                isFullyReconciled
+                  ? `Transaction ${jSession.primaryReference || "detected"} RECONCILED with Passbook. Ready for approval.`
+                  : `Live AEPS transaction ${jSession.primaryReference || "detected"} captured and auto-filled. Awaiting passbook match.`
               );
               speakSaiAnnouncement(
-                `AEPS transaction ${f.amount ? `of rupees ${f.amount}` : ""} reconciled with passbook. Ready for approval.`
+                isFullyReconciled
+                  ? `AEPS transaction ${f.amount ? `of rupees ${f.amount}` : ""} reconciled with passbook. Ready for approval.`
+                  : `AEPS transaction ${f.amount ? `of rupees ${f.amount}` : ""} received.`
               );
             } else if (jSession.status === "CONFLICT") {
               const conflictText = jSession.conflicts[0]?.message || "Discrepancy detected";
@@ -664,7 +680,7 @@ export default function AepsWorkspace({
     return () => {
       if (typeof unsubscribe === "function") unsubscribe();
     };
-  }, [bankOptions, portalId, showToast]);
+  }, [bankOptions, initialPortals, portalId, showToast]);
 
   // Filtered Ledger Rows
   const filtered = useMemo(() => {
@@ -2634,80 +2650,108 @@ export default function AepsWorkspace({
       <div className="mx-auto max-w-[1720px] px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
 
         {/* TOP COMMAND HEADER */}
-        <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-200/80 pb-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-tr from-blue-700 to-indigo-600 text-white shadow-md shadow-blue-500/20">
-              <span className="text-xl font-black">A</span>
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-black tracking-tight text-slate-950 sm:text-2xl">
-                  AEPS Transactions
-                </h1>
-                <span className="rounded-full bg-blue-50 border border-blue-200 px-2.5 py-0.5 text-[10px] font-black text-blue-700">
-                  LIVE WATCHER READY
-                </span>
-                <span className="rounded-full bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 text-[10px] font-black text-indigo-700">
-                  ⚡ HYBRID NETWORK (CDP) ACTIVE
+        <header className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-slate-50/70 to-blue-50/30 p-6 shadow-sm backdrop-blur-md">
+          <div className="absolute -right-16 -top-16 h-56 w-56 rounded-full bg-blue-500/5 blur-3xl pointer-events-none" />
+          <div className="absolute -left-16 -bottom-16 h-56 w-56 rounded-full bg-indigo-500/5 blur-3xl pointer-events-none" />
+
+          <div className="relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+            <div className="flex items-center gap-4">
+              <div className="relative flex h-13 w-13 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-indigo-800 text-white shadow-lg shadow-blue-600/25 ring-1 ring-white/30">
+                <span className="text-2xl font-black tracking-tight">A</span>
+                <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 ring-2 ring-white">
+                  <span className="h-1.5 w-1.5 rounded-full bg-white animate-ping" />
                 </span>
               </div>
-              <p className="text-xs text-slate-500">
-                Aadhaar Enabled Payment System · Biometric Cash Out, Enquiry, &amp; Smart Portal Reconciliation
-              </p>
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                    AEPS Transactions
+                  </h1>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200/90 px-3 py-0.5 text-[10px] font-black tracking-wide text-blue-700 shadow-2xs">
+                    <span className="h-1.5 w-1.5 rounded-full bg-blue-600 animate-pulse" />
+                    LIVE WATCHER READY
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 border border-indigo-200/90 px-3 py-0.5 text-[10px] font-black tracking-wide text-indigo-700 shadow-2xs">
+                    <span>⚡</span> HYBRID NETWORK (CDP) ACTIVE
+                  </span>
+                  {liveWatcherActive && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[9px] font-black text-emerald-700">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                      LISTENING
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs font-medium text-slate-500 max-w-2xl">
+                  Aadhaar Enabled Payment System · Biometric Cash Out, Enquiry, Balance Verification &amp; Real-Time Banking CDP Interceptor
+                </p>
+              </div>
             </div>
-          </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab("workspace");
-                handleNewCashOut();
-              }}
-              className="rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-2.5 text-xs font-black text-white shadow-sm active:scale-95 transition-all flex items-center gap-1.5"
-            >
-              ＋ Record Transaction
-            </button>
-            <button
-              type="button"
-              onClick={handleExport}
-              className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-1.5"
-            >
-              ⇩ Export
-
-            </button>
+            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab("workspace");
+                  handleNewCashOut();
+                }}
+                className="group relative overflow-hidden rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 px-5 py-2.5 text-xs font-black text-white shadow-md shadow-blue-600/25 hover:shadow-lg hover:shadow-blue-600/35 active:scale-95 transition-all flex items-center gap-2"
+              >
+                <span className="text-sm font-bold">＋</span>
+                <span>Record Transaction</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleExport}
+                className="rounded-xl border border-slate-200/90 bg-white/80 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-slate-950 transition-all flex items-center gap-1.5 shadow-2xs"
+              >
+                <span>⇩</span>
+                <span>Export Ledger</span>
+              </button>
+            </div>
           </div>
         </header>
 
-        {/* 5 PREMIUM KPI CARDS */}
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        {/* 5 PREMIUM KPI TELEMETRY CARDS */}
+        <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-5">
           {[
-            ["▣", "Total Transactions", String(stats.total), "border-blue-100 bg-blue-50/60 text-blue-600"],
-            ["₹", "Total Amount", inr(stats.amount), "border-emerald-100 bg-emerald-50/60 text-emerald-600"],
-            ["%", "Total Fees", inr(stats.fees), "border-rose-100 bg-rose-50/60 text-rose-600"],
-            ["◔", "Portal Commission", inr(stats.commission), "border-violet-100 bg-violet-50/60 text-violet-600"],
-            ["▣", "AEPS Float", inr(aepsFloat), "border-amber-100 bg-amber-50/60 text-amber-600"],
-          ].map(([icon, label, value, tone]) => (
-            <div key={label} className={`rounded-2xl border p-4 shadow-sm ${tone}`}>
-              <div className="flex items-start justify-between">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-sm font-black shadow-sm">
+            ["▣", "Total Transactions", String(stats.total), "border-blue-200/70 bg-gradient-to-br from-blue-50/70 via-white to-blue-50/20 text-blue-700", "Volume"],
+            ["₹", "Total Amount", inr(stats.amount), "border-emerald-200/70 bg-gradient-to-br from-emerald-50/70 via-white to-emerald-50/20 text-emerald-700", "Settled"],
+            ["%", "Total Fees", inr(stats.fees), "border-amber-200/70 bg-gradient-to-br from-amber-50/70 via-white to-amber-50/20 text-amber-700", "Collected"],
+            ["◔", "Portal Commission", inr(stats.commission), "border-violet-200/70 bg-gradient-to-br from-violet-50/70 via-white to-violet-50/20 text-violet-700", "Yield"],
+            ["⚖", "AEPS Float Balance", inr(aepsFloat), "border-cyan-200/70 bg-gradient-to-br from-cyan-50/70 via-white to-cyan-50/20 text-cyan-700", "Vault 1400"],
+          ].map(([icon, label, value, tone, tag]) => (
+            <div
+              key={label}
+              className={`group relative overflow-hidden rounded-2xl border p-4.5 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 ${tone}`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-2xs ring-1 ring-black/5 text-base font-black">
                   {icon}
                 </div>
+                <span className="rounded-full bg-white/80 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-slate-500 shadow-2xs">
+                  {tag}
+                </span>
               </div>
-              <p className="mt-3 text-[10px] font-black uppercase tracking-wider text-slate-500">{label}</p>
-              <p className="mt-1 text-xl font-black text-slate-950">{value}</p>
+              <p className="mt-3.5 text-[10px] font-black uppercase tracking-widest text-slate-500">
+                {label}
+              </p>
+              <p className="mt-1 text-2xl font-black tracking-tight text-slate-950 font-mono">
+                {value}
+              </p>
             </div>
           ))}
         </div>
 
         {/* NAVIGATION / SUB-VIEW SWITCHER */}
-        <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-2 rounded-2xl shadow-sm">
-          <div className="flex items-center gap-1">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white/95 p-2 shadow-sm backdrop-blur-md">
+          <div className="flex flex-wrap items-center gap-1.5">
             <button
               type="button"
               onClick={() => setActiveTab("workspace")}
-              className={`rounded-xl px-4 py-2 text-xs font-bold transition-all flex items-center gap-1.5 ${
-                activeTab === "workspace" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"
+              className={`rounded-xl px-4 py-2 text-xs font-black transition-all flex items-center gap-2 ${
+                activeTab === "workspace"
+                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm shadow-blue-500/25"
+                  : "text-slate-600 hover:bg-slate-100/80 hover:text-slate-900"
               }`}
             >
               <span>⚡</span> Counter Workspace (Full-Width)
@@ -2715,13 +2759,15 @@ export default function AepsWorkspace({
             <button
               type="button"
               onClick={() => setActiveTab("watcher")}
-              className={`rounded-xl px-4 py-2 text-xs font-bold transition-all flex items-center gap-1.5 ${
-                activeTab === "watcher" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"
+              className={`rounded-xl px-4 py-2 text-xs font-black transition-all flex items-center gap-2 ${
+                activeTab === "watcher"
+                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm shadow-blue-500/25"
+                  : "text-slate-600 hover:bg-slate-100/80 hover:text-slate-900"
               }`}
             >
               <span>◷</span> Multi-Source Portal Watcher
               {pendingReviewCount > 0 && (
-                <span className="rounded-full bg-amber-400 text-slate-950 text-[9px] px-1.5 font-black">
+                <span className="rounded-full bg-amber-400 text-slate-950 text-[9px] px-2 py-0.5 font-black ring-1 ring-amber-500/30">
                   {pendingReviewCount}
                 </span>
               )}
@@ -2729,8 +2775,10 @@ export default function AepsWorkspace({
             <button
               type="button"
               onClick={() => setActiveTab("ledger")}
-              className={`rounded-xl px-4 py-2 text-xs font-bold transition-all flex items-center gap-1.5 ${
-                activeTab === "ledger" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"
+              className={`rounded-xl px-4 py-2 text-xs font-black transition-all flex items-center gap-2 ${
+                activeTab === "ledger"
+                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm shadow-blue-500/25"
+                  : "text-slate-600 hover:bg-slate-100/80 hover:text-slate-900"
               }`}
             >
               <span>📋</span> Ledger &amp; Analytics ({filtered.length})
@@ -2738,8 +2786,10 @@ export default function AepsWorkspace({
             <button
               type="button"
               onClick={() => setActiveTab("daily_reconciliation")}
-              className={`rounded-xl px-4 py-2 text-xs font-bold transition-all flex items-center gap-1.5 ${
-                activeTab === "daily_reconciliation" ? "bg-indigo-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"
+              className={`rounded-xl px-4 py-2 text-xs font-black transition-all flex items-center gap-2 ${
+                activeTab === "daily_reconciliation"
+                  ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-sm shadow-indigo-500/25"
+                  : "text-slate-600 hover:bg-slate-100/80 hover:text-slate-900"
               }`}
             >
               <span>⚖️</span> Daily Reconciliation &amp; Cashbook
@@ -2747,12 +2797,12 @@ export default function AepsWorkspace({
           </div>
 
           {activeTab === "workspace" && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 px-1">
               <button
                 type="button"
                 onClick={() => verifyCurrentPortalDetails(true)}
                 disabled={isVerifyingPortal}
-                className="rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-1.5 text-xs font-black text-emerald-800 hover:bg-emerald-100 transition-all flex items-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50"
+                className="rounded-xl border border-emerald-300 bg-emerald-50/80 px-3.5 py-1.5 text-xs font-black text-emerald-800 hover:bg-emerald-100 transition-all flex items-center gap-1.5 shadow-2xs active:scale-95 disabled:opacity-50"
               >
                 <span className={isVerifyingPortal ? "animate-spin" : ""}>🔄</span>
                 {isVerifyingPortal ? (verificationProgressStep || "Verifying…") : "Verify Current Details"}
@@ -2760,7 +2810,7 @@ export default function AepsWorkspace({
               <button
                 type="button"
                 onClick={() => setInsightsOpen(!insightsOpen)}
-                className="rounded-xl border border-violet-200 bg-violet-50 px-3.5 py-1.5 text-xs font-black text-violet-700 hover:bg-violet-100 transition-colors flex items-center gap-1.5"
+                className="rounded-xl border border-violet-200 bg-violet-50/80 px-3.5 py-1.5 text-xs font-black text-violet-700 hover:bg-violet-100 transition-colors flex items-center gap-1.5 shadow-2xs"
               >
                 <span>✦</span> AI Insights
               </button>
@@ -3313,15 +3363,18 @@ export default function AepsWorkspace({
               {/* ----------------------------------------------------------------- */}
               {/* COLUMN 1: CUSTOMER & IDENTITY                                     */}
               {/* ----------------------------------------------------------------- */}
-              <div className="space-y-4 rounded-2xl border border-slate-200/90 bg-slate-50/50 p-4 lg:p-5">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-600 text-xs font-black text-white">
+              <div className="space-y-4.5 rounded-3xl border border-slate-200/90 bg-gradient-to-b from-slate-50/90 via-white to-slate-50/40 p-5 lg:p-6 shadow-sm ring-1 ring-slate-900/5">
+                <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-xs font-black text-white shadow-sm shadow-blue-600/30">
                       1
                     </span>
-                    <h3 className="text-sm font-black text-slate-900">Customer &amp; Identity</h3>
+                    <div>
+                      <h3 className="text-sm font-black text-slate-950">Customer &amp; Identity</h3>
+                      <p className="text-[10px] font-medium text-slate-400">KYC &amp; Aadhaar Verification</p>
+                    </div>
                   </div>
-                  <span className="text-[10px] font-bold text-slate-400">Authoritative CafeERP DB</span>
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-black uppercase text-slate-500">Master DB</span>
                 </div>
 
                 {/* UNIVERSAL CUSTOMER SEARCH (Name, Mobile, ID, Aadhaar) */}
@@ -3565,15 +3618,18 @@ export default function AepsWorkspace({
               {/* ----------------------------------------------------------------- */}
               {/* COLUMN 2: TRANSACTION DETAILS                                     */}
               {/* ----------------------------------------------------------------- */}
-              <div className="space-y-4 rounded-2xl border border-slate-200/90 bg-slate-50/50 p-4 lg:p-5">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-indigo-600 text-xs font-black text-white">
+              <div className="space-y-4.5 rounded-3xl border border-slate-200/90 bg-gradient-to-b from-slate-50/90 via-white to-slate-50/40 p-5 lg:p-6 shadow-sm ring-1 ring-slate-900/5">
+                <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-purple-700 text-xs font-black text-white shadow-sm shadow-indigo-600/30">
                       2
                     </span>
-                    <h3 className="text-sm font-black text-slate-900">Transaction Details</h3>
+                    <div>
+                      <h3 className="text-sm font-black text-slate-950">Transaction Details</h3>
+                      <p className="text-[10px] font-medium text-slate-400">Method, Bank &amp; Settlement Route</p>
+                    </div>
                   </div>
-                  <span className="text-[10px] font-bold text-slate-400">Method &amp; Provider</span>
+                  <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[9px] font-black uppercase text-indigo-700 border border-indigo-200/60">Core Routing</span>
                 </div>
 
                 {/* Transaction Type Buttons */}
@@ -3800,18 +3856,21 @@ export default function AepsWorkspace({
               {/* ----------------------------------------------------------------- */}
               {/* COLUMN 3: PRICING / REVIEW                                        */}
               {/* ----------------------------------------------------------------- */}
-              <div className="space-y-4 rounded-2xl border border-slate-200/90 bg-slate-50/50 p-4 lg:p-5">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-600 text-xs font-black text-white">
+              <div className="space-y-4.5 rounded-3xl border border-slate-200/90 bg-gradient-to-b from-slate-50/90 via-white to-slate-50/40 p-5 lg:p-6 shadow-sm ring-1 ring-slate-900/5">
+                <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-xs font-black text-white shadow-sm shadow-emerald-600/30">
                       3
                     </span>
-                    <h3 className="text-sm font-black text-slate-900">Pricing / Review</h3>
+                    <div>
+                      <h3 className="text-sm font-black text-slate-950">Pricing / Review</h3>
+                      <p className="text-[10px] font-medium text-slate-400">Fee, Commission &amp; Net Payout</p>
+                    </div>
                   </div>
                   <button
                     type="button"
                     onClick={() => setRulesModalOpen(true)}
-                    className="text-[10px] font-bold text-indigo-600 hover:underline flex items-center gap-1"
+                    className="rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-[10px] font-black text-emerald-800 hover:bg-emerald-100 transition-colors flex items-center gap-1 shadow-2xs"
                   >
                     <span>⚙</span> Setup Rules
                   </button>

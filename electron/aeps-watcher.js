@@ -86,28 +86,56 @@ class AepsWatcher {
 
     // Attach CDP Passive Network Interceptor to capture raw JSON banking responses in-flight
     try {
-      const interceptor = new AepsNetworkInterceptor(this.window.webContents, (obs) => {
-        const session = this.processJourneyObservation({
-          portalId: this.config?.portalId,
-          portalName: this.config?.portalName,
-          sourceUrl: this.config?.sourceUrl,
-          stage: obs.stage,
-          fields: obs.fields,
-          evidence: obs.evidence,
-        });
-        this.emit({
-          type: "transaction_journey",
-          portalId: this.config?.portalId,
-          portalName: this.config?.portalName,
-          stage: obs.stage,
-          session,
-          observedVia: "network_interception",
-        });
+      const attachCdp = (targetWebContents, targetId) => {
+        try {
+          const interceptor = new AepsNetworkInterceptor(targetWebContents, (obs) => {
+            const session = this.processJourneyObservation({
+              portalId: this.config?.portalId,
+              portalName: this.config?.portalName,
+              sourceUrl: this.config?.sourceUrl,
+              stage: obs.stage,
+              fields: obs.fields,
+              evidence: obs.evidence,
+            });
+            this.emit({
+              type: "transaction_journey",
+              portalId: this.config?.portalId,
+              portalName: this.config?.portalName,
+              stage: obs.stage,
+              session,
+              observedVia: "network_interception",
+            });
+          });
+          interceptor.attach();
+          this.networkInterceptors.set(targetId, interceptor);
+        } catch (e) {
+          console.warn(`[AepsWatcher] Failed to attach network interceptor to ${targetId}:`, e.message);
+        }
+      };
+
+      attachCdp(this.window.webContents, "main");
+
+      // Auto-attach CDP interceptor to any popup or window opened by the portal
+      this.window.webContents.setWindowOpenHandler(({ url }) => {
+        return {
+          action: "allow",
+          overrideBrowserWindowOptions: {
+            webPreferences: {
+              partition: "aeps-watcher-" + this.config.portalId,
+              nodeIntegration: false,
+              contextIsolation: true,
+              sandbox: true,
+            },
+          },
+        };
       });
-      interceptor.attach();
-      this.networkInterceptors.set("main", interceptor);
+
+      this.window.webContents.on("did-create-window", (childWindow) => {
+        const childId = `popup-main-${Date.now()}`;
+        attachCdp(childWindow.webContents, childId);
+      });
     } catch (e) {
-      console.warn("[AepsWatcher] Failed to attach network interceptor to main window:", e.message);
+      console.warn("[AepsWatcher] Failed to initialize network interceptors on main window:", e.message);
     }
 
     await this.window.loadURL(this.config.sourceUrl);
@@ -436,31 +464,59 @@ class AepsWatcher {
 
       // Attach CDP Passive Network Interceptor to each source window
       try {
-        const interceptor = new AepsNetworkInterceptor(win.webContents, (obs) => {
-          const session = this.processJourneyObservation({
-            portalId,
-            portalName,
-            sourceId,
-            sourceUrl,
-            stage: obs.stage,
-            fields: obs.fields,
-            evidence: obs.evidence,
-          });
-          this.liveEmit?.({
-            type: "transaction_journey",
-            portalId,
-            portalName,
-            sourceId,
-            sourceUrl,
-            stage: obs.stage,
-            session,
-            observedVia: "network_interception",
-          });
+        const attachSourceCdp = (targetWebContents, targetId) => {
+          try {
+            const interceptor = new AepsNetworkInterceptor(targetWebContents, (obs) => {
+              const session = this.processJourneyObservation({
+                portalId,
+                portalName,
+                sourceId,
+                sourceUrl,
+                stage: obs.stage,
+                fields: obs.fields,
+                evidence: obs.evidence,
+              });
+              this.liveEmit?.({
+                type: "transaction_journey",
+                portalId,
+                portalName,
+                sourceId,
+                sourceUrl,
+                stage: obs.stage,
+                session,
+                observedVia: "network_interception",
+              });
+            });
+            interceptor.attach();
+            this.networkInterceptors.set(targetId, interceptor);
+          } catch (e) {
+            console.warn(`[AepsWatcher] Failed to attach network interceptor to source ${targetId}:`, e.message);
+          }
+        };
+
+        attachSourceCdp(win.webContents, sourceId);
+
+        // Auto-attach CDP interceptor to any popup or window opened by this source
+        win.webContents.setWindowOpenHandler(({ url }) => {
+          return {
+            action: "allow",
+            overrideBrowserWindowOptions: {
+              webPreferences: {
+                partition,
+                nodeIntegration: false,
+                contextIsolation: true,
+                sandbox: true,
+              },
+            },
+          };
         });
-        interceptor.attach();
-        this.networkInterceptors.set(sourceId, interceptor);
+
+        win.webContents.on("did-create-window", (childWindow) => {
+          const childId = `popup-${sourceId}-${Date.now()}`;
+          attachSourceCdp(childWindow.webContents, childId);
+        });
       } catch (e) {
-        console.warn(`[AepsWatcher] Failed to attach network interceptor to source ${sourceId}:`, e.message);
+        console.warn(`[AepsWatcher] Failed to initialize network interceptors for source ${sourceId}:`, e.message);
       }
 
       await win.loadURL(sourceUrl);

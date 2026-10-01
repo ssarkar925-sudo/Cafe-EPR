@@ -6,17 +6,18 @@
 /**
  * Common keys used by Indian AEPS gateways and B2B portals (DigiPay, Spice Money, Payworld, RNFI, etc.)
  */
-const RRN_KEYS = ["rrn", "bankrrn", "externalref", "refno", "stan", "utr", "txnreference", "externalreference", "bankreference", "operatorref", "billerref", "operatorid", "bbpsref", "ackno"];
-const TXN_ID_KEYS = ["txnid", "transactionid", "transid", "orderid", "externalid", "clientrefid", "requestid"];
-const AMOUNT_KEYS = ["amount", "txnamount", "transactionamount", "transamount", "withdrawamount", "billamount", "rechargeamount", "transferamount"];
-const STATUS_KEYS = ["status", "statuscode", "responsecode", "txnstatus", "result", "msg", "message"];
-const BANK_KEYS = ["bank", "bankname", "issuerbank", "remitterbank", "beneficiarybank"];
-const BALANCE_KEYS = ["balance", "accountbalance", "customerbalance", "ledgerbalance", "availablebalance", "walletbalance"];
-const COMM_KEYS = ["commission", "retailercommission", "margin", "tds", "retailerearning"];
-const FEE_KEYS = ["fee", "charge", "servicecharge", "customerfee", "convfee", "conveniencefee"];
-const SENDER_MOBILE_KEYS = ["sendermobile", "remittermobile", "customermobile", "mobile", "custmobile", "phone"];
+const RRN_KEYS = ["rrn", "bankrrn", "externalref", "refno", "stan", "utr", "txnreference", "externalreference", "bankreference", "operatorref", "billerref", "operatorid", "bbpsref", "ackno", "portalrrn", "bank_rrn", "apitrnrefno"];
+const TXN_ID_KEYS = ["txnid", "transactionid", "transid", "orderid", "externalid", "clientrefid", "requestid", "txnid_val", "uniqueid"];
+const AMOUNT_KEYS = ["amount", "txnamount", "transactionamount", "transamount", "withdrawamount", "billamount", "rechargeamount", "transferamount", "txn_amount", "withdraw_amount"];
+const STATUS_KEYS = ["status", "statuscode", "responsecode", "txnstatus", "result", "msg", "message", "respcode", "status_desc"];
+const BANK_KEYS = ["bank", "bankname", "issuerbank", "remitterbank", "beneficiarybank", "bank_name", "issuer_bank"];
+const BALANCE_KEYS = ["balance", "accountbalance", "customerbalance", "ledgerbalance", "availablebalance", "walletbalance", "rembal", "remainingbalance"];
+const COMM_KEYS = ["commission", "retailercommission", "margin", "tds", "retailerearning", "comm", "retailer_comm"];
+const FEE_KEYS = ["fee", "charge", "servicecharge", "customerfee", "convfee", "conveniencefee", "cust_fee"];
+const SENDER_MOBILE_KEYS = ["sendermobile", "remittermobile", "customermobile", "mobile", "custmobile", "phone", "contact", "mobileno", "cust_mobile"];
 const BENEFICIARY_KEYS = ["beneficiaryname", "beneName", "receivername", "accountnumber", "accountno", "beneaccount", "ifsc", "ifsccode", "upiid", "vpa"];
 const CONSUMER_KEYS = ["consumerno", "canumber", "consumernumber", "kno", "accountid", "billerid", "billername", "operator"];
+const AADHAAR_KEYS = ["aadhaarno", "aadhaar", "aadhar", "aadharno", "aadhaarnumber", "masked_aadhaar", "maskedaadhaar", "uid", "last4"];
 
 function findValueInObject(obj, targetKeys) {
   if (!obj || typeof obj !== "object") return null;
@@ -57,6 +58,16 @@ function parseAepsNetworkPayload(json, url) {
   const rawMobile = findValueInObject(json, SENDER_MOBILE_KEYS);
   const rawBeneficiary = findValueInObject(json, BENEFICIARY_KEYS);
   const rawConsumer = findValueInObject(json, CONSUMER_KEYS);
+  const rawAadhaar = findValueInObject(json, AADHAAR_KEYS);
+
+  // Extract Aadhaar last 4 digits if present
+  let aadhaarLast4 = null;
+  if (rawAadhaar) {
+    const aadhClean = String(rawAadhaar).replace(/\D/g, "");
+    if (aadhClean.length >= 4) {
+      aadhaarLast4 = aadhClean.slice(-4);
+    }
+  }
 
   // Parse amount strictly as number
   let amount = null;
@@ -132,6 +143,7 @@ function parseAepsNetworkPayload(json, url) {
     portalCommission: rawCommission !== null ? Number(rawCommission) || null : null,
     portalFee: rawFee !== null ? Number(rawFee) || null : null,
     customerMobile: rawMobile ? String(rawMobile).trim().replace(/\D/g, "").slice(-10) : null,
+    aadhaarLast4,
     beneficiaryName: rawBeneficiary ? String(rawBeneficiary).trim() : null,
     consumerNumber: rawConsumer ? String(rawConsumer).trim() : null,
     status,
