@@ -16,8 +16,20 @@ import type { ScanFields } from "@/lib/scan/extract";
 import type { CustomerRow, Master, Txn } from "./business-client";
 import { useToast } from "@/components/ui/use-toast";
 import { downloadCsv } from "@/components/ui/csv";
-import { renderWhatsAppTemplate } from "@/lib/whatsapp";
+import { renderWhatsAppTemplate, triggerWhatsAppAutomation } from "@/lib/whatsapp";
 import WhatsAppSendModal from "@/components/whatsapp/whatsapp-send-modal";
+
+function speakSaiAnnouncement(text: string) {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+  try {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1.05;
+    utterance.pitch = 1.0;
+    utterance.lang = "en-IN";
+    window.speechSynthesis.speak(utterance);
+  } catch {}
+}
 
 // Bank alias normalization dictionary
 const BANK_ALIASES: Record<string, string> = {
@@ -257,6 +269,9 @@ export default function DmtWorkspace({
           showToast(
             "success",
             `⚡ SAI DMT Interceptor: Remittance captured (${fields.reference ? `Ref: ${fields.reference}` : "In-flight"}). Review and complete transfer.`
+          );
+          speakSaiAnnouncement(
+            `Money transfer remittance ${fields.amount ? `of rupees ${fields.amount}` : ""} captured. Ready for review.`
           );
         }
       }
@@ -1179,6 +1194,35 @@ export default function DmtWorkspace({
       await refreshBalances();
 
       showToast("success", `₹${numAmount.toLocaleString("en-IN")} DMT transfer completed successfully.`);
+
+      // Hands-free voice confirmation
+      speakSaiAnnouncement(
+        `Money transfer completed. Amount ${numAmount} rupees sent to ${beneficiaryName.trim() || "beneficiary"}. Ledger updated.`
+      );
+
+      // Automated WhatsApp digital receipt dispatch (Option B)
+      const targetPhone = senderMobile.trim().replace(/\D/g, "");
+      if (targetPhone.length === 10) {
+        void triggerWhatsAppAutomation({
+          type: "dmt_confirmation",
+          phone: targetPhone,
+          recipientName: senderName.trim() || "Customer",
+          customerId: selectedCustomerId || undefined,
+          referenceId: completedRecord.id,
+          data: {
+            ref_number: reference.trim() || completedRecord.id.slice(0, 8),
+            date: new Date().toLocaleDateString("en-IN"),
+            amount: inr(numAmount),
+            service_fee: inr(numFee),
+            receipt_url: `${window.location.origin}/business/receipt/${completedRecord.id}`,
+            shop_name: "Sarkar Communication",
+          },
+        }).then((waRes) => {
+          if (waRes.triggered) {
+            showToast("info", "WhatsApp remittance receipt dispatched to sender.");
+          }
+        }).catch(() => {});
+      }
     } catch (err: any) {
       console.error("DMT error:", err);
       showToast("error", err.message || "Transfer could not be completed. Please verify details.");
