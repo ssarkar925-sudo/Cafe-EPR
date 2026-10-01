@@ -8,6 +8,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const watcherSource = fs.readFileSync(path.join(root, "electron", "aeps-watcher.js"), "utf8");
 const sessionPath = path.join(root, "electron", "aeps-transaction-session.js");
 const sessionSource = fs.readFileSync(sessionPath, "utf8");
+const compSource = fs.readFileSync(path.join(root, "components", "business", "aeps-workspace.tsx"), "utf8");
 
 const requiredApproval = [
   ["approval blocks before reconciliation", "detectedJourneyApprovalBlocked"],
@@ -47,7 +48,7 @@ const requiredSession = [
 let failed = 0;
 
 for (const [label, needle] of requiredApproval) {
-  if (watcherSource.includes(needle) || sessionSource.includes(needle)) console.log("PASS:", label);
+  if (compSource.includes(needle)) console.log("PASS:", label);
   else {
     console.error("FAIL:", label, "missing:", needle);
     failed++;
