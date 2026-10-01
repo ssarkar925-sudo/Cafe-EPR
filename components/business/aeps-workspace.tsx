@@ -465,6 +465,8 @@ export default function AepsWorkspace({
     }
 
     setEntryMode("ai");
+    setActiveTab("workspace");
+    setWorkspaceOpen(true);
     setSourceSectionOpen(true);
     setReviewOpen(true);
   };
