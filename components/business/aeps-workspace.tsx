@@ -235,6 +235,8 @@ export default function AepsWorkspace({
   const [liveWatcherDetectedCount, setLiveWatcherDetectedCount] = useState(0);
   const [liveWatcherError, setLiveWatcherError] = useState<string | null>(null);
   const [detectedTransactions, setDetectedTransactions] = useState<any[]>([]);
+  const [journeySessions, setJourneySessions] = useState<Record<string, any>>({});
+  const journeySessionCount = Object.keys(journeySessions).length;
   const [selectedDetectedTransactionId, setSelectedDetectedTransactionId] = useState<string | null>(null);
   const liveSnapshotBusyRef = useRef(false);
   const [newSourceUrl, setNewSourceUrl] = useState("");
@@ -424,6 +426,8 @@ export default function AepsWorkspace({
       if (!eventPortalId) return;
 
       if (event.type === "multi_started") {
+        setJourneySessions({});
+        setDetectedTransactions([]);
         setLiveWatcherActive(true);
         setLiveWatcherPortalId(eventPortalId);
         setLiveWatcherError(null);
@@ -497,6 +501,110 @@ export default function AepsWorkspace({
         return;
       }
 
+      if (event.type === "transaction_journey") {
+        const sessionId = String(event.sessionId || "").trim();
+        if (sessionId) {
+          setJourneySessions((prev) => ({
+            ...prev,
+            [sessionId]: {
+              sessionId,
+              stage: String(event.stage || "intermediate"),
+              status: String(event.status || "COLLECTING"),
+              stageSummary: event.stageSummary || {},
+              observationCount: Number(event.observationCount || 0),
+              fields: event.fields || {},
+              updatedAt: event.detectedAt || new Date().toISOString(),
+            },
+          }));
+
+          setDetectedTransactions((prev) =>
+            prev.map((item) =>
+              item.sessionId === sessionId
+                ? {
+                    ...item,
+                    journeyStatus: String(event.status || item.journeyStatus || "COLLECTING"),
+                    journeyStage: String(event.stage || "intermediate"),
+                    passbookMatched: Boolean(event.stageSummary?.passbook),
+                    verification: event.verification || item.verification || null,
+                  }
+                : item
+            )
+          );
+        }
+        return;
+      }
+
+      if (event.type === "transaction_reconciled") {
+        const sessionId = String(event.sessionId || "").trim();
+        if (sessionId) {
+          setJourneySessions((prev) => ({
+            ...prev,
+            [sessionId]: {
+              ...(prev[sessionId] || {}),
+              sessionId,
+              status: "RECONCILED",
+              stage: "passbook",
+              stageSummary: {
+                ...(prev[sessionId]?.stageSummary || {}),
+                passbook: true,
+              },
+              verification: event.verification || null,
+              fields: event.fields || prev[sessionId]?.fields || {},
+              updatedAt: event.reconciledAt || new Date().toISOString(),
+            },
+          }));
+
+          setDetectedTransactions((prev) =>
+            prev.map((item) =>
+              item.sessionId === sessionId
+                ? {
+                    ...item,
+                    journeyStatus: "RECONCILED",
+                    journeyStage: "passbook",
+                    passbookMatched: true,
+                    verification: event.verification || item.verification || null,
+                  }
+                : item
+            )
+          );
+
+          showToast("success", "AEPS final transaction matched with passbook data.");
+        }
+        return;
+      }
+
+      if (event.type === "transaction_conflict") {
+        const sessionId = String(event.sessionId || "").trim();
+        if (sessionId) {
+          setJourneySessions((prev) => ({
+            ...prev,
+            [sessionId]: {
+              ...(prev[sessionId] || {}),
+              sessionId,
+              status: "CONFLICT",
+              verification: event.verification || null,
+              fields: event.fields || prev[sessionId]?.fields || {},
+              updatedAt: event.detectedAt || new Date().toISOString(),
+            },
+          }));
+
+          setDetectedTransactions((prev) =>
+            prev.map((item) =>
+              item.sessionId === sessionId
+                ? {
+                    ...item,
+                    journeyStatus: "CONFLICT",
+                    verification: event.verification || item.verification || null,
+                  }
+                : item
+            )
+          );
+
+          showToast("error", "AEPS journey data conflicts with the final transaction. Review before approval.");
+        }
+        return;
+      }
+
       if (event.type === "transaction") {
         const tx = event.transaction || {};
         const detectedPortal = eventPortalId;
@@ -508,6 +616,10 @@ export default function AepsWorkspace({
           sourceUrl: String(event.sourceUrl || ""),
           fingerprint: String(event.fingerprint || ""),
           detectedAt: event.detectedAt || new Date().toISOString(),
+          sessionId: String(event.sessionId || ""),
+          journeyStatus: String(event.journeyStatus || "FINAL_CONFIRMED"),
+          passbookMatched: Boolean(event.passbookMatched),
+          verification: event.verification || null,
           transaction: tx,
         };
 
@@ -536,6 +648,7 @@ export default function AepsWorkspace({
       }
 
       if (event.type === "stopped") {
+        setJourneySessions({});
         setLiveWatcherActive(false);
         setLiveWatcherPortalId(null);
         setLiveWatcherLastEventAt(new Date().toISOString());
@@ -2169,10 +2282,26 @@ export default function AepsWorkspace({
   // ---------------------------------------------------------------------------
   // APPROVE & SAVE WITH STRICT FINANCIAL PERSISTENCE CONFIRMATION
   // ---------------------------------------------------------------------------
+  const selectedDetectedRecord = selectedDetectedTransactionId
+    ? detectedTransactions.find((item) => item.id === selectedDetectedTransactionId) || null
+    : null;
+  const detectedJourneyApprovalBlocked = Boolean(
+    selectedDetectedRecord &&
+      selectedDetectedRecord.journeyStatus &&
+      selectedDetectedRecord.journeyStatus !== "RECONCILED"
+  );
+
   const idempotencyKeyRef = useRef<string | null>(null);
 
   const recordTransaction = async () => {
     if (busy || !isFormValid) return;
+    if (detectedJourneyApprovalBlocked) {
+      showToast(
+        "info",
+        "This detected AEPS transaction is awaiting passbook reconciliation. Approval unlocks after the journey is reconciled."
+      );
+      return;
+    }
     setBusy(true);
     try {
       const isCollection = transactionType === "payment_collection";
@@ -2278,6 +2407,17 @@ export default function AepsWorkspace({
           : prev
       );
       setSelectedDetectedTransactionId(null);
+      if (selectedDetectedTransactionId) {
+        const selected = detectedTransactions.find((item) => item.id === selectedDetectedTransactionId);
+        const sessionId = String(selected?.sessionId || "");
+        if (sessionId) {
+          setJourneySessions((prev) => {
+            const next = { ...prev };
+            delete next[sessionId];
+            return next;
+          });
+        }
+      }
       handleNewCashOut();
       setReviewOpen(false);
       idempotencyKeyRef.current = null;
@@ -2706,6 +2846,7 @@ export default function AepsWorkspace({
               <div className="border-t border-emerald-100 bg-white px-4 py-3 text-[10px] text-slate-500 flex flex-wrap items-center gap-x-4 gap-y-1">
                 <span><b className="text-slate-700">Mode:</b> {liveWatcherActive ? "Persistent desktop watcher" : "Manual verification"}</span>
                 <span><b className="text-slate-700">Detected:</b> {liveWatcherDetectedCount}</span>
+                <span><b className="text-slate-700">Journey memory:</b> {journeySessionCount}</span>
                 <span><b className="text-slate-700">Last event:</b> {liveWatcherLastEventAt ? fmtTime(liveWatcherLastEventAt) : "—"}</span>
                 {liveWatcherError && <span className="font-bold text-amber-700">{liveWatcherError}</span>}
               </div>
@@ -3740,7 +3881,11 @@ export default function AepsWorkspace({
             <div className="sticky bottom-0 z-20 -mx-5 -mb-5 lg:-mx-6 lg:-mb-6 mt-6 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-200 bg-white/95 px-6 py-4 backdrop-blur shadow-lg rounded-b-2xl">
               <div className="flex items-center gap-2 text-xs text-slate-500">
                 <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>Final recording stays under operator review.</span>
+                <span>
+                  {detectedJourneyApprovalBlocked
+                    ? "Waiting for passbook reconciliation before final approval."
+                    : "Final recording stays under operator review."}
+                </span>
                 {draftSavedAt && (
                   <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
                     Draft saved at {draftSavedAt}
@@ -3766,7 +3911,7 @@ export default function AepsWorkspace({
                 </button>
                 <button
                   type="button"
-                  disabled={!isFormValid || busy}
+                  disabled={!isFormValid || busy || detectedJourneyApprovalBlocked}
                   onClick={() => setReviewOpen(true)}
                   className="rounded-xl bg-blue-600 hover:bg-blue-700 px-6 py-2.5 text-xs font-black text-white shadow-md shadow-blue-600/20 active:scale-95 transition-all disabled:cursor-not-allowed disabled:opacity-50 flex items-center gap-2"
                 >
@@ -5360,7 +5505,7 @@ export default function AepsWorkspace({
                 <button
                   type="button"
                   onClick={recordTransaction}
-                  disabled={!isFormValid || busy}
+                  disabled={!isFormValid || busy || detectedJourneyApprovalBlocked}
                   className="rounded-xl bg-blue-600 hover:bg-blue-700 px-5 py-2 text-xs font-black text-white shadow-sm transition-all disabled:opacity-50"
                 >
                   {busy ? "Processing…" : "Approve & Record"}
