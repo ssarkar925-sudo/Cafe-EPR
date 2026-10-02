@@ -10,13 +10,17 @@ function getSupabaseConfig() {
     // Local Next.js tooling can run without a Cloudflare request context.
   }
 
-  const url = String(process.env.NEXT_PUBLIC_SUPABASE_URL || runtimeEnv.NEXT_PUBLIC_SUPABASE_URL || "").trim();
+  const url = String(
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+      runtimeEnv.NEXT_PUBLIC_SUPABASE_URL ||
+      "https://tvxehxnvuwojjbhysajp.supabase.co"
+  ).trim();
   const key = String(
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
       runtimeEnv.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
       runtimeEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-      ""
+      "sb_publishable_u5-0p1SChKVIyI5qjPnMhg_bhrbzytQ"
   ).trim();
 
   if (!url || !key) {

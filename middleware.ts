@@ -1,8 +1,18 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-const SUPABASE_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+const DEFAULT_SUPABASE_URL = "https://tvxehxnvuwojjbhysajp.supabase.co";
+const DEFAULT_SUPABASE_ANON = "sb_publishable_u5-0p1SChKVIyI5qjPnMhg_bhrbzytQ";
+
+function getSupabaseConfig() {
+  const envUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const url = String(envUrl && !envUrl.includes("[SENSITIVE") ? envUrl : DEFAULT_SUPABASE_URL).trim();
+  const envKey =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const key = String(envKey && !envKey.includes("[SENSITIVE") ? envKey : DEFAULT_SUPABASE_ANON).trim();
+  return { url, key };
+}
 
 const PUBLIC_PATHS = [
   "/login",
@@ -29,6 +39,7 @@ function applySecurityHeaders(res: NextResponse): NextResponse { res.headers.set
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const { url: SUPABASE_URL, key: SUPABASE_ANON } = getSupabaseConfig();
 
   // Receipts and invoice PDFs are authenticated financial documents. UUID
   // validation prevents sequential-ID enumeration, while the normal session

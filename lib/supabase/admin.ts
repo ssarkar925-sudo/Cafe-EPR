@@ -13,7 +13,11 @@ function getRuntimeEnv(): Record<string, unknown> {
 
 function getAdminConfig() {
   const runtimeEnv = getRuntimeEnv();
-  const url = String(process.env.NEXT_PUBLIC_SUPABASE_URL || runtimeEnv.NEXT_PUBLIC_SUPABASE_URL || "").trim();
+  const url = String(
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+      runtimeEnv.NEXT_PUBLIC_SUPABASE_URL ||
+      "https://tvxehxnvuwojjbhysajp.supabase.co"
+  ).trim();
   // Prefer the canonical name, but support the existing Cloudflare secret alias
   // so an already-configured production secret can continue to be used.
   const serviceKey = String(
