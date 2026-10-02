@@ -255,6 +255,7 @@ export default function AepsWorkspace({
   const [liveWatcherLastEventAt, setLiveWatcherLastEventAt] = useState<string | null>(null);
   const [liveWatcherDetectedCount, setLiveWatcherDetectedCount] = useState(0);
   const [liveWatcherError, setLiveWatcherError] = useState<string | null>(null);
+  const [watcherPhase, setWatcherPhase] = useState<"idle" | "starting" | "active" | "warning" | "error">("idle");
   const [detectedTransactions, setDetectedTransactions] = useState<any[]>([]);
   const [selectedDetectedTransactionId, setSelectedDetectedTransactionId] = useState<string | null>(null);
   const [journeySessions, setJourneySessions] = useState<AepsTransactionJourneySession[]>([]);
@@ -483,6 +484,7 @@ export default function AepsWorkspace({
 
       if (event.type === "multi_started") {
         setLiveWatcherActive(true);
+        setWatcherPhase("active");
         setLiveWatcherPortalId(eventPortalId);
         setLiveWatcherError(null);
         setLiveWatcherLastEventAt(new Date().toISOString());
@@ -504,6 +506,11 @@ export default function AepsWorkspace({
 
       if (event.type === "source_heartbeat") {
         setLiveWatcherLastEventAt(event.checkedAt || new Date().toISOString());
+        if (event.authRequired) {
+          setWatcherPhase("warning");
+        } else {
+          setWatcherPhase("active");
+        }
         setWatcherSources((prev) =>
           prev.map((s) =>
             s.id === String(event.sourceId)
@@ -521,7 +528,8 @@ export default function AepsWorkspace({
         return;
       }
 
-      if (event.type === "source_auth_required") {
+      if (event.type === "source_auth_required" || event.type === "source_auth_waiting") {
+        setWatcherPhase("warning");
         setLiveWatcherError("One or more portal sources require manual sign-in.");
         setWatcherSources((prev) =>
           prev.map((s) =>
@@ -538,7 +546,25 @@ export default function AepsWorkspace({
         return;
       }
 
+      if (event.type === "source_auth_resolved") {
+        setWatcherPhase("active");
+        setLiveWatcherError(null);
+        setWatcherSources((prev) =>
+          prev.map((s) =>
+            s.id === String(event.sourceId)
+              ? {
+                  ...s,
+                  lastStatus: "success",
+                  lastMessage: "Authentication verified. Watching live session.",
+                }
+              : s
+          )
+        );
+        return;
+      }
+
       if (event.type === "source_error") {
+        setWatcherPhase("error");
         setLiveWatcherError(String(event.error || "A watcher source failed."));
         setWatcherSources((prev) =>
           prev.map((s) =>
@@ -674,6 +700,7 @@ export default function AepsWorkspace({
 
       if (event.type === "stopped") {
         setLiveWatcherActive(false);
+        setWatcherPhase("idle");
         setLiveWatcherPortalId(null);
         setLiveWatcherLastEventAt(new Date().toISOString());
       }
@@ -1501,6 +1528,7 @@ export default function AepsWorkspace({
     setLiveWatcherError(null);
     setLiveWatcherDetectedCount(0);
     setLiveWatcherLastEventAt(new Date().toISOString());
+    setWatcherPhase("starting");
 
     try {
       const result = await api.startAepsWatcherAll({
@@ -1519,11 +1547,13 @@ export default function AepsWorkspace({
       }
 
       setLiveWatcherActive(true);
+      setWatcherPhase("active");
       setLiveWatcherPortalId(targetPortal.id);
       void refreshLiveWatcherContext();
       showToast("success", `Live watcher is monitoring ${result.startedSourceCount || portalSources.length} URL(s) for ${targetPortal.name} every 30 seconds.`);
     } catch (err: any) {
       setLiveWatcherActive(false);
+      setWatcherPhase("error");
       setLiveWatcherPortalId(null);
       setLiveWatcherError(err?.message || "Failed to start live watcher.");
       showToast("error", err?.message || "Failed to start live watcher.");
@@ -1534,12 +1564,14 @@ export default function AepsWorkspace({
     const api = (window as any).electronAPI;
     if (!api?.isElectron || typeof api.stopAepsWatcher !== "function") {
       setLiveWatcherActive(false);
+      setWatcherPhase("idle");
       return;
     }
     try {
       const result = await api.stopAepsWatcher();
       if (!result?.success) throw new Error(result?.error || "Failed to stop live watcher.");
       setLiveWatcherActive(false);
+      setWatcherPhase("idle");
       setLiveWatcherPortalId(null);
       setLiveWatcherLastEventAt(new Date().toISOString());
       showToast("info", "Live AEPS watcher stopped.");
@@ -2637,12 +2669,14 @@ export default function AepsWorkspace({
     return cleanMobile.length === 10 && cleanAadhaar.length === 4 && !!bankId && !!portalId;
   }, [cleanMobile, cleanAadhaar, amount, transactionType, bankId, portalId]);
 
-  // Approval Gate: Automatically detected SAI AEPS transactions must reach RECONCILED state.
+  // Approval Gate: Automatically detected SAI AEPS transactions must reach RECONCILED or FINAL_CONFIRMED state.
   // Manual transactions that were never captured by SAI retain standard manual workflow.
+  // Any session with CONFLICT status is strictly blocked from approval until resolved.
   const approvalGatePassed = useMemo(() => {
     if (!isFormValid) return false;
     if (!activeJourneySession) return true; // manual transaction
-    return activeJourneySession.status === "RECONCILED";
+    if (activeJourneySession.status === "CONFLICT") return false;
+    return activeJourneySession.status === "RECONCILED" || activeJourneySession.status === "FINAL_CONFIRMED";
   }, [isFormValid, activeJourneySession]);
 
   const pendingReviewCount = changeRecords.filter((r) => r.status === "pending").length;
@@ -2676,10 +2710,28 @@ export default function AepsWorkspace({
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 border border-indigo-200/90 px-3 py-0.5 text-[10px] font-black tracking-wide text-indigo-700 shadow-2xs">
                     <span>⚡</span> HYBRID NETWORK (CDP) ACTIVE
                   </span>
-                  {liveWatcherActive && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[9px] font-black text-emerald-700">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                      LISTENING
+                  {watcherPhase === "starting" && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-300 px-2.5 py-0.5 text-[9px] font-black text-amber-800 animate-pulse">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                      CONNECTING / PENDING
+                    </span>
+                  )}
+                  {watcherPhase === "active" && liveWatcherActive && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-300 px-2.5 py-0.5 text-[9px] font-black text-emerald-700 shadow-2xs">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping" />
+                      ACTIVE WATCHING
+                    </span>
+                  )}
+                  {watcherPhase === "warning" && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-300 px-2.5 py-0.5 text-[9px] font-black text-amber-800">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                      SIGN-IN REQUIRED
+                    </span>
+                  )}
+                  {watcherPhase === "error" && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 border border-rose-300 px-2.5 py-0.5 text-[9px] font-black text-rose-700">
+                      <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                      WATCHER FAILED
                     </span>
                   )}
                 </div>
@@ -4233,10 +4285,17 @@ export default function AepsWorkspace({
                   <button
                     type="button"
                     onClick={startLiveWatcher}
-                    disabled={isVerifyingPortal}
-                    className="rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 py-2 text-xs font-black text-white shadow-sm transition-all disabled:opacity-50"
+                    disabled={isVerifyingPortal || watcherPhase === "starting"}
+                    className="rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 py-2 text-xs font-black text-white shadow-sm transition-all disabled:opacity-50 flex items-center gap-1.5"
                   >
-                    {isVerifyingPortal ? "Starting…" : "Start Live Watcher"}
+                    {watcherPhase === "starting" ? (
+                      <>
+                        <span className="h-2 w-2 rounded-full bg-white animate-ping" />
+                        <span>Starting…</span>
+                      </>
+                    ) : (
+                      <span>Start Live Watcher</span>
+                    )}
                   </button>
                 )}
                 <button
@@ -4255,6 +4314,123 @@ export default function AepsWorkspace({
                 >
                   ← Back to Workspace
                 </button>
+              </div>
+            </div>
+
+            {/* LIVE WATCHER TELEMETRY & HEALTH RADAR BANNER */}
+            <div className={`rounded-2xl border p-4.5 transition-all shadow-xs ${
+              watcherPhase === "active" && liveWatcherActive
+                ? "border-emerald-300 bg-gradient-to-r from-emerald-50/90 via-teal-50/50 to-white"
+                : watcherPhase === "starting"
+                ? "border-amber-300 bg-gradient-to-r from-amber-50/90 via-orange-50/40 to-white"
+                : watcherPhase === "warning"
+                ? "border-amber-400 bg-gradient-to-r from-amber-100/90 via-amber-50 to-white"
+                : watcherPhase === "error"
+                ? "border-rose-300 bg-gradient-to-r from-rose-50/90 via-red-50/40 to-white"
+                : "border-slate-200 bg-slate-50/60"
+            }`}>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-start sm:items-center gap-3.5">
+                  <div className={`relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl font-black text-white shadow-sm ${
+                    watcherPhase === "active" && liveWatcherActive
+                      ? "bg-emerald-600 shadow-emerald-500/30"
+                      : watcherPhase === "starting"
+                      ? "bg-amber-500 shadow-amber-500/30"
+                      : watcherPhase === "warning"
+                      ? "bg-amber-600 shadow-amber-600/30"
+                      : watcherPhase === "error"
+                      ? "bg-rose-600 shadow-rose-600/30"
+                      : "bg-slate-400"
+                  }`}>
+                    {watcherPhase === "active" && liveWatcherActive && (
+                      <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-400 ring-2 ring-white">
+                        <span className="h-2 w-2 rounded-full bg-white animate-ping" />
+                      </span>
+                    )}
+                    <span className="text-lg">
+                      {watcherPhase === "active" && liveWatcherActive ? "📡" : watcherPhase === "starting" ? "⏳" : watcherPhase === "warning" ? "🔑" : watcherPhase === "error" ? "⚠" : "⏹"}
+                    </span>
+                  </div>
+
+                  <div className="space-y-0.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-black uppercase tracking-wider text-slate-900">
+                        Watcher Radar Status:
+                      </span>
+                      {watcherPhase === "starting" && (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500 text-white px-2.5 py-0.5 text-[10px] font-black animate-pulse shadow-2xs">
+                          <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                          STARTING / CONNECTING
+                        </span>
+                      )}
+                      {watcherPhase === "active" && liveWatcherActive && (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 text-white px-2.5 py-0.5 text-[10px] font-black shadow-2xs">
+                          <span className="h-1.5 w-1.5 rounded-full bg-white animate-ping" />
+                          ACTIVE WATCHING
+                        </span>
+                      )}
+                      {watcherPhase === "warning" && (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-600 text-white px-2.5 py-0.5 text-[10px] font-black shadow-2xs">
+                          <span>🔑</span>
+                          MANUAL SIGN-IN REQUIRED
+                        </span>
+                      )}
+                      {watcherPhase === "error" && (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-600 text-white px-2.5 py-0.5 text-[10px] font-black shadow-2xs">
+                          <span>⚠</span>
+                          WATCHER FAILED / ERROR
+                        </span>
+                      )}
+                      {watcherPhase === "idle" && !liveWatcherActive && (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-200 text-slate-700 px-2.5 py-0.5 text-[10px] font-bold">
+                          STANDBY (IDLE)
+                        </span>
+                      )}
+
+                      <span className="text-[11px] font-medium text-slate-500">
+                        Target Portal:{" "}
+                        <strong className="text-slate-900">
+                          {initialPortals.find((p) => p.id === (liveWatcherPortalId || selectedWatcherPortalId))?.name || "Selected Portal"}
+                        </strong>
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-slate-600">
+                      {liveWatcherError ? (
+                        <span className="font-semibold text-rose-700">{liveWatcherError}</span>
+                      ) : watcherPhase === "active" && liveWatcherActive ? (
+                        <span>SAI Live Watcher is actively monitoring configured URLs. Receipts and transactions are captured automatically.</span>
+                      ) : watcherPhase === "starting" ? (
+                        <span>Initializing isolated browser session and establishing CDP network interceptors…</span>
+                      ) : watcherPhase === "warning" ? (
+                        <span>A portal window requires operator login. Once signed in, monitoring resumes immediately.</span>
+                      ) : (
+                        <span>Click &quot;Start Live Watcher&quot; to begin real-time automated receipt interception and rate auditing.</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 border-t md:border-t-0 md:border-l border-slate-200/80 pt-2 md:pt-0 md:pl-4 text-xs shrink-0">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Last Heartbeat</span>
+                    <span className="font-mono text-xs font-bold text-slate-800">
+                      {liveWatcherLastEventAt ? fmtTime(liveWatcherLastEventAt) : "—"}
+                    </span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Captured</span>
+                    <span className="font-mono text-xs font-bold text-emerald-700">
+                      {liveWatcherDetectedCount} txns
+                    </span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Watched URLs</span>
+                    <span className="font-mono text-xs font-bold text-slate-800">
+                      {watcherSources.filter((s) => s.portalId === selectedWatcherPortalId && s.isEnabled && !s.isArchived).length} active
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -4420,6 +4596,32 @@ export default function AepsWorkspace({
                           >
                             {source.isEnabled ? "Enabled" : "Disabled"}
                           </span>
+                          {/* Real-time Status Badge */}
+                          {source.lastStatus === "error" ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 border border-rose-200 px-2 py-0.5 text-[9px] font-black text-rose-700">
+                              <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                              FAILED
+                            </span>
+                          ) : source.lastStatus === "warning" ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-300 px-2 py-0.5 text-[9px] font-black text-amber-800">
+                              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                              AUTH NEEDED
+                            </span>
+                          ) : source.lastStatus === "success" ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[9px] font-black text-emerald-700">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                              ACTIVE
+                            </span>
+                          ) : watcherPhase === "starting" ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[9px] font-bold text-amber-700 animate-pulse">
+                              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                              PENDING
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-medium text-slate-600">
+                              STANDBY
+                            </span>
+                          )}
                         </div>
 
                         <p className="text-[11px] text-slate-500 leading-snug">{purposeMeta.description}</p>
