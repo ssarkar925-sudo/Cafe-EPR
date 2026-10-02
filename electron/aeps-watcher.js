@@ -1141,10 +1141,30 @@ class AepsWatcher {
       portalId: this.liveConfig?.portalId || null,
       portalName: this.liveConfig?.portalName || null,
       intervalSeconds: this.liveConfig?.intervalSeconds || null,
-      sourceCount: sessions.length,
       sessions,
       journeySessions: Array.from(this.activeSessions.values()),
     };
+  }
+
+  showSourceWindows(sourceId) {
+    if (sourceId) {
+      const win = this.sourceWindows.get(String(sourceId));
+      if (win && !win.isDestroyed()) {
+        win.show();
+        win.focus();
+        return true;
+      }
+      return false;
+    }
+    let shown = 0;
+    for (const win of this.sourceWindows.values()) {
+      if (win && !win.isDestroyed()) {
+        win.show();
+        win.focus();
+        shown++;
+      }
+    }
+    return shown > 0;
   }
 
   async stop() {
@@ -1996,6 +2016,50 @@ function extractJourneyObservations() {
     }
   }
 
+  // Enhanced search for React/Angular/Vue custom dropdowns, divs, and labeled fields (e.g. DigiPay "Bank Option", "Aadhaar / VID", "Customer Mobile Number", "Amount")
+  if (!detectedBank || !detectedMobile || !detectedAadhaarLast4 || !detectedAmount) {
+    const formCards = Array.from(document.querySelectorAll("form, [class*='form'], [class*='card'], [class*='Customer Details'], div")).filter(visible);
+    for (const card of formCards.slice(0, 30)) {
+      const cardText = clean(card.innerText || "");
+      if (cardText.length > 5000) continue;
+
+      if (!detectedBank) {
+        const bankMatch = cardText.match(/Bank\s*(?:Option)?\s*[:*]?\s*([A-Za-z][A-Za-z0-9 .&'-]{2,50})/i);
+        if (bankMatch && bankMatch[1]) {
+          const cand = clean(bankMatch[1]).replace(/\b(?:Select|Choose|Option)\b/gi, "").trim();
+          if (cand.length >= 3) detectedBank = cand;
+        }
+      }
+
+      if (!detectedAadhaarLast4) {
+        const aadhMatch = cardText.match(/(?:Aadhaar|Aadhar|VID)\s*[:*]?\s*(?:[xX*#\s-]*)(\d{4})\b/i);
+        if (aadhMatch) detectedAadhaarLast4 = aadhMatch[1];
+      }
+
+      if (!detectedMobile) {
+        const mobMatch = cardText.match(/(?:Customer\s*)?(?:Mobile|Phone)\s*(?:Number)?\s*[:*]?\s*([6-9]\d{9})/i);
+        if (mobMatch) detectedMobile = mobMatch[1];
+      }
+
+      if (!detectedAmount) {
+        const amtMatch = cardText.match(/\bAmount\s*[:*]?\s*(?:₹|Rs\.?|INR)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
+        if (amtMatch) {
+          const n = money(amtMatch[1]);
+          if (n != null && n > 0 && n <= 50000) detectedAmount = n;
+        }
+      }
+    }
+  }
+
+  // Active tab / service type detection (e.g., Cash Withdrawal, Balance Enquiry, Mini Statement)
+  const activeTabEl = document.querySelector("[class*='active'], [aria-selected='true'], .btn-primary, button.selected");
+  if (activeTabEl) {
+    const tText = clean(activeTabEl.innerText || "");
+    if (/cash\s*withdrawal/i.test(tText)) detectedType = "cash_out";
+    else if (/balance\s*enquiry/i.test(tText)) detectedType = "balance_enquiry";
+    else if (/mini\s*statement/i.test(tText)) detectedType = "mini_statement";
+  }
+
   if (detectedMobile || detectedAadhaarLast4 || detectedAmount) {
     return {
       stage: "ENTRY",
@@ -2004,7 +2068,7 @@ function extractJourneyObservations() {
         aadhaarLast4: detectedAadhaarLast4 || null,
         amount: detectedAmount,
         bank: detectedBank || null,
-        transactionType: detectedType || null,
+        transactionType: detectedType || "cash_out",
       },
       pageUrl,
       pageTitle,

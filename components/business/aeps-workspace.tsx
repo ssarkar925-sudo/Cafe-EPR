@@ -646,33 +646,34 @@ export default function AepsWorkspace({
               }
             }
 
+            // Automatically fill fields into workspace when reconciled, confirmed, or actively being typed/collected on portal
+            const f = jSession.fields;
+            if (f.amount != null && Number(f.amount) > 0) setAmount(String(f.amount));
+            if (f.customerMobile && /^\d{10}$/.test(f.customerMobile)) setMobile(f.customerMobile);
+            if (f.aadhaarLast4 && /^\d{4}$/.test(f.aadhaarLast4)) setAadhaar(f.aadhaarLast4);
+            if (f.reference) handleTransactionRefChange(f.reference);
+            if (f.bank) {
+              const exact = matchBankExactName(f.bank, bankOptions);
+              if (exact) {
+                setBankId(exact.id);
+                setUnmatchedBankName(null);
+              } else {
+                setUnmatchedBankName(f.bank);
+              }
+            }
+            if (f.transactionType) {
+              const normType = normalizeRuleTransactionType(f.transactionType);
+              if (
+                normType === "cash_out" ||
+                normType === "payment_collection" ||
+                normType === "balance_enquiry" ||
+                normType === "mini_statement"
+              ) {
+                setTransactionType(normType as AepsTxnType);
+              }
+            }
+
             if (jSession.status === "RECONCILED" || jSession.status === "FINAL_CONFIRMED") {
-              // Automatically fill fields into workspace
-              const f = jSession.fields;
-              if (f.amount != null && Number(f.amount) > 0) setAmount(String(f.amount));
-              if (f.customerMobile && /^\d{10}$/.test(f.customerMobile)) setMobile(f.customerMobile);
-              if (f.aadhaarLast4 && /^\d{4}$/.test(f.aadhaarLast4)) setAadhaar(f.aadhaarLast4);
-              if (f.reference) handleTransactionRefChange(f.reference);
-              if (f.bank) {
-                const exact = matchBankExactName(f.bank, bankOptions);
-                if (exact) {
-                  setBankId(exact.id);
-                  setUnmatchedBankName(null);
-                } else {
-                  setUnmatchedBankName(f.bank);
-                }
-              }
-              if (f.transactionType) {
-                const normType = normalizeRuleTransactionType(f.transactionType);
-                if (
-                  normType === "cash_out" ||
-                  normType === "payment_collection" ||
-                  normType === "balance_enquiry" ||
-                  normType === "mini_statement"
-                ) {
-                  setTransactionType(normType as AepsTxnType);
-                }
-              }
 
               const isFullyReconciled = jSession.status === "RECONCILED";
               showToast(
@@ -3113,6 +3114,21 @@ export default function AepsWorkspace({
                     {detectedTransactions.length > 0 && (
                       <button type="button" onClick={() => detectedTransactions[0] && reviewDetectedTransaction(detectedTransactions[0])} className="rounded-xl bg-blue-600 hover:bg-blue-700 px-3 py-2 text-xs font-black text-white shadow-sm transition-all">
                         Review ({detectedTransactions.length})
+                      </button>
+                    )}
+                    {liveWatcherActive && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const api = (window as any).electronAPI;
+                          if (api?.showAepsWatcherWindows) {
+                            api.showAepsWatcherWindows();
+                          }
+                        }}
+                        className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100 transition-all flex items-center gap-1.5 shadow-2xs"
+                      >
+                        <span>👁</span>
+                        <span>Show Watcher Windows</span>
                       </button>
                     )}
                     <button type="button" onClick={() => { setSelectedWatcherPortalId(portalId); setActiveTab("watcher"); }} className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-all">

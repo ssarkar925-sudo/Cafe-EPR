@@ -330,6 +330,15 @@ ipcMain.handle("aeps-watcher-status", async () => {
   }
 });
 
+ipcMain.handle("aeps-watcher-show-windows", async (_event, options = {}) => {
+  try {
+    const shown = aepsWatcher.showSourceWindows ? aepsWatcher.showSourceWindows(options?.sourceId) : false;
+    return { success: true, shown };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+});
+
 ipcMain.handle("aeps-watcher-stop", async () => {
   try {
     await aepsWatcher.stop();
