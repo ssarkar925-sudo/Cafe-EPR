@@ -2982,99 +2982,185 @@ export default function AepsWorkspace({
             </div>
 
             {/* LIVE WATCHER CARD — ALL REGISTERED PORTALS */}
-            <section className="rounded-2xl border border-emerald-200 bg-white shadow-sm overflow-hidden">
-              <div className="border-b border-emerald-100 bg-gradient-to-r from-emerald-50 via-white to-blue-50">
-                <button
-                  type="button"
-                  onClick={() => setLiveWatcherOpen((open) => !open)}
-                  aria-expanded={liveWatcherOpen}
-                  className="w-full px-4 py-3.5 flex flex-col gap-2 md:flex-row md:items-center md:justify-between text-left hover:bg-white/60 transition-colors"
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-500 text-xs">{liveWatcherOpen ? "▼" : "▶"}</span>
-                      <h3 className="text-sm font-black uppercase tracking-wide text-slate-950">Live Watcher — All Portals</h3>
-                      <span className={`rounded-full border px-2 py-0.5 text-[9px] font-black ${liveWatcherActive ? "border-emerald-300 bg-emerald-100 text-emerald-800" : "border-slate-200 bg-slate-100 text-slate-600"}`}>
-                        {isVerifyingPortal ? "CHECKING…" : liveWatcherActive ? "LIVE WATCHING" : "IDLE"}
-                      </span>
-                      {detectedTransactions.length > 0 && (
-                        <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[9px] font-black text-white">
-                          {detectedTransactions.length} detected
+            <section className={`rounded-2xl border transition-all shadow-sm overflow-hidden ${
+              watcherPhase === "active" && liveWatcherActive
+                ? "border-emerald-300 ring-2 ring-emerald-100"
+                : watcherPhase === "starting"
+                ? "border-amber-300 ring-2 ring-amber-100"
+                : watcherPhase === "warning"
+                ? "border-amber-400 ring-2 ring-amber-100"
+                : watcherPhase === "error"
+                ? "border-rose-300 ring-2 ring-rose-100"
+                : "border-slate-200"
+            }`}>
+              {/* RADAR STATUS HEADER BAR */}
+              <div className={`p-4 transition-all ${
+                watcherPhase === "active" && liveWatcherActive
+                  ? "bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-white"
+                  : watcherPhase === "starting"
+                  ? "bg-gradient-to-r from-amber-500/15 via-orange-500/5 to-white"
+                  : watcherPhase === "warning"
+                  ? "bg-gradient-to-r from-amber-500/20 via-amber-100/50 to-white"
+                  : watcherPhase === "error"
+                  ? "bg-gradient-to-r from-rose-500/15 via-rose-100/30 to-white"
+                  : "bg-gradient-to-r from-slate-100/80 via-slate-50 to-white"
+              }`}>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl font-black text-white shadow-sm ${
+                      watcherPhase === "active" && liveWatcherActive
+                        ? "bg-emerald-600 shadow-emerald-500/30"
+                        : watcherPhase === "starting"
+                        ? "bg-amber-500 shadow-amber-500/30"
+                        : watcherPhase === "warning"
+                        ? "bg-amber-600 shadow-amber-600/30"
+                        : watcherPhase === "error"
+                        ? "bg-rose-600 shadow-rose-600/30"
+                        : "bg-slate-500 shadow-slate-400/20"
+                    }`}>
+                      {watcherPhase === "active" && liveWatcherActive && (
+                        <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-400 ring-2 ring-white">
+                          <span className="h-2 w-2 rounded-full bg-white animate-ping" />
                         </span>
                       )}
+                      <span className="text-base">
+                        {watcherPhase === "active" && liveWatcherActive ? "📡" : watcherPhase === "starting" ? "⏳" : watcherPhase === "warning" ? "🔑" : watcherPhase === "error" ? "⚠" : "⏹"}
+                      </span>
                     </div>
-                    <p className="mt-0.5 ml-5 text-[11px] text-slate-500">
-                      All registered portals are monitored independently. Portal results are never mixed.
-                    </p>
+
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-sm font-black uppercase tracking-wide text-slate-950">
+                          Live Watcher Radar
+                        </h3>
+                        {watcherPhase === "starting" && (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500 text-white px-2.5 py-0.5 text-[10px] font-black animate-pulse shadow-2xs">
+                            <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                            CONNECTING / PENDING
+                          </span>
+                        )}
+                        {watcherPhase === "active" && liveWatcherActive && (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 text-white px-2.5 py-0.5 text-[10px] font-black shadow-2xs">
+                            <span className="h-1.5 w-1.5 rounded-full bg-white animate-ping" />
+                            LIVE WATCHING (ACTIVE)
+                          </span>
+                        )}
+                        {watcherPhase === "warning" && (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-600 text-white px-2.5 py-0.5 text-[10px] font-black shadow-2xs">
+                            <span>🔑</span>
+                            MANUAL SIGN-IN REQUIRED
+                          </span>
+                        )}
+                        {watcherPhase === "error" && (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-600 text-white px-2.5 py-0.5 text-[10px] font-black shadow-2xs">
+                            <span>⚠</span>
+                            WATCHER FAILED / ERROR
+                          </span>
+                        )}
+                        {watcherPhase === "idle" && !liveWatcherActive && (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-200 text-slate-700 px-2.5 py-0.5 text-[10px] font-bold">
+                            IDLE (STANDBY)
+                          </span>
+                        )}
+                        {detectedTransactions.length > 0 && (
+                          <span className="rounded-full bg-blue-600 px-2.5 py-0.5 text-[10px] font-black text-white shadow-2xs">
+                            {detectedTransactions.length} captured
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-0.5 text-[11px] text-slate-500">
+                        {liveWatcherError ? (
+                          <span className="font-semibold text-rose-700">{liveWatcherError}</span>
+                        ) : watcherPhase === "active" && liveWatcherActive ? (
+                          <span className="font-semibold text-emerald-800">
+                            Watching {liveEnabledCount} active URL(s) for {portalName || "all portals"}. Auto-capturing receipts via CDP interceptors.
+                          </span>
+                        ) : watcherPhase === "starting" ? (
+                          <span className="font-semibold text-amber-800">Starting watcher session and loading portal tabs…</span>
+                        ) : (
+                          <span>Continuous background interception of receipts, commission tables, and live passbook entries.</span>
+                        )}
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-3 text-[10px] text-slate-500 shrink-0">
-                    <span><b className="text-slate-700">Detected:</b> {liveWatcherDetectedCount}</span>
-                    <span><b className="text-slate-700">Last:</b> {liveWatcherLastEventAt ? fmtTime(liveWatcherLastEventAt) : "—"}</span>
-                    <span className="font-black text-blue-700">{liveWatcherOpen ? "Hide controls" : "Open controls"}</span>
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    {liveWatcherActive ? (
+                      <button type="button" onClick={stopLiveWatcher} className="rounded-xl bg-rose-600 hover:bg-rose-700 px-3.5 py-2 text-xs font-black text-white shadow-sm transition-all active:scale-95">
+                        Stop Watcher
+                      </button>
+                    ) : (
+                      <button type="button" onClick={startLiveWatcher} disabled={isVerifyingPortal || liveEnabledCount === 0 || watcherPhase === "starting"} className="rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 py-2 text-xs font-black text-white shadow-sm transition-all active:scale-95 disabled:opacity-50 flex items-center gap-1.5">
+                        {watcherPhase === "starting" ? (
+                          <>
+                            <span className="h-1.5 w-1.5 rounded-full bg-white animate-ping" />
+                            <span>Starting…</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>▶</span>
+                            <span>Start Live Watcher</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+                    <button type="button" onClick={() => verifyCurrentPortalDetails(true)} disabled={isVerifyingPortal || liveEnabledCount === 0} className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-all">
+                      Verify Selected
+                    </button>
+                    <button type="button" onClick={verifyAllPortalsLive} disabled={isVerifyingPortal || initialPortals.length === 0} className="rounded-xl border border-blue-200 bg-blue-50/70 px-3 py-2 text-xs font-bold text-blue-800 hover:bg-blue-100 disabled:opacity-50 transition-all">
+                      Verify All
+                    </button>
+                    {detectedTransactions.length > 0 && (
+                      <button type="button" onClick={() => detectedTransactions[0] && reviewDetectedTransaction(detectedTransactions[0])} className="rounded-xl bg-blue-600 hover:bg-blue-700 px-3 py-2 text-xs font-black text-white shadow-sm transition-all">
+                        Review ({detectedTransactions.length})
+                      </button>
+                    )}
+                    <button type="button" onClick={() => { setSelectedWatcherPortalId(portalId); setActiveTab("watcher"); }} className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-all">
+                      Multi-Source URLs ↗
+                    </button>
                   </div>
-                </button>
+                </div>
+              </div>
 
-                {liveWatcherOpen && (
-                  <div className="border-t border-emerald-100 px-4 py-3">
-                    <div className="flex flex-wrap gap-2">
-                      {liveWatcherActive ? (
-                        <button type="button" onClick={stopLiveWatcher} className="rounded-xl bg-rose-600 px-3.5 py-2 text-xs font-black text-white shadow-sm hover:bg-rose-700">
-                          Stop Live Watcher
-                        </button>
-                      ) : (
-                        <button type="button" onClick={startLiveWatcher} disabled={isVerifyingPortal || liveEnabledCount === 0} className="rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-black text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50">
-                          {isVerifyingPortal ? "Starting…" : "Start Live Watcher"}
-                        </button>
-                      )}
-                      <button type="button" onClick={() => verifyCurrentPortalDetails(true)} disabled={isVerifyingPortal || liveEnabledCount === 0} className="rounded-xl border border-emerald-200 bg-white px-3.5 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-50 disabled:opacity-50">
-                        Verify Selected
-                      </button>
-                      <button type="button" onClick={verifyAllPortalsLive} disabled={isVerifyingPortal || initialPortals.length === 0} className="rounded-xl border border-blue-200 bg-white px-3.5 py-2 text-xs font-bold text-blue-800 hover:bg-blue-50 disabled:opacity-50">
-                        Verify All
-                      </button>
-                      <button type="button" onClick={() => detectedTransactions[0] && reviewDetectedTransaction(detectedTransactions[0])} disabled={detectedTransactions.length === 0} className="rounded-xl border border-blue-200 bg-white px-3.5 py-2 text-xs font-black text-blue-700 hover:bg-blue-50 disabled:opacity-50">
-                        Review Detected{detectedTransactions.length > 0 ? ` (${detectedTransactions.length})` : ""}
-                      </button>
-                      <button type="button" onClick={() => { setSelectedWatcherPortalId(portalId); setActiveTab("watcher"); }} className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">
-                        Open Watcher
-                      </button>
-                    </div>
-                  </div>
-                )}
+              {/* TELEMETRY DIAGNOSTICS STRIP */}
+              <div className="border-t border-slate-100 bg-slate-50/80 px-4 py-2 text-[10px] text-slate-500 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                  <span><b className="text-slate-700">Mode:</b> {liveWatcherActive ? "Persistent desktop CDP interceptor" : "Manual verification"}</span>
+                  <span><b className="text-slate-700">Captured:</b> <span className="font-bold text-emerald-700 font-mono">{liveWatcherDetectedCount} txns</span></span>
+                  <span><b className="text-slate-700">Last heartbeat:</b> <span className="font-mono text-slate-700">{liveWatcherLastEventAt ? fmtTime(liveWatcherLastEventAt) : "—"}</span></span>
+                </div>
+                <div>
+                  <button type="button" onClick={() => setLiveWatcherOpen((o) => !o)} className="font-bold text-blue-700 hover:underline">
+                    {liveWatcherOpen ? "▲ Hide Portal Cards" : "▼ Show Portal Cards"}
+                  </button>
+                </div>
               </div>
 
               {liveWatcherOpen && (
                 <>
-              <div className="border-t border-emerald-100 bg-white px-4 py-3 text-[10px] text-slate-500 flex flex-wrap items-center gap-x-4 gap-y-1">
-                <span><b className="text-slate-700">Mode:</b> {liveWatcherActive ? "Persistent desktop watcher" : "Manual verification"}</span>
-                <span><b className="text-slate-700">Detected:</b> {liveWatcherDetectedCount}</span>
-                <span><b className="text-slate-700">Last event:</b> {liveWatcherLastEventAt ? fmtTime(liveWatcherLastEventAt) : "—"}</span>
-                {liveWatcherError && <span className="font-bold text-amber-700">{liveWatcherError}</span>}
-              </div>
-              <div className="grid gap-3 p-4 md:grid-cols-3">
-                {portalWatcherSummaries.map(({ portal, sources, enabledCount, healthyCount, errorCount, latestRun }) => {
-                  const selected = portal.id === portalId;
-                  const status = latestRun?.verificationStatus || (enabledCount > 0 ? "NOT VERIFIED" : "NOT CONFIGURED");
-                  return (
-                    <button key={portal.id} type="button" onClick={() => { setPortalId(portal.id); setSelectedWatcherPortalId(portal.id); }} className={'rounded-2xl border p-4 text-left transition-all ' + (selected ? "border-blue-400 bg-blue-50/70 ring-2 ring-blue-100" : "border-slate-200 bg-slate-50 hover:border-emerald-200 hover:bg-white")}>
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="truncate text-sm font-black text-slate-950">{portal.name}</div>
-                        <span className={'rounded-full px-2 py-0.5 text-[9px] font-black ' + (status === "VERIFIED" ? "bg-emerald-100 text-emerald-800" : status === "PARTIAL" ? "bg-amber-100 text-amber-800" : status === "CONFLICT" ? "bg-orange-100 text-orange-800" : status === "FAILED" ? "bg-rose-100 text-rose-800" : "bg-slate-200 text-slate-600")}>{status}</span>
-                      </div>
-                      <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-                        <div className="rounded-xl bg-white p-2"><div className="text-[9px] font-bold text-slate-400">Sources</div><div className="mt-0.5 text-sm font-black text-slate-900">{sources.length}</div></div>
-                        <div className="rounded-xl bg-white p-2"><div className="text-[9px] font-bold text-slate-400">Healthy</div><div className="mt-0.5 text-sm font-black text-emerald-700">{healthyCount}/{enabledCount}</div></div>
-                        <div className="rounded-xl bg-white p-2"><div className="text-[9px] font-bold text-slate-400">Failed</div><div className="mt-0.5 text-sm font-black text-rose-600">{errorCount}</div></div>
-                      </div>
-                      <div className="mt-3 text-[10px] text-slate-500">{latestRun ? "Last verified " + fmtTime(latestRun.completedAt || latestRun.startedAt) + " · " + latestRun.successfulSourceCount + "/" + latestRun.sourceCount + " sources" : enabledCount > 0 ? "Configured · not verified yet" : "No watcher URLs configured"}</div>
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="border-t border-slate-100 bg-slate-50/70 px-4 py-3 text-[10px] text-slate-500">
-                <b className="text-slate-700">Selected transaction portal:</b> {portalName || "—"}. Other portal results are monitoring data only and never change this transaction's pricing or bank selection.
-              </div>
+                  <div className="grid gap-3 p-4 md:grid-cols-3">
+                    {portalWatcherSummaries.map(({ portal, sources, enabledCount, healthyCount, errorCount, latestRun }) => {
+                      const selected = portal.id === portalId;
+                      const status = latestRun?.verificationStatus || (enabledCount > 0 ? "NOT VERIFIED" : "NOT CONFIGURED");
+                      return (
+                        <button key={portal.id} type="button" onClick={() => { setPortalId(portal.id); setSelectedWatcherPortalId(portal.id); }} className={'rounded-2xl border p-4 text-left transition-all ' + (selected ? "border-blue-400 bg-blue-50/70 ring-2 ring-blue-100" : "border-slate-200 bg-slate-50 hover:border-emerald-200 hover:bg-white")}>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="truncate text-sm font-black text-slate-950">{portal.name}</div>
+                            <span className={'rounded-full px-2 py-0.5 text-[9px] font-black ' + (status === "VERIFIED" ? "bg-emerald-100 text-emerald-800" : status === "PARTIAL" ? "bg-amber-100 text-amber-800" : status === "CONFLICT" ? "bg-orange-100 text-orange-800" : status === "FAILED" ? "bg-rose-100 text-rose-800" : "bg-slate-200 text-slate-600")}>{status}</span>
+                          </div>
+                          <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                            <div className="rounded-xl bg-white p-2"><div className="text-[9px] font-bold text-slate-400">Sources</div><div className="mt-0.5 text-sm font-black text-slate-900">{sources.length}</div></div>
+                            <div className="rounded-xl bg-white p-2"><div className="text-[9px] font-bold text-slate-400">Healthy</div><div className="mt-0.5 text-sm font-black text-emerald-700">{healthyCount}/{enabledCount}</div></div>
+                            <div className="rounded-xl bg-white p-2"><div className="text-[9px] font-bold text-slate-400">Failed</div><div className="mt-0.5 text-sm font-black text-rose-600">{errorCount}</div></div>
+                          </div>
+                          <div className="mt-3 text-[10px] text-slate-500">{latestRun ? "Last verified " + fmtTime(latestRun.completedAt || latestRun.startedAt) + " · " + latestRun.successfulSourceCount + "/" + latestRun.sourceCount + " sources" : enabledCount > 0 ? "Configured · not verified yet" : "No watcher URLs configured"}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="border-t border-slate-100 bg-slate-50/70 px-4 py-3 text-[10px] text-slate-500">
+                    <b className="text-slate-700">Selected transaction portal:</b> {portalName || "—"}. Other portal results are monitoring data only and never change this transaction's pricing or bank selection.
+                  </div>
                 </>
               )}
             </section>
