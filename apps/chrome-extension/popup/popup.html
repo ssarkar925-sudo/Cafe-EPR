@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body {
+        width: 260px;
+        font-family: system-ui, -apple-system, sans-serif;
+        margin: 0;
+        padding: 16px;
+        background: #0f172a;
+        color: #f8fafc;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #064e3b;
+        color: #34d399;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 4px 10px;
+        border-radius: 9999px;
+        margin-bottom: 12px;
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        background: #10b981;
+        border-radius: 50%;
+      }
+      h1 {
+        font-size: 15px;
+        margin: 0 0 6px 0;
+        font-weight: 700;
+      }
+      p {
+        font-size: 12px;
+        color: #94a3b8;
+        margin: 0 0 14px 0;
+        line-height: 1.4;
+      }
+      .stats {
+        background: #1e293b;
+        padding: 10px;
+        border-radius: 10px;
+        font-size: 11px;
+      }
+      .stat-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 4px;
+      }
+      .stat-row:last-child {
+        margin-bottom: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="badge">
+      <div class="dot"></div>
+      ACTIVE WATCHER
+    </div>
+    <h1>CafeERP Watcher</h1>
+    <p>Silently recording transactions from PayNearby, Spice Money, CSC, and Rapipay.</p>
+    <div class="stats">
+      <div class="stat-row">
+        <span style="color: #64748b;">ERP Status:</span>
+        <strong id="erp-status" style="color: #38bdf8;">Listening (3000)</strong>
+      </div>
+      <div class="stat-row">
+        <span style="color: #64748b;">Pending Queue:</span>
+        <strong id="queue-count">0 items</strong>
+      </div>
+    </div>
+    <script src="popup.js"></script>
+  </body>
+</html>

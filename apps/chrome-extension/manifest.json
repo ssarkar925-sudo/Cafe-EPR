@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "CafeERP Silent Watcher",
+  "version": "1.0.0",
+  "description": "Silent financial intake and 1-click passbook synchronizer for CafeERP.",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "http://localhost:3000/*",
+    "https://*.paynearby.in/*",
+    "https://*.spicemoney.com/*",
+    "https://*.csc.gov.in/*",
+    "https://*.rapipay.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.paynearby.in/*",
+        "https://*.spicemoney.com/*",
+        "https://*.csc.gov.in/*",
+        "https://*.rapipay.com/*"
+      ],
+      "js": ["content-scripts/portal-watcher.js", "content-scripts/passbook-sync.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "CafeERP Watcher Status"
+  }
+}
