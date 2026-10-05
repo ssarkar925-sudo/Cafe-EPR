@@ -8373,6 +8373,16 @@ assert(
     aiExtractRouteSrc.includes("purchase:") && aiExtractRouteSrc.includes("bank:"),
     "1576. AI Multi-Modal Engine: Gemini schemas declare purchase and bank transaction prompts"
   );
+
+  // 6. Three-Tier Multi-Engine Invariant Verification
+  const scanFillModalSrc = fs.readFileSync("./components/scan-fill/scan-fill-modal.tsx", "utf8");
+  assert(
+    scanFillModalSrc.includes("Three-Tier Intelligence Status Strip") &&
+      scanFillModalSrc.includes("Tier 1: Regex") &&
+      scanFillModalSrc.includes("Tier 2: OCR") &&
+      scanFillModalSrc.includes("Tier 3: Gemini"),
+    "1577. Scan & Fill Architecture: Unified Three-Tier Multi-Engine pipeline active across all modules"
+  );
 }
 
 console.log("\n================================================================================");
