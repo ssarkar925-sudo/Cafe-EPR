@@ -101,9 +101,13 @@ export default function CustomerSearchSelect({
           signal: controller.signal,
         });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data?.error || `Search failed (${res.status})`);
-        setResults(Array.isArray(data?.results) ? data.results : []);
+        const received = Array.isArray(data?.results) ? data.results : [];
+        setResults(received);
         setActiveIndex(-1);
+        // Instant Auto-Fill: If operator enters a complete 10-digit phone number and exactly 1 active customer matches
+        if (/^[6-9]\d{9}$/.test(trimmed) && received.length === 1 && received[0].is_active) {
+          choose(received[0]);
+        }
       } catch (err: any) {
         if (err?.name === "AbortError") return;
         setError(err?.message || "Search failed");

@@ -5,6 +5,8 @@ import Modal from "@/components/ui/modal";
 import SearchableSelect from "@/components/ui/searchable-select";
 import { inr } from "@/lib/format";
 import { createClient } from "@/lib/supabase/client";
+import ScanFillModal from "@/components/scan-fill/scan-fill-modal";
+import type { ScanFields } from "@/lib/scan/extract";
 
 export const SETTLEMENT_TYPES = [
   { value: "aeps_to_bank", label: "AEPS Portal → Bank Account", from: "aeps", to: "bank", icon: "aeps", grad: "from-blue-500 to-indigo-600", desc: "Settle AEPS portal balance (CSC, EzeePay, Spice Money, PayNearby) into bank account." },
@@ -112,6 +114,37 @@ export default function SettlementFormModal({
   const [loadedQrs, setLoadedQrs] = useState(qrs);
   const [loadedAccounts, setLoadedAccounts] = useState(paymentAccounts);
   const [livePools, setLivePools] = useState<any>(poolBalances);
+  const [scanModalOpen, setScanModalOpen] = useState(false);
+
+  function handleScanFill(fields: ScanFields) {
+    if (fields.amount) setAmount(fields.amount);
+    if (fields.reference) setReference(fields.reference);
+    if (fields.transaction_date) setDate(fields.transaction_date);
+
+    // If Bank SMS specifies debit/withdrawal, default type to bank_withdrawal (Bank -> Cash)
+    if (fields.direction === "out" && (!type || type === "add_cash_to_bank")) {
+      setType("bank_withdrawal");
+    } else if (fields.direction === "in" && (!type || type === "bank_withdrawal")) {
+      setType("add_cash_to_bank");
+    }
+
+    // Auto-match Bank Account by bank name or account last digits
+    if (fields.bank_name || fields.account_number) {
+      const matchedBank = loadedAccounts.find((acc) => {
+        if (acc.type !== "bank" && acc.type !== "debit_card") return false;
+        if (fields.account_number && (acc.details?.account_number || "").includes(fields.account_number)) return true;
+        if (fields.bank_name && acc.name.toLowerCase().includes(fields.bank_name.toLowerCase())) return true;
+        return false;
+      });
+      if (matchedBank) {
+        if (type === "bank_withdrawal" || type === "bank_to_aeps" || type === "bank_to_dmt" || type === "bank_to_wallet") {
+          setSourceId(matchedBank.id);
+        } else if (type === "aeps_to_bank" || type === "upi_qr_to_bank" || type === "add_cash_to_bank" || type === "wallet_to_bank") {
+          setDestId(matchedBank.id);
+        }
+      }
+    }
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -601,9 +634,18 @@ export default function SettlementFormModal({
 
         {/* 1. Settlement Type Selector */}
         <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
-            1. Select Settlement & Fund Movement Type *
-          </label>
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">
+              1. Select Settlement & Fund Movement Type *
+            </label>
+            <button
+              type="button"
+              onClick={() => setScanModalOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 px-2.5 py-1 text-[11px] font-bold text-indigo-700 hover:bg-indigo-100 transition dark:bg-indigo-950/40 dark:text-indigo-300"
+            >
+              <span>✦ Scan Bank SMS / Advice</span>
+            </button>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-52 overflow-y-auto pr-1">
             {SETTLEMENT_TYPES.map((t) => (
               <button
@@ -973,6 +1015,15 @@ export default function SettlementFormModal({
           </button>
         </div>
       </div>
+
+      {/* Scan & Fill Bank SMS Modal */}
+      <ScanFillModal
+        open={scanModalOpen}
+        mode="bank"
+        title="Scan Bank SMS / Contra Advice"
+        onClose={() => setScanModalOpen(false)}
+        onApply={handleScanFill}
+      />
     </Modal>
   );
 }
