@@ -2,7 +2,7 @@
 // Turns pasted SMS/portal text into the fields each module form needs,
 // ignoring everything else in the message.
 
-export type ScanMode = "aeps" | "dmt" | "upi" | "payment";
+export type ScanMode = "aeps" | "dmt" | "upi" | "payment" | "purchase" | "bank";
 
 export type ScanFields = Record<string, string>;
 
@@ -333,6 +333,45 @@ export function extractPayment(text: string): ScanFields {
   return out;
 }
 
+export function extractPurchase(text: string): ScanFields {
+  const out: ScanFields = {};
+  const amount = extractAmount(text);
+  if (amount) out.amount = amount;
+  const reference =
+    firstMatch(text, /\b(?:Invoice|Bill|Inv)\s*(?:No\.?|Number|Id|ID|#)?\s*[#:=\-]?\s*([A-Za-z0-9\/\-_]{3,30})\b/i) ||
+    extractReference(text);
+  if (reference) out.invoice_no = reference;
+  const supplier =
+    firstMatch(text, /\b(?:Supplier|Vendor|Dealer|Distributor|Merchant|M\/s\.?)\s*[#:=\-]?\s*([A-Za-z][A-Za-z0-9 .&'-]{2,50})/i) ||
+    extractName(text, "from");
+  if (supplier) out.supplier_name = supplier;
+  const mobile = extractMobile(text);
+  if (mobile) out.supplier_phone = mobile;
+  const date = extractTransactionDate(text);
+  if (date) out.invoice_date = date;
+  return out;
+}
+
+export function extractBankSms(text: string): ScanFields {
+  const out: ScanFields = {};
+  const amount = extractAmount(text);
+  if (amount) out.amount = amount;
+  const bank = extractBank(text);
+  if (bank) out.bank_name = bank;
+  const acct = extractAccount(text);
+  if (acct) out.account_number = acct;
+  const reference = extractReference(text);
+  if (reference) out.reference = reference;
+  const date = extractTransactionDate(text);
+  if (date) out.transaction_date = date;
+  if (/\b(?:debited|withdrawn|paid|transfer to|dr\b)\b/i.test(text)) {
+    out.direction = "out";
+  } else if (/\b(?:credited|deposited|received|transfer from|cr\b)\b/i.test(text)) {
+    out.direction = "in";
+  }
+  return out;
+}
+
 export function extractForMode(text: string, mode: ScanMode): ScanFields {
   switch (mode) {
     case "aeps":
@@ -343,6 +382,10 @@ export function extractForMode(text: string, mode: ScanMode): ScanFields {
       return extractUpi(text);
     case "payment":
       return extractPayment(text);
+    case "purchase":
+      return extractPurchase(text);
+    case "bank":
+      return extractBankSms(text);
   }
 }
 
@@ -388,5 +431,20 @@ export const MODE_FIELDS: Record<ScanMode, { key: string; label: string }[]> = {
     { key: "amount", label: "Amount paid" },
     { key: "method", label: "Method (UPI/Card/…) " },
     { key: "reference", label: "RRN / UTR" },
+  ],
+  purchase: [
+    { key: "amount", label: "Total Bill Amount" },
+    { key: "invoice_no", label: "Supplier Invoice #" },
+    { key: "supplier_name", label: "Supplier / Vendor Name" },
+    { key: "supplier_phone", label: "Supplier Phone" },
+    { key: "invoice_date", label: "Bill Date" },
+  ],
+  bank: [
+    { key: "amount", label: "Transaction Amount" },
+    { key: "bank_name", label: "Bank Name" },
+    { key: "account_number", label: "Account / A/C Last Digits" },
+    { key: "direction", label: "Direction (In/Out)" },
+    { key: "reference", label: "Ref / UTR / Cheque #" },
+    { key: "transaction_date", label: "Date" },
   ],
 };

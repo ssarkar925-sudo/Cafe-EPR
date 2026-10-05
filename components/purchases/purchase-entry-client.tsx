@@ -23,7 +23,10 @@ import {
   ShieldCheck,
   RotateCcw,
   Sparkles,
+  ScanLine,
 } from "lucide-react";
+import ScanFillModal from "@/components/scan-fill/scan-fill-modal";
+import type { ScanFields } from "@/lib/scan/extract";
 
 type ProductOption = {
   id: string;
@@ -72,6 +75,21 @@ export default function PurchaseEntryClient() {
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [successBillNo, setSuccessBillNo] = useState<string | null>(null);
+  const [scanModalOpen, setScanModalOpen] = useState(false);
+
+  function handleScanFill(fields: ScanFields) {
+    if (fields.invoice_no) setSupplierInvoiceNo(fields.invoice_no);
+    if (fields.invoice_date) setPurchaseDate(fields.invoice_date);
+    if (fields.amount) setPaidAmount(fields.amount);
+    if (fields.supplier_name || fields.supplier_phone) {
+      const matched = suppliers.find((s) => {
+        if (fields.supplier_phone && s.phone && s.phone.includes(fields.supplier_phone.slice(-10))) return true;
+        if (fields.supplier_name && s.name.toLowerCase().includes(fields.supplier_name.toLowerCase())) return true;
+        return false;
+      });
+      if (matched) setSupplierId(matched.id);
+    }
+  }
 
   useEffect(() => {
     loadPrerequisites();
@@ -308,6 +326,14 @@ export default function PurchaseEntryClient() {
           </div>
 
           <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => setScanModalOpen(true)}
+              className="btn-3d-tactile-primary inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-3.5 py-2 text-xs font-black text-white shadow-xs transition hover:brightness-110 active:scale-95 duration-150"
+            >
+              <ScanLine className="h-3.5 w-3.5" />
+              <span>✦ Scan & Auto-Fill Bill</span>
+            </button>
             <Link
               href="/inventory/movements"
               className="btn-3d-tactile-secondary inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-xs transition hover:bg-slate-50 active:scale-95 duration-150 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
@@ -802,6 +828,15 @@ export default function PurchaseEntryClient() {
           </div>
         </form>
       )}
+
+      {/* Scan & Fill Inward Purchase Modal */}
+      <ScanFillModal
+        open={scanModalOpen}
+        mode="purchase"
+        title="Scan & Auto-Fill Purchase Bill"
+        onClose={() => setScanModalOpen(false)}
+        onApply={handleScanFill}
+      />
     </div>
   );
 }

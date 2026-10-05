@@ -298,6 +298,10 @@ export default function PosShell({
   const isDraggingSplitterRef = useRef(false);
   const [isResizingCart, setIsResizingCart] = useState(false);
 
+  // Hardware Barcode Scanner Buffer
+  const barcodeBufferRef = useRef<string>("");
+  const lastKeyTimeRef = useRef<number>(0);
+
   useEffect(() => {
     try {
       const savedSound = localStorage.getItem(SOUND_STORAGE_KEY);
@@ -840,6 +844,38 @@ export default function PosShell({
   // Keyboard Shortcuts Handler
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
+      // Hardware Barcode Scanner Detection:
+      // Barcode scanners act as fast human keyboard wedges emitting keystrokes < 50ms apart followed by 'Enter'.
+      const now = Date.now();
+      const diff = now - lastKeyTimeRef.current;
+      lastKeyTimeRef.current = now;
+
+      if (e.key === "Enter") {
+        const scannedCode = barcodeBufferRef.current.trim();
+        barcodeBufferRef.current = "";
+        if (scannedCode.length >= 3) {
+          const matchedItem = catalog.find(
+            (it) =>
+              (it.code && it.code.toLowerCase() === scannedCode.toLowerCase()) ||
+              (it.id && it.id.toLowerCase() === scannedCode.toLowerCase())
+          );
+          if (matchedItem) {
+            e.preventDefault();
+            addItem(matchedItem);
+            playPosSound("add", soundEnabled);
+            setSyncFlash(`Scanned: ${matchedItem.name}`);
+            setTimeout(() => setSyncFlash(null), 2500);
+            return;
+          }
+        }
+      } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (diff > 80) {
+          barcodeBufferRef.current = e.key;
+        } else {
+          barcodeBufferRef.current += e.key;
+        }
+      }
+
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setGlobalSearchOpen(true);
@@ -870,7 +906,7 @@ export default function PosShell({
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  });
+  }, [catalog, soundEnabled, currentTab.paymentChoice, completeSale]);
 
   // Tab Management Functions
   function addNewTab() {
@@ -1553,7 +1589,21 @@ export default function PosShell({
               </div>
               <div data-pos-header-search="reference" className="relative flex-1 min-w-0">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input ref={itemSearchRef} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search item, scan barcode (F4)..." className="h-10 w-full rounded-xl border border-slate-200/80 bg-white/70 pl-9 pr-10 sm:pr-14 text-xs font-bold text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-current focus:bg-white focus:ring-2 focus:ring-primary/20 dark:border-white/10 dark:bg-slate-950/70 dark:text-white dark:focus:bg-slate-900" />
+                <input
+                  ref={itemSearchRef}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && filteredItems.length > 0) {
+                      e.preventDefault();
+                      addItem(filteredItems[0]);
+                      setSearch("");
+                      playPosSound("add", soundEnabled);
+                    }
+                  }}
+                  placeholder="Search item, scan barcode (F4)..."
+                  className="h-10 w-full rounded-xl border border-slate-200/80 bg-white/70 pl-9 pr-10 sm:pr-14 text-xs font-bold text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-current focus:bg-white focus:ring-2 focus:ring-primary/20 dark:border-white/10 dark:bg-slate-950/70 dark:text-white dark:focus:bg-slate-900"
+                />
                 {search ? <button type="button" onClick={() => setSearch("")} className="absolute right-3 sm:right-9 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-white text-xs p-1">×</button> : null}
                 <kbd className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[9px] font-black text-slate-400 dark:border-slate-700 dark:bg-slate-800 hidden sm:inline-block">F4</kbd>
               </div>

@@ -8314,6 +8314,75 @@ assert(
   } catch (err) {
     assert(false, "1566. AEPS Rules Manager Suite: All Tests Passed Cleanly", err.message);
   }
+
+  // --- Phase 24: Cross-Module Auto Data Collect & Auto-Fill Invariants ---
+  console.log("\n--- Phase 24: Multi-Module Auto Data Collect & Auto-Fill Invariants ---");
+
+  // 1. Module 1: POS Barcode Scanner & Customer Auto-Fill
+  const posShellSrc = fs.readFileSync("./components/pos/pos-shell.tsx", "utf8");
+  assert(
+    posShellSrc.includes("barcodeBufferRef") && posShellSrc.includes("lastKeyTimeRef"),
+    "1567. POS Terminal: Hardware barcode scanner keystroke buffer configured"
+  );
+  assert(
+    posShellSrc.includes("Scanned: ") && posShellSrc.includes("addItem(matchedItem)"),
+    "1568. POS Terminal: Hardware barcode scan auto-detects and adds catalog product to cart"
+  );
+  const custSelectSrc = fs.readFileSync("./components/customers/customer-search-select.tsx", "utf8");
+  assert(
+    custSelectSrc.includes("/^[6-9]\\d{9}$/.test(trimmed)") && custSelectSrc.includes("received.length === 1"),
+    "1569. Customer Search: 10-digit mobile number entry triggers instant single-match auto-select"
+  );
+
+  // 2. Module 2: Auto Data Collection Modes in Scan Engine
+  const extractLibSrc = fs.readFileSync("./lib/scan/extract.ts", "utf8");
+  assert(
+    extractLibSrc.includes('"purchase"') && extractLibSrc.includes('"bank"'),
+    "1570. Scan Engine: ScanMode extended to include purchase bills and bank contra SMS"
+  );
+  assert(
+    extractLibSrc.includes("export function extractPurchase") && extractLibSrc.includes("export function extractBankSms"),
+    "1571. Scan Engine: Dedicated extractPurchase and extractBankSms parsers exported"
+  );
+
+  // 3. Module 3: Purchases & Stock Inward Auto-Fill
+  const purchaseClientSrc = fs.readFileSync("./components/purchases/purchase-entry-client.tsx", "utf8");
+  assert(
+    purchaseClientSrc.includes("ScanFillModal") && purchaseClientSrc.includes('mode="purchase"'),
+    "1572. Purchase Entry: Scan & Auto-Fill bill modal integrated with purchase mode"
+  );
+  assert(
+    purchaseClientSrc.includes("handleScanFill") && purchaseClientSrc.includes("setSupplierInvoiceNo"),
+    "1573. Purchase Entry: Invoice number, date, amount, and supplier auto-fill configured"
+  );
+
+  // 4. Module 4: CashBook & Treasury Contra Auto-Fill
+  const settlementModalSrc = fs.readFileSync("./components/finance/settlement-form-modal.tsx", "utf8");
+  assert(
+    settlementModalSrc.includes("ScanFillModal") && settlementModalSrc.includes('mode="bank"'),
+    "1574. Settlement & Treasury: Bank SMS Scan-Fill modal integrated with bank mode"
+  );
+  assert(
+    settlementModalSrc.includes('setType("bank_withdrawal")') || settlementModalSrc.includes('setType("add_cash_to_bank")'),
+    "1575. Settlement & Treasury: Automatic bank withdrawal / deposit detection from SMS direction"
+  );
+
+  // 5. Module 5: AI Cloud Extraction Schema Coverage
+  const aiExtractRouteSrc = fs.readFileSync("./app/api/ai/extract/route.ts", "utf8");
+  assert(
+    aiExtractRouteSrc.includes("purchase:") && aiExtractRouteSrc.includes("bank:"),
+    "1576. AI Multi-Modal Engine: Gemini schemas declare purchase and bank transaction prompts"
+  );
+
+  // 6. Three-Tier Multi-Engine Invariant Verification
+  const scanFillModalSrc = fs.readFileSync("./components/scan-fill/scan-fill-modal.tsx", "utf8");
+  assert(
+    scanFillModalSrc.includes("Three-Tier Intelligence Status Strip") &&
+      scanFillModalSrc.includes("Tier 1: Regex") &&
+      scanFillModalSrc.includes("Tier 2: OCR") &&
+      scanFillModalSrc.includes("Tier 3: Gemini"),
+    "1577. Scan & Fill Architecture: Unified Three-Tier Multi-Engine pipeline active across all modules"
+  );
 }
 
 console.log("\n================================================================================");

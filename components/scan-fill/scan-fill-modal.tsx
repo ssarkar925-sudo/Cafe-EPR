@@ -35,6 +35,7 @@ export default function ScanFillModal({
   const [aiBusy, setAiBusy] = useState(false);
   const [camOn, setCamOn] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeTier, setActiveTier] = useState<"tier1" | "tier2" | "tier3" | null>(null);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const camInputRef = useRef<HTMLInputElement>(null);
@@ -50,6 +51,7 @@ export default function ScanFillModal({
       setFields({});
       setSelected(new Set());
       setError(null);
+      setActiveTier(null);
     } else {
       stopCamera();
     }
@@ -65,9 +67,10 @@ export default function ScanFillModal({
     setCamOn(false);
   }
 
-  function showFields(f: ScanFields) {
+  function showFields(f: ScanFields, tier: "tier1" | "tier2" = "tier1") {
     setFields(f);
     setSelected(new Set(Object.keys(f)));
+    setActiveTier(tier);
   }
 
   function mergeAi(f: ScanFields) {
@@ -76,6 +79,7 @@ export default function ScanFillModal({
       setSelected(new Set(Object.keys(merged)));
       return merged;
     });
+    setActiveTier("tier3");
   }
 
   async function runOcr(file: File | Blob) {
@@ -89,7 +93,7 @@ export default function ScanFillModal({
         setSelected(new Set());
         return;
       }
-      showFields(extractForMode(t, mode));
+      showFields(extractForMode(t, mode), "tier2");
     } catch (e) {
       setError(`OCR failed: ${e instanceof Error ? e.message : "unknown error"}`);
     } finally {
@@ -240,6 +244,28 @@ export default function ScanFillModal({
       }
     >
       <div className="space-y-4">
+        {/* Three-Tier Intelligence Status Strip */}
+        <div className="grid grid-cols-3 gap-2 rounded-xl bg-slate-50 p-2 border border-slate-200/80">
+          <div className={`flex flex-col items-center justify-center p-2 rounded-lg text-center transition ${
+            activeTier === "tier1" ? "bg-emerald-100 text-emerald-900 ring-2 ring-emerald-500 shadow-xs" : "bg-white text-slate-600 border border-slate-100"
+          }`}>
+            <span className="text-[10px] font-black uppercase tracking-wider">Tier 1: Regex</span>
+            <span className="text-[9px] text-slate-500">Local • 0ms • Offline</span>
+          </div>
+          <div className={`flex flex-col items-center justify-center p-2 rounded-lg text-center transition ${
+            activeTier === "tier2" ? "bg-cyan-100 text-cyan-900 ring-2 ring-cyan-500 shadow-xs" : "bg-white text-slate-600 border border-slate-100"
+          }`}>
+            <span className="text-[10px] font-black uppercase tracking-wider">Tier 2: OCR</span>
+            <span className="text-[9px] text-slate-500">In-Browser OCR</span>
+          </div>
+          <div className={`flex flex-col items-center justify-center p-2 rounded-lg text-center transition ${
+            activeTier === "tier3" ? "bg-violet-100 text-violet-900 ring-2 ring-violet-500 shadow-xs" : "bg-white text-slate-600 border border-slate-100"
+          }`}>
+            <span className="text-[10px] font-black uppercase tracking-wider">Tier 3: Gemini</span>
+            <span className="text-[9px] text-slate-500">AI Multimodal</span>
+          </div>
+        </div>
+
         {/* Tabs */}
         <div className="flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1">
           {TAB_LABELS.map((t) => (

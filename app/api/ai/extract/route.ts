@@ -38,6 +38,14 @@ const SCHEMAS: Record<ScanMode, { keys: string[]; description: string }> = {
     description: "a customer payment (UPI, card, wallet, bank transfer) received at the counter",
     keys: ["amount", "method", "reference"],
   },
+  purchase: {
+    description: "a vendor or supplier purchase invoice / bill",
+    keys: ["amount", "invoice_no", "supplier_name", "supplier_phone", "invoice_date"],
+  },
+  bank: {
+    description: "a bank account debit or credit SMS notification",
+    keys: ["amount", "bank_name", "account_number", "direction", "reference", "transaction_date"],
+  },
 };
 
 function buildPrompt(mode: ScanMode): string {
