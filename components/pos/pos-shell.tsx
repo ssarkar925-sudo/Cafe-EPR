@@ -288,6 +288,7 @@ export default function PosShell({
   // Dynamic Customer state (so newly added customers appear instantly)
   const [customers, setCustomers] = useState<PosCustomer[]>(initialCustomers);
   const [newCustomerOpen, setNewCustomerOpen] = useState(false);
+  const [newCustomerQuery, setNewCustomerQuery] = useState("");
 
   // Sound and View preferences
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -1916,11 +1917,18 @@ export default function PosShell({
                       placeholder="Search Name, Phone, ID..."
                       inputRef={customerSearchRef}
                       tone="auto"
+                      onCreateNew={(q) => {
+                        setNewCustomerQuery(q);
+                        setNewCustomerOpen(true);
+                      }}
                     />
                   </div>
                   <button
                     type="button"
-                    onClick={() => setNewCustomerOpen(true)}
+                    onClick={() => {
+                      setNewCustomerQuery("");
+                      setNewCustomerOpen(true);
+                    }}
                     className={`flex h-7 shrink-0 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 text-[9px] font-black dark:border-slate-800 dark:bg-slate-900 ${posTheme.textAccent}`}
                   >
                     <UserPlus className="h-3 w-3" />
@@ -2253,7 +2261,7 @@ export default function PosShell({
 
       {operationsPanel === "money-out" && <Modal as="form" onSubmit={handleMoneyOut} onClose={() => setOperationsPanel(null)} title="Record Money Out" subtitle="Petty cash / register outflow" icon="ArrowDownToLine" accent="rose" size="sm" footer={<div className="flex w-full gap-2"><button type="button" onClick={() => setOperationsPanel(null)} className="h-9 flex-1 rounded-xl border border-slate-200 bg-white text-xs font-black text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800">Cancel</button><button type="submit" disabled={moneyOutSaving} className="h-9 flex-1 rounded-xl bg-rose-600 text-xs font-black text-white hover:bg-rose-700 disabled:opacity-50 shadow-md shadow-rose-600/30">{moneyOutSaving ? "Recording..." : "Save Expense"}</button></div>}><div className="space-y-3.5"><div><label className="mb-1 block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Amount *</label><input autoFocus required type="number" min="0.01" step="0.01" value={moneyOutAmount} onChange={(e) => setMoneyOutAmount(e.target.value)} placeholder="0.00" className="h-10 w-full rounded-xl border border-rose-200 bg-rose-50/50 px-3 text-right font-mono text-lg font-black text-slate-900 outline-none focus:border-rose-500 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-white" /></div><div className="grid grid-cols-2 gap-3"><div><label className="mb-1 block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Category *</label><input required value={moneyOutCategory} onChange={(e) => setMoneyOutCategory(e.target.value)} placeholder="tea, snacks, milk" className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-2.5 text-xs font-bold text-slate-900 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-white dark:focus:border-cyan-500" /></div><div><label className="mb-1 block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Paid From</label><select value={moneyOutSource} onChange={(e) => setMoneyOutSource(e.target.value)} className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-2 text-xs font-bold text-slate-900 outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"><option value="">Cash (Till)</option>{instruments.filter((i) => i.type !== "receivable").map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}</select></div></div><div><label className="mb-1 block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Note / Reason</label><input value={moneyOutNote} onChange={(e) => setMoneyOutNote(e.target.value)} placeholder="e.g. bought stationary" className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-2.5 text-xs font-bold text-slate-900 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-white dark:focus:border-cyan-500" /></div></div></Modal>}
 
-      <PosNewCustomerModal open={newCustomerOpen} onClose={() => setNewCustomerOpen(false)} supabase={supabase} onCustomerCreated={(newCust) => { setCustomers((curr) => [newCust, ...curr]); updateCurrentTab({ customerId: newCust.id, customerSearch: "" }); playPosSound("success", soundEnabled); }} />
+      <PosNewCustomerModal open={newCustomerOpen} initialQuery={newCustomerQuery} onClose={() => setNewCustomerOpen(false)} supabase={supabase} onCustomerCreated={(newCust) => { setCustomers((curr) => [newCust, ...curr.filter((c) => c.id !== newCust.id)]); updateCurrentTab({ customerId: newCust.id, customerSearch: "" }); playPosSound("success", soundEnabled); }} />
       <PosCustomItemModal open={customItemOpen} onClose={() => setCustomItemOpen(false)} onAddCustomItem={handleAddCustomItem} />
       <GlobalSearch open={globalSearchOpen} onClose={() => setGlobalSearchOpen(false)} />
     </div>

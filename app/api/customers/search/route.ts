@@ -4,6 +4,7 @@ import {
   normalizePhone,
   normalizeSearchText,
   rankCustomerResults,
+  toMobile10,
   type CustomerSearchRecord,
 } from "@/lib/customer-search";
 
@@ -34,7 +35,7 @@ export async function GET(req: Request) {
     // PostgREST OR-safe pattern: strip wildcard/separator chars.
     const safe = query.replace(/[%(),\\]/g, "").slice(0, 60);
     if (safe.length < 2) return NextResponse.json({ results: [] });
-    const digits = normalizePhone(raw).slice(0, 20);
+    const digits = (toMobile10(raw) || normalizePhone(raw)).slice(0, 20);
 
     const ors = [`name.ilike.%${safe}%`, `code.ilike.%${safe}%`];
     if (digits.length >= 3) ors.push(`phone.ilike.%${digits}%`);

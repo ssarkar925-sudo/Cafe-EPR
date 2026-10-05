@@ -8330,8 +8330,9 @@ assert(
   );
   const custSelectSrc = fs.readFileSync("./components/customers/customer-search-select.tsx", "utf8");
   assert(
-    custSelectSrc.includes("/^[6-9]\\d{9}$/.test(trimmed)") && custSelectSrc.includes("received.length === 1"),
-    "1569. Customer Search: 10-digit mobile number entry triggers instant single-match auto-select"
+    custSelectSrc.includes("toMobile10(trimmed)") && custSelectSrc.includes("received.length === 1") &&
+      custSelectSrc.includes("onCreateNew"),
+    "1569. Customer Search: 10-digit mobile (+91/0 tolerant) auto-select and inline create-new present"
   );
 
   // 2. Module 2: Auto Data Collection Modes in Scan Engine

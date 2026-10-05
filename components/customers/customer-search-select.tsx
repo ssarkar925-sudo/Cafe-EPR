@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { formatCustomerResult } from "@/lib/customer-search";
+import { formatCustomerResult, toMobile10 } from "@/lib/customer-search";
 
 export interface CustomerSearchResult {
   id: string;
@@ -31,6 +31,8 @@ interface CustomerSearchSelectProps {
   inputRef?: React.RefObject<HTMLInputElement | null>;
   /** "dark" (default): fixed dark styling for dark-only workspace pages. "auto": light/dark adaptive. */
   tone?: "dark" | "auto";
+  /** When set, shows a "Create new customer" row; receives the typed query for prefill. */
+  onCreateNew?: (query: string) => void;
 }
 
 const SEARCH_DEBOUNCE_MS = 300;
@@ -54,6 +56,7 @@ export default function CustomerSearchSelect({
   className = "",
   inputRef,
   tone = "dark",
+  onCreateNew,
 }: CustomerSearchSelectProps) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -104,8 +107,15 @@ export default function CustomerSearchSelect({
         const received = Array.isArray(data?.results) ? data.results : [];
         setResults(received);
         setActiveIndex(-1);
-        // Instant Auto-Fill: If operator enters a complete 10-digit phone number and exactly 1 active customer matches
-        if (/^[6-9]\d{9}$/.test(trimmed) && received.length === 1 && received[0].is_active) {
+        // Instant Auto-Fill: complete 10-digit mobile (accepts +91 / 0 prefix / spaces)
+        // and exactly 1 active customer whose phone matches.
+        const mobile = toMobile10(trimmed);
+        if (
+          mobile &&
+          received.length === 1 &&
+          received[0].is_active &&
+          toMobile10(received[0].phone ?? "") === mobile
+        ) {
           choose(received[0]);
         }
       } catch (err: any) {
@@ -154,6 +164,15 @@ export default function CustomerSearchSelect({
         e.preventDefault();
         if (walkInOffset === 1 && activeIndex === 0) choose(null);
         else choose(results[activeIndex - walkInOffset] ?? null);
+      } else if (
+        onCreateNew &&
+        !loading &&
+        results.length === 0 &&
+        query.trim().length >= MIN_QUERY_LENGTH
+      ) {
+        e.preventDefault();
+        setOpen(false);
+        onCreateNew(query.trim());
       }
     } else if (e.key === "Escape") {
       setOpen(false);
@@ -308,6 +327,24 @@ export default function CustomerSearchSelect({
             <div className={cx.empty}>
               No customers found. Check spelling, try the phone number, or create a new customer.
             </div>
+          )}
+          {!loading && onCreateNew && query.trim().length >= MIN_QUERY_LENGTH && (
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                const q = query.trim();
+                setOpen(false);
+                onCreateNew(q);
+              }}
+              className={`block w-full border-t px-3 py-2 text-left text-xs font-black ${
+                auto
+                  ? "border-slate-200 text-blue-700 hover:bg-blue-50 dark:border-slate-700 dark:text-cyan-300 dark:hover:bg-slate-800"
+                  : "border-[#2a3340] text-emerald-300 hover:bg-white/5"
+              }`}
+            >
+              + Create new customer “{query.trim()}”
+            </button>
           )}
         </div>
       )}

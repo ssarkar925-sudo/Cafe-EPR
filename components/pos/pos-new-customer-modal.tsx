@@ -1,20 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { PosCustomer } from "./pos-types";
 import Modal from "@/components/ui/modal";
 import { createCustomerRecord, DuplicateCustomerError } from "@/lib/customers";
+import { toMobile10 } from "@/lib/customer-search";
 
 export default function PosNewCustomerModal({
   open,
   onClose,
   supabase,
   onCustomerCreated,
+  initialQuery = "",
 }: {
   open: boolean;
   onClose: () => void;
   supabase: any;
   onCustomerCreated: (customer: PosCustomer) => void;
+  /** Text typed in the search box; digits prefill phone, otherwise name. */
+  initialQuery?: string;
 }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -22,6 +26,19 @@ export default function PosNewCustomerModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [duplicate, setDuplicate] = useState<{ id: string; name: string; phone?: string | null } | null>(null);
+
+  // Fresh form on every open, prefilled from the search query.
+  useEffect(() => {
+    if (!open) return;
+    const q = initialQuery.trim();
+    const looksLikePhone = q !== "" && /^[+\d\s-]+$/.test(q);
+    setName(looksLikePhone ? "" : q);
+    setPhone(looksLikePhone ? toMobile10(q) || q.replace(/\D/g, "") : "");
+    setGstin("");
+    setError(null);
+    setDuplicate(null);
+    setSaving(false);
+  }, [open, initialQuery]);
 
   if (!open) return null;
 
@@ -63,6 +80,13 @@ export default function PosNewCustomerModal({
       return;
     }
 
+    const rawPhone = phone.trim();
+    const mobile = rawPhone ? toMobile10(rawPhone) : "";
+    if (rawPhone && !mobile) {
+      setError("Enter a valid 10-digit mobile number (starting 6-9).");
+      return;
+    }
+
     try {
       setSaving(true);
       setError(null);
@@ -72,8 +96,8 @@ export default function PosNewCustomerModal({
       // Duplicate phones resolve to the existing profile, never a 2nd row.
       const data = await createCustomerRecord(supabase, {
         name: trimmedName,
-        phone: phone.trim() || null,
-        gstin: gstin.trim() || null,
+        phone: mobile || null,
+        gstin: gstin.trim().toUpperCase() || null,
         balance: 0,
       });
 

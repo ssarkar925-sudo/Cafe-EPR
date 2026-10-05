@@ -263,3 +263,15 @@ export function findDuplicateCandidates<T extends CustomerSearchRecord>(
   }
   return out;
 }
+
+/**
+ * Canonical Indian mobile: strips spaces, +91 / 91 / 0 / 00 prefixes and
+ * returns the 10-digit number if valid (starts 6-9), else "".
+ */
+export function toMobile10(value: string | null | undefined): string {
+  let d = String(value ?? "").replace(/\D/g, "");
+  if (d.startsWith("00")) d = d.slice(2);
+  if (d.length === 12 && d.startsWith("91")) d = d.slice(2);
+  if (d.length === 11 && d.startsWith("0")) d = d.slice(1);
+  return /^[6-9]\d{9}$/.test(d) ? d : "";
+}
