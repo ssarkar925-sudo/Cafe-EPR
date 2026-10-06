@@ -1,3 +1,4 @@
+// CafeCAM standalone native contract.
 #pragma once
 #include <guiddef.h>
 #include <cstdint>
