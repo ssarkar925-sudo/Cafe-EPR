@@ -11,3 +11,5 @@ The CafeERP Electron bridge invokes the manager through explicit arguments witho
 See native/THIRD_PARTY_NOTICES.md for Microsoft attribution.
 
 For end users, use the generated CafeCAM-Setup.exe installer; no source build steps are required.
+
+Release packaging is CI-generated; end users receive a single CafeCAM-Setup.exe.
