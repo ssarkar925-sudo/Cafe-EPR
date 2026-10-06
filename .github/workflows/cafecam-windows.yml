@@ -1,0 +1,84 @@
+name: CafeCAM Windows Build
+
+on:
+  push:
+    branches:
+      - release/cafecam-windows-installer
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Restore native packages
+        shell: powershell
+        run: nuget restore cafecam/native/CafeCAM.sln -PackagesDirectory cafecam/native/packages
+
+      - name: Build CafeCAM
+        shell: powershell
+        run: msbuild cafecam/native/CafeCAM.sln /m /p:Configuration=Release /p:Platform=x64
+
+      - name: Verify native payload
+        shell: powershell
+        run: |
+          if (-not (Test-Path cafecam/native/bin/x64/Release/CafeCamManager.exe)) { throw "CafeCamManager.exe missing" }
+          if (-not (Test-Path cafecam/native/bin/x64/Release/CafeCamMediaSource.dll)) { throw "CafeCamMediaSource.dll missing" }
+
+      - name: Create installer script
+        shell: powershell
+        run: |
+          $root = Join-Path $env:GITHUB_WORKSPACE "cafecam"
+          $bin = Join-Path $root "native/bin/x64/Release"
+          $managerB64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $bin "CafeCamManager.exe")))
+          $dllB64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $bin "CafeCamMediaSource.dll")))
+          $template = Get-Content (Join-Path $root "installer/CafeCAM-Setup.ps1") -Raw
+          $script = $template.Replace("__MANAGER_B64__", $managerB64).Replace("__DLL_B64__", $dllB64)
+          Set-Content (Join-Path $env:RUNNER_TEMP "CafeCAM-Setup.ps1") $script -Encoding UTF8
+
+      - name: Compile installer EXE
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          Install-Module -Name ps2exe -Repository PSGallery -Scope CurrentUser -Force -AllowClobber
+          Import-Module ps2exe
+          $root = Join-Path $env:GITHUB_WORKSPACE "cafecam"
+          $script = Join-Path $env:RUNNER_TEMP "CafeCAM-Setup.ps1"
+          $out = Join-Path $root "CafeCAM-Setup.exe"
+          Invoke-ps2exe -inputFile $script -outputFile $out -requireAdmin -noConsole -title "CafeCAM Setup" -description "CafeCAM Windows Virtual Camera Installer" -company "CafeCAM" -product "CafeCAM" -version "1.0.0.0"
+          if (-not (Test-Path $out)) { throw "CafeCAM-Setup.exe was not created" }
+
+      - name: Package payload
+        shell: powershell
+        run: |
+          $root = Join-Path $env:GITHUB_WORKSPACE "cafecam"
+          $payload = Join-Path $root "release-payload"
+          New-Item -ItemType Directory -Force -Path $payload | Out-Null
+          Copy-Item (Join-Path $root "native/bin/x64/Release/CafeCamManager.exe") $payload -Force
+          Copy-Item (Join-Path $root "native/bin/x64/Release/CafeCamMediaSource.dll") $payload -Force
+          Copy-Item (Join-Path $root "scripts/Uninstall-CafeCAM.ps1") $payload -Force
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: CafeCAM-Windows-Installer
+          path: cafecam/CafeCAM-Setup.exe
+
+      - name: Upload payload
+        uses: actions/upload-artifact@v4
+        with:
+          name: CafeCAM-Payload
+          path: cafecam/release-payload/**
+
+  contract-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: node scripts/test-cafecam-contract.mjs

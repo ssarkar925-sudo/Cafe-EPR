@@ -1,0 +1,10 @@
+// CafeCAM standalone native contract.
+#pragma once
+#include <guiddef.h>
+#include <cstdint>
+inline constexpr GUID kCafeCamClsid={0xc4e3f6b2,0x9b63,0x4c4f,{0x9d,0x7f,0x1d,0x30,0xe0,0xc6,0x5b,0x65}};
+inline constexpr GUID kCafeCamKindAttribute={0xb1f0f4d1,0x1d1d,0x4f1e,{0xa1,0xc2,0x83,0xc8,0x76,0xf4,0xc2,0xf1}};
+inline constexpr GUID kCafeCamDeviceInfoAttribute={0x30ae36e6,0xbd48,0x4a87,{0x9f,0x7e,0x5d,0x8b,0x5e,0x2f,0x3e,0x44}};
+inline constexpr wchar_t kCafeCamFriendlyName[]=L"CafeCAM";
+inline constexpr wchar_t kCafeCamSourceId[]=L"{C4E3F6B2-9B63-4C4F-9D7F-1D30E0C65B65}";
+enum class CafeCamKind:std::uint32_t{Synthetic=0,PhysicalWrapper=1,AugmentedWrapper=2};
