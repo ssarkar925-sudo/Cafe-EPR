@@ -42,5 +42,5 @@
 <Import Project="$(SolutionDir)packages\Microsoft.Windows.CppWinRT.3.0.260520.1\build\native\Microsoft.Windows.CppWinRT.targets" Condition="Exists('$(SolutionDir)packages\Microsoft.Windows.CppWinRT.3.0.260520.1\build\native\Microsoft.Windows.CppWinRT.targets')" />
 <Import Project="$(SolutionDir)packages\Microsoft.Windows.ImplementationLibrary.1.0.260126.7\build\native\Microsoft.Windows.ImplementationLibrary.targets" Condition="Exists('$(SolutionDir)packages\Microsoft.Windows.ImplementationLibrary.1.0.260126.7\build\native\Microsoft.Windows.ImplementationLibrary.targets')" />
 </ImportGroup>
-<PropertyGroup><CppWinRTPath>$(SolutionDir)packages\Microsoft.Windows.CppWinRT.3.0.260520.1\build\native\</CppWinRTPath></PropertyGroup>
+<PropertyGroup><CppWinRTPath>$(SolutionDir)packages\Microsoft.Windows.CppWinRT.3.0.260520.1\bin\</CppWinRTPath></PropertyGroup>
 </Project>
