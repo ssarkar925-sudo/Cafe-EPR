@@ -1,0 +1,131 @@
+name: CafeCAM Windows Build
+on:
+  push:
+    branches: [feat/cafecam-complete-v1, main]
+    paths: [cafecam/**, electron/cafecam.js, electron/main.js, electron/preload.js, 'app/(dashboard)/cafecam/**', components/sidebar.tsx, scripts/test-cafecam-contract.mjs]
+  pull_request:
+    branches: [main]
+    paths: [cafecam/**, electron/cafecam.js, electron/main.js, electron/preload.js, 'app/(dashboard)/cafecam/**', components/sidebar.tsx]
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
+      - name: Restore native packages
+        shell: powershell
+        run: nuget restore cafecam/native/CafeCAM.sln -PackagesDirectory cafecam/native/packages
+      - name: Build CafeCAM
+        shell: powershell
+        run: msbuild cafecam/native/CafeCAM.sln /m /p:Configuration=Release /p:Platform=x64
+      - name: Verify payload
+        shell: powershell
+        run: |
+          if (-not (Test-Path cafecam/native/bin/x64/Release/CafeCamManager.exe)) { throw 'CafeCamManager.exe missing' }
+          if (-not (Test-Path cafecam/native/bin/x64/Release/CafeCamMediaSource.dll)) { throw 'CafeCamMediaSource.dll missing' }
+      - name: Build one-click installer
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $env:GITHUB_WORKSPACE 'cafecam'
+          $bin = Join-Path $root 'native/bin/x64/Release'
+          $managerPath = Join-Path $bin 'CafeCamManager.exe'
+          $dllPath = Join-Path $bin 'CafeCamMediaSource.dll'
+          $out = Join-Path $root 'CafeCAM-Setup.exe'
+          $src = Join-Path $env:RUNNER_TEMP 'CafeCAMSetup.cs'
+          $manager64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($managerPath))
+          $dll64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($dllPath))
+          $code = @"
+using System;
+using System.Diagnostics;
+using System.IO;
+using System.Security.Principal;
+using System.Text;
+using System.Windows.Forms;
+using Microsoft.Win32;
+
+internal static class CafeCAMSetup
+{
+    const string InstallDirName = "CafeCAM";
+    const string Clsid = "{C4E3F6B2-9B63-4C4F-9D7F-1D30E0C65B65}";
+    const string ManagerB64 = "$manager64";
+    const string DllB64 = "$dll64";
+
+    [STAThread]
+    static int Main()
+    {
+        try
+        {
+            if (!IsAdmin())
+            {
+                var psi = new ProcessStartInfo(Application.ExecutablePath)
+                { UseShellExecute = true, Verb = "runas" };
+                Process.Start(psi);
+                return 0;
+            }
+
+            string installDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), InstallDirName);
+            Directory.CreateDirectory(installDir);
+            string manager = Path.Combine(installDir, "CafeCamManager.exe");
+            string dll = Path.Combine(installDir, "CafeCamMediaSource.dll");
+            File.WriteAllBytes(manager, Convert.FromBase64String(ManagerB64));
+            File.WriteAllBytes(dll, Convert.FromBase64String(DllB64));
+
+            var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
+            using (var clsid = baseKey.CreateSubKey(@"SOFTWARE\Classes\CLSID\" + Clsid))
+            using (var inproc = clsid.CreateSubKey("InprocServer32"))
+            {
+                clsid.SetValue(null, "CafeCAM Virtual Camera");
+                inproc.SetValue(null, dll);
+                inproc.SetValue("ThreadingModel", "Both");
+            }
+
+            using (var p = Process.Start(new ProcessStartInfo(manager, "install-synthetic")
+            { UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden }))
+            {
+                p.WaitForExit();
+                if (p.ExitCode != 0) throw new InvalidOperationException("Windows virtual camera registration failed.");
+            }
+
+            MessageBox.Show("CafeCAM is installed and ready.\n\nOpen OBS, Chrome, Teams, Meet, or another camera application and select \"CafeCAM\" as the camera.", "CafeCAM", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show("CafeCAM installation failed:\n\n" + ex.Message, "CafeCAM", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return 1;
+        }
+    }
+
+    static bool IsAdmin()
+    {
+        using (var id = WindowsIdentity.GetCurrent())
+        {
+            return new WindowsPrincipal(id).IsInRole(WindowsBuiltInRole.Administrator);
+        }
+    }
+}
+"@
+          Set-Content -Path $src -Value $code -Encoding UTF8
+          $csc = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+          if (-not (Test-Path $csc)) { throw 'C# compiler not found on Windows runner.' }
+          & $csc /nologo /target:winexe /platform:x64 /optimize+ /out:$out /r:System.Windows.Forms.dll $src
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path $out)) { throw 'CafeCAM-Setup.exe compilation failed.' }
+          Get-Item $out | Format-List FullName,Length,LastWriteTime
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CafeCAM-Windows-Installer
+          path: cafecam/CafeCAM-Setup.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CafeCAM-Payload
+          path: |
+            cafecam/native/bin/x64/Release/CafeCamManager.exe
+            cafecam/native/bin/x64/Release/CafeCamMediaSource.dll
+            cafecam/scripts/Install-CafeCAM.ps1
+            cafecam/scripts/Uninstall-CafeCAM.ps1
+  contract-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: node scripts/test-cafecam-contract.mjs
