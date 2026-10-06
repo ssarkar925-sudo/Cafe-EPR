@@ -1,3 +1,0 @@
-EXPORTS
-DllCanUnloadNow = WINRT_CanUnloadNow  PRIVATE
-DllGetClassObject                     PRIVATE

@@ -1,7 +1,6 @@
 const { app, BrowserWindow, ipcMain, Notification, clipboard } = require("electron");
 const path = require("path");
 const { AepsWatcher } = require("./aeps-watcher");
-const { runCafeCam } = require("./cafecam");
 
 let mainWindow = null;
 let clipboardTimer = null;
@@ -36,9 +35,9 @@ function configureMediaPermissions(webContentsSession) {
     const mediaTypes = Array.isArray(details?.mediaTypes)
       ? details.mediaTypes
       : [];
-    const requestsMedia = mediaTypes.length === 0 || mediaTypes.some((type) => type === "audio" || type === "video");
+    const requestsAudio = mediaTypes.length === 0 || mediaTypes.includes("audio");
 
-    if (permission === "media" && allowedOrigin && requestsMedia) {
+    if (permission === "media" && allowedOrigin && requestsAudio) {
       callback(true);
       return;
     }
@@ -56,7 +55,7 @@ function configureMediaPermissions(webContentsSession) {
 
       if (permission === "media" && isCafeErpOrigin(origin)) {
         const mediaType = details?.mediaType;
-        return !mediaType || mediaType === "audio" || mediaType === "video" || mediaType === "unknown";
+        return !mediaType || mediaType === "audio" || mediaType === "unknown";
       }
 
       return false;
@@ -351,18 +350,6 @@ ipcMain.handle("aeps-watcher-stop", async () => {
     };
   }
 });
-
-ipcMain.handle("cafecam-self-test", async () => runCafeCam(["self-test"]));
-ipcMain.handle("cafecam-status", async () => runCafeCam(["status"]));
-ipcMain.handle("cafecam-list-cameras", async () => runCafeCam(["list-cameras"]));
-ipcMain.handle("cafecam-install-synthetic", async () => runCafeCam(["install-synthetic"]));
-ipcMain.handle("cafecam-install-wrapper", async (_event, symbolicLink) => {
-  if (typeof symbolicLink !== "string" || symbolicLink.length < 8 || symbolicLink.length > 4096) {
-    return { success: false, error: "Invalid camera symbolic link." };
-  }
-  return runCafeCam(["install-wrapper", symbolicLink]);
-});
-ipcMain.handle("cafecam-remove", async () => runCafeCam(["remove"]));
 
 // IPC Handler for Windows Native Toast Notifications
 ipcMain.handle("show-notification", async (_event, options = {}) => {

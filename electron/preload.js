@@ -2,12 +2,6 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("electronAPI", {
   isElectron: true,
-  cafeCamSelfTest: () => ipcRenderer.invoke("cafecam-self-test"),
-  getCafeCamStatus: () => ipcRenderer.invoke("cafecam-status"),
-  listCafeCamCameras: () => ipcRenderer.invoke("cafecam-list-cameras"),
-  installCafeCamSynthetic: () => ipcRenderer.invoke("cafecam-install-synthetic"),
-  installCafeCamWrapper: (symbolicLink) => ipcRenderer.invoke("cafecam-install-wrapper", symbolicLink),
-  removeCafeCam: () => ipcRenderer.invoke("cafecam-remove"),
   platform: process.platform,
   printThermal: (options) => ipcRenderer.invoke("print-thermal", options),
   getPrinters: () => ipcRenderer.invoke("get-printers"),
