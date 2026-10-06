@@ -22,7 +22,7 @@
 <ClCompile Include="SimpleMediaStream.cpp" />
 <ClCompile Include="VirtualCameraMediaSourceActivate.cpp" />
 <ClCompile Include="dllmain.cpp" />
-<ClCompile Include="pch.cpp" />
+<ClCompile Include="pch.cpp"><PrecompiledHeader>Create</PrecompiledHeader></ClCompile>
 <ClCompile Include="winrtCommon.cpp" />
 </ItemGroup>
 <ItemGroup>
