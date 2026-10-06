@@ -1,0 +1,43 @@
+name: CafeCAM Windows Build
+on:
+  push:
+    branches: [feat/cafecam-complete-v1, main]
+    paths: [cafecam/**, electron/cafecam.js, electron/main.js, electron/preload.js, 'app/(dashboard)/cafecam/**', components/sidebar.tsx, scripts/test-cafecam-contract.mjs]
+  pull_request:
+    branches: [main]
+    paths: [cafecam/**, electron/cafecam.js, electron/main.js, electron/preload.js, 'app/(dashboard)/cafecam/**', components/sidebar.tsx]
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
+      - name: Restore native packages
+        shell: powershell
+        run: nuget restore cafecam/native/CafeCAM.sln -PackagesDirectory cafecam/native/packages
+      - name: Build CafeCAM
+        shell: powershell
+        run: msbuild cafecam/native/CafeCAM.sln /m /p:Configuration=Release /p:Platform=x64
+      - name: Verify payload
+        shell: powershell
+        run: |
+          if (-not (Test-Path cafecam/native/bin/x64/Release/CafeCamManager.exe)) { throw "CafeCamManager.exe missing" }
+          if (-not (Test-Path cafecam/native/bin/x64/Release/CafeCamMediaSource.dll)) { throw "CafeCamMediaSource.dll missing" }
+      - name: Package
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path cafecam/package | Out-Null
+          Copy-Item cafecam/native/bin/x64/Release/CafeCamManager.exe cafecam/package/ -Force
+          Copy-Item cafecam/native/bin/x64/Release/CafeCamMediaSource.dll cafecam/package/ -Force
+          Copy-Item cafecam/scripts/Install-CafeCAM.ps1 cafecam/package/ -Force
+          Copy-Item cafecam/scripts/Uninstall-CafeCAM.ps1 cafecam/package/ -Force
+          Compress-Archive -Path cafecam/package/* -DestinationPath cafecam/CafeCAM-x64.zip -Force
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CafeCAM-x64
+          path: cafecam/CafeCAM-x64.zip
+  contract-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: node scripts/test-cafecam-contract.mjs
