@@ -9,3 +9,5 @@ Windows 11, Visual Studio 2022/MSBuild and a Windows SDK with virtual-camera sup
 The CafeERP Electron bridge invokes the manager through explicit arguments without a shell. The dashboard page is at /cafecam.
 
 See native/THIRD_PARTY_NOTICES.md for Microsoft attribution.
+
+For end users, use the generated CafeCAM-Setup.exe installer; no source build steps are required.
